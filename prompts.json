@@ -1,0 +1,82 @@
+[
+  {
+    "title": "Code Review",
+    "description": "Deep review of recent changes for bugs, style, and best practices",
+    "prompt": "Review all recently modified files in this project. Look for bugs, security issues, performance problems, and code style violations. Provide specific line-level feedback with suggested fixes."
+  },
+  {
+    "title": "Explain Codebase",
+    "description": "Get a high-level overview of the project architecture",
+    "prompt": "Analyze this project's structure and give me a concise overview: what it does, the tech stack, key directories, entry points, and how the main components connect. Keep it under 300 words."
+  },
+  {
+    "title": "Find Bugs",
+    "description": "Scan for potential bugs, edge cases, and error-prone patterns",
+    "prompt": "Scan this codebase for potential bugs, unhandled edge cases, race conditions, null reference risks, and error-prone patterns. Prioritize by severity and suggest fixes for each."
+  },
+  {
+    "title": "Write Tests",
+    "description": "Generate unit tests for untested or under-tested code",
+    "prompt": "Identify the most critical untested functions and modules in this project. Write comprehensive unit tests for them, covering happy paths, edge cases, and error scenarios. Use the project's existing test framework if one exists."
+  },
+  {
+    "title": "Refactor",
+    "description": "Identify code smells and suggest clean refactoring",
+    "prompt": "Find the top code smells in this project: duplicated logic, overly complex functions, deep nesting, god classes, magic numbers, and tight coupling. For each, propose a clean refactoring with before/after examples."
+  },
+  {
+    "title": "Security Audit",
+    "description": "Check for OWASP top 10 and common security vulnerabilities",
+    "prompt": "Perform a security audit on this codebase. Check for OWASP top 10 vulnerabilities: injection, broken auth, sensitive data exposure, XSS, insecure deserialization, and misconfigurations. Flag each issue with severity and remediation steps."
+  },
+  {
+    "title": "Performance Check",
+    "description": "Find bottlenecks, slow queries, and optimization opportunities",
+    "prompt": "Analyze this codebase for performance issues: N+1 queries, unnecessary re-renders, missing indexes, unoptimized loops, large bundle imports, memory leaks, and missing caching opportunities. Rank by impact and suggest fixes."
+  },
+  {
+    "title": "Add Types",
+    "description": "Add TypeScript types or JSDoc annotations to untyped code",
+    "prompt": "Find functions and modules lacking proper type annotations. Add TypeScript types or JSDoc comments as appropriate for this project. Focus on public APIs, function signatures, and complex data structures."
+  },
+  {
+    "title": "Dead Code",
+    "description": "Find and remove unused code, imports, and dependencies",
+    "prompt": "Find all dead code in this project: unused functions, unreachable branches, unused imports, unused variables, and unused dependencies in package.json. List each with its file location so I can safely remove them."
+  },
+  {
+    "title": "API Docs",
+    "description": "Generate API documentation from route handlers",
+    "prompt": "Find all API endpoints/routes in this project and generate documentation for each: method, path, request params/body, response shape, auth requirements, and example curl commands."
+  },
+  {
+    "title": "Dependency Check",
+    "description": "Audit dependencies for updates, vulnerabilities, and bloat",
+    "prompt": "Review this project's dependencies. Check for: outdated packages that need updates, known vulnerabilities, unnecessarily heavy packages with lighter alternatives, and unused dependencies that can be removed."
+  },
+  {
+    "title": "Error Handling",
+    "description": "Improve error handling, logging, and user-facing messages",
+    "prompt": "Review error handling across this codebase. Find: unhandled promise rejections, empty catch blocks, missing try/catch around I/O operations, unclear error messages, and missing error logging. Add proper handling where needed."
+  },
+  {
+    "title": "Git Summary",
+    "description": "Summarize recent git changes and their impact",
+    "prompt": "Run git log for the last 20 commits and git diff for any uncommitted changes. Summarize: what changed, why it likely changed, any risky modifications, and suggest a commit message if there are uncommitted changes."
+  },
+  {
+    "title": "TODO Cleanup",
+    "description": "Find all TODOs, FIXMEs, and HACKs and resolve them",
+    "prompt": "Search for all TODO, FIXME, HACK, XXX, and WORKAROUND comments in the codebase. For each one, either implement the fix or explain why it should stay. Prioritize by importance."
+  },
+  {
+    "title": "Env Setup",
+    "description": "Verify environment config, .env files, and missing variables",
+    "prompt": "Check the project's environment setup: verify .env files exist with all required variables, check that .env is gitignored, find hardcoded secrets or config values that should be environment variables, and verify the README documents all required env vars."
+  },
+  {
+    "title": "Quick Fix",
+    "description": "Fix linting errors and auto-fixable code style issues",
+    "prompt": "Run the project's linter (eslint, prettier, or whatever is configured) and fix all auto-fixable issues. For non-auto-fixable issues, apply the fixes manually. Show me what changed."
+  }
+]

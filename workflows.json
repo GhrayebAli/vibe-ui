@@ -1,0 +1,59 @@
+[
+  {
+    "id": "review-pr",
+    "title": "Review PR",
+    "description": "Analyze current changes, identify issues, and suggest improvements",
+    "steps": [
+      {
+        "label": "Analyze changes",
+        "prompt": "Run `git diff` to see the current unstaged changes and `git diff --cached` for staged changes. Summarize what files were modified and what the changes do at a high level."
+      },
+      {
+        "label": "Identify issues",
+        "prompt": "Based on the changes you just analyzed, identify any bugs, security issues, performance problems, or code style violations. Be specific about file names and line numbers."
+      },
+      {
+        "label": "Suggest improvements",
+        "prompt": "Based on your analysis, provide a prioritized list of concrete improvements. For each suggestion, explain the rationale and show the recommended code change."
+      }
+    ]
+  },
+  {
+    "id": "onboard-repo",
+    "title": "Onboard Me to This Repo",
+    "description": "Get a comprehensive overview of the repository structure and architecture",
+    "steps": [
+      {
+        "label": "Map structure",
+        "prompt": "Explore the repository structure. List the top-level directories and key files. Identify the tech stack, frameworks, and languages used."
+      },
+      {
+        "label": "Explain architecture",
+        "prompt": "Based on your exploration, explain the architecture of this project. Cover: entry points, routing, data flow, key abstractions, and how the major components interact."
+      },
+      {
+        "label": "Development guide",
+        "prompt": "Provide a quick-start development guide: how to install dependencies, run the project locally, run tests, and the typical development workflow. Also note any important conventions or patterns used in the codebase."
+      }
+    ]
+  },
+  {
+    "id": "migration-plan",
+    "title": "Generate Migration Plan",
+    "description": "Create a detailed plan for migrating or upgrading the codebase",
+    "steps": [
+      {
+        "label": "Audit dependencies",
+        "prompt": "Read the package.json (or equivalent dependency file) and identify outdated dependencies, deprecated packages, or version conflicts. List what needs to be updated or replaced."
+      },
+      {
+        "label": "Assess impact",
+        "prompt": "For each dependency or pattern that needs updating, assess the impact: how many files are affected, what breaking changes exist, and what the risk level is (low/medium/high)."
+      },
+      {
+        "label": "Create migration plan",
+        "prompt": "Create a step-by-step migration plan ordered by priority and risk. Each step should include: what to change, files affected, estimated effort, and any rollback strategy. Format as a clear checklist."
+      }
+    ]
+  }
+]

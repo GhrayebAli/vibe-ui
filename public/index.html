@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>shawkat-ai :: terminal</title>
+  <link rel="stylesheet" href="style.css">
+  <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+</head>
+<body>
+  <header class="top-header">
+    <div class="term-line">
+      <span class="term-prompt">&gt;</span>
+      <span class="term-cmd">claude</span>
+      <span class="term-dot" id="connection-dot"></span>
+      <span class="term-status" id="connection-text">connecting</span>
+      <span class="term-sep">&middot;</span>
+      <span class="term-user" id="account-email">---</span>
+      <span class="term-plan" id="account-plan"></span>
+    </div>
+    <div class="term-costs">
+      <span id="streaming-tokens" class="streaming-tokens hidden">~0 tokens</span>
+      <span class="term-cost-label">proj</span>
+      <span class="term-cost-value" id="project-cost">$0.00</span>
+      <span class="term-cost-pipe">&#x2503;</span>
+      <span class="term-cost-label">all</span>
+      <span class="term-cost-value" id="total-cost">$0.00</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>shawkat-ai</h1>
+        <button id="theme-toggle-btn" class="theme-toggle-btn" title="Toggle light/dark theme">
+          <svg id="theme-icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg id="theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="folder-picker">
+        <div class="folder-picker-header">
+          <label for="project-select">Project <span id="system-prompt-badge" class="system-prompt-badge hidden" title="System prompt configured">SP</span></label>
+          <button id="system-prompt-edit-btn" class="system-prompt-edit-btn" title="Edit system prompt">&#9881;</button>
+        </div>
+        <select id="project-select">
+          <option value="">Select a project...</option>
+        </select>
+      </div>
+
+      <div class="sessions-section">
+        <h2>Sessions</h2>
+        <div class="session-search-wrapper">
+          <input id="session-search" type="text" placeholder="Search sessions..." autocomplete="off">
+        </div>
+        <button id="new-session-btn" class="btn-secondary">+ New Session</button>
+        <div class="mode-toggle">
+          <label class="toggle-switch" title="Toggle parallel chat mode (2x2 grid)">
+            <input type="checkbox" id="toggle-parallel-btn">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Parallel Mode</span>
+          </label>
+        </div>
+        <ul id="session-list" class="session-list"></ul>
+      </div>
+    </aside>
+
+    <!-- Main Chat Area -->
+    <main class="chat-area">
+      <div id="messages" class="messages"></div>
+
+      <div class="input-bar">
+        <button id="workflow-btn" title="Workflows" class="toolbox-toggle">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+        </button>
+        <button id="attach-btn" title="Attach files" class="toolbox-toggle" style="position:relative;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+          </svg>
+          <span id="attach-badge" class="attach-badge hidden">0</span>
+        </button>
+        <button id="toolbox-btn" title="Prompt Toolbox" class="toolbox-toggle">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
+          </svg>
+        </button>
+        <textarea id="message-input" placeholder="> type a message or / for commands..." rows="1"></textarea>
+        <button id="send-btn" title="Send">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M3 10l7-7m0 0l7 7m-7-7v14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="rotate(90, 10, 10)"/>
+          </svg>
+        </button>
+        <button id="stop-btn" title="Stop" class="hidden">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <rect x="4" y="4" width="12" height="12" rx="2" fill="currentColor"/>
+          </svg>
+        </button>
+        <div id="slash-autocomplete" class="slash-autocomplete hidden"></div>
+      </div>
+      <div id="toolbox-panel" class="toolbox-panel hidden"></div>
+      <div id="workflow-panel" class="toolbox-panel hidden"></div>
+    </main>
+  </div>
+
+  <!-- Add Prompt Modal -->
+  <div id="prompt-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>New Prompt</h3>
+        <button id="modal-close" class="modal-close">&times;</button>
+      </div>
+      <form id="prompt-form">
+        <label for="prompt-title">Title</label>
+        <input id="prompt-title" type="text" placeholder="e.g. Optimize Imports" required>
+        <label for="prompt-desc">Description</label>
+        <input id="prompt-desc" type="text" placeholder="Short description of what it does" required>
+        <label for="prompt-text">Prompt</label>
+        <textarea id="prompt-text" rows="4" placeholder="The full prompt to send to Claude..." required></textarea>
+        <div class="modal-actions">
+          <button type="button" id="modal-cancel" class="modal-btn-cancel">Cancel</button>
+          <button type="submit" class="modal-btn-save">Save Prompt</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- System Prompt Modal -->
+  <div id="system-prompt-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>System Prompt</h3>
+        <button id="sp-modal-close" class="modal-close">&times;</button>
+      </div>
+      <form id="system-prompt-form">
+        <label for="sp-textarea">Custom instructions for Claude in this project</label>
+        <textarea id="sp-textarea" rows="8" placeholder="e.g., You are an expert in React + TypeScript. This is a monorepo..."></textarea>
+        <div class="modal-actions">
+          <button type="button" id="sp-clear-btn" class="modal-btn-cancel">Clear</button>
+          <button type="button" id="sp-cancel-btn" class="modal-btn-cancel">Cancel</button>
+          <button type="submit" class="modal-btn-save">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- File Picker Modal -->
+  <div id="file-picker-modal" class="modal-overlay hidden">
+    <div class="modal file-picker-modal">
+      <div class="modal-header">
+        <h3>Attach Files</h3>
+        <button id="fp-modal-close" class="modal-close">&times;</button>
+      </div>
+      <input id="fp-search" type="text" class="file-picker-search" placeholder="Search files..." autocomplete="off">
+      <div id="fp-list" class="file-picker-list"></div>
+      <div class="file-picker-footer">
+        <span id="fp-count">0 files selected</span>
+        <button id="fp-done-btn" class="modal-btn-save">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div id="shortcuts-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Keyboard Shortcuts</h3>
+        <button id="shortcuts-modal-close" class="modal-close">&times;</button>
+      </div>
+      <table class="shortcuts-table">
+        <tr><td><span class="kbd">&#8984;K</span></td><td>Focus session search</td></tr>
+        <tr><td><span class="kbd">&#8984;N</span></td><td>New session</td></tr>
+        <tr><td><span class="kbd">&#8984;/</span></td><td>Show keyboard shortcuts</td></tr>
+        <tr><td><span class="kbd">&#8984;1</span>–<span class="kbd">&#8984;4</span></td><td>Focus parallel pane 1–4</td></tr>
+        <tr><td><span class="kbd">Esc</span></td><td>Close any open modal</td></tr>
+        <tr><td><span class="kbd">Enter</span></td><td>Send message</td></tr>
+        <tr><td><span class="kbd">Shift+Enter</span></td><td>New line in input</td></tr>
+        <tr><td><span class="kbd">/</span></td><td>Slash commands autocomplete</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Cost Dashboard Modal -->
+  <div id="cost-dashboard-modal" class="modal-overlay hidden">
+    <div class="modal cost-dashboard-modal">
+      <div class="modal-header">
+        <h3>Cost Dashboard</h3>
+        <button id="cost-modal-close" class="modal-close">&times;</button>
+      </div>
+      <div id="cost-dashboard-content">
+        <div class="cost-summary-cards" id="cost-summary-cards"></div>
+        <div class="cost-table-container">
+          <table class="cost-table">
+            <thead>
+              <tr>
+                <th data-sort="title">Session</th>
+                <th data-sort="turns">Turns</th>
+                <th data-sort="cost">Cost</th>
+              </tr>
+            </thead>
+            <tbody id="cost-table-body"></tbody>
+          </table>
+        </div>
+        <div class="cost-chart-section">
+          <h4>Daily Costs (Last 30 Days)</h4>
+          <div class="cost-chart" id="cost-chart"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
