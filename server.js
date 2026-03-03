@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
@@ -14,6 +15,7 @@ import statsRouter from "./server/routes/stats.js";
 import filesRouter from "./server/routes/files.js";
 import workflowsRouter from "./server/routes/workflows.js";
 import execRouter from "./server/routes/exec.js";
+import linearRouter from "./server/routes/linear.js";
 import { setupWebSocket } from "./server/ws-handler.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -61,6 +63,7 @@ app.get("/api/account", (req, res, next) => {
 app.use("/api/files", filesRouter);
 app.use("/api/workflows", workflowsRouter);
 app.use("/api/exec", execRouter);
+app.use("/api/linear", linearRouter);
 
 // WebSocket
 setupWebSocket(wss, sessionIds);

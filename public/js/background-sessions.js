@@ -161,7 +161,6 @@ function cancelModal() {
 function initConfirmDialog() {
   // Cancel — close modal, revert dropdown
   $.bgConfirmCancel.addEventListener("click", cancelModal);
-  $.bgConfirmClose.addEventListener("click", cancelModal);
 
   // Abort — stop generation, then proceed
   $.bgConfirmAbort.addEventListener("click", async () => {
@@ -238,10 +237,12 @@ function initConfirmDialog() {
     if (proceed) proceed();
   });
 
-  // Click outside modal to cancel
-  $.bgConfirmModal.addEventListener("click", (e) => {
-    if (e.target === $.bgConfirmModal) cancelModal();
-  });
+  // Prevent Escape from closing this modal (handled in capture phase before shortcuts.js)
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$.bgConfirmModal.classList.contains("hidden")) {
+      e.stopImmediatePropagation();
+    }
+  }, true);
 }
 
 // ── WS disconnect handler ──

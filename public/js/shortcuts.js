@@ -6,7 +6,7 @@ import { panes } from './parallel.js';
 import { registerCommand } from './commands.js';
 
 function closeAllModals() {
-  document.querySelectorAll(".modal-overlay").forEach((m) => m.classList.add("hidden"));
+  document.querySelectorAll(".modal-overlay:not([data-persistent])").forEach((m) => m.classList.add("hidden"));
 }
 
 document.getElementById("shortcuts-modal-close").addEventListener("click", () => {

@@ -31,6 +31,12 @@
       <span class="term-plan" id="account-plan"></span>
     </div>
     <span class="term-project-name" id="header-project-name"></span>
+    <button id="linear-toggle-btn" class="linear-toggle-btn" title="Toggle Linear tasks panel">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+      </svg>
+      Tasks
+    </button>
     <div class="term-costs">
       <span id="streaming-tokens" class="streaming-tokens hidden">~0 tokens</span>
       <span class="term-cost-label">proj</span>
@@ -120,6 +126,25 @@
       <div id="toolbox-panel" class="toolbox-panel hidden"></div>
       <div id="workflow-panel" class="toolbox-panel hidden"></div>
     </main>
+
+    <!-- Linear Tasks Panel -->
+    <aside id="linear-panel" class="linear-panel hidden">
+      <div class="linear-panel-header">
+        <h3>Linear Tasks</h3>
+        <div class="linear-panel-actions">
+          <button id="linear-create-btn" title="Create issue">+</button>
+          <button id="linear-refresh-btn" title="Refresh issues">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+          </button>
+          <button id="linear-close-btn" title="Close panel">&times;</button>
+        </div>
+      </div>
+      <div id="linear-issues-list" class="linear-issues"></div>
+      <div id="linear-footer" class="linear-panel-footer"></div>
+    </aside>
   </div>
 
   <!-- Add Prompt Modal -->
@@ -230,11 +255,10 @@
   </div>
 
   <!-- Background Session Confirmation Dialog -->
-  <div id="bg-confirm-modal" class="modal-overlay hidden">
+  <div id="bg-confirm-modal" class="modal-overlay hidden" data-persistent>
     <div class="modal bg-confirm-modal">
       <div class="modal-header">
         <h3>Session In Progress</h3>
-        <button id="bg-confirm-close" class="modal-close">&times;</button>
       </div>
       <p class="bg-confirm-text">Claude is still responding in this session. What would you like to do?</p>
       <div class="modal-actions bg-confirm-actions">
@@ -246,11 +270,10 @@
   </div>
 
   <!-- Permission Approval Modal -->
-  <div id="perm-modal" class="modal-overlay hidden">
+  <div id="perm-modal" class="modal-overlay hidden" data-persistent>
     <div class="modal perm-modal">
       <div class="modal-header perm-modal-header">
         <h3><span class="perm-tool-icon">&#9888;</span> <span id="perm-modal-tool-name">Tool Approval</span></h3>
-        <button id="perm-modal-close" class="modal-close">&times;</button>
       </div>
       <span id="perm-bg-badge" class="perm-bg-badge hidden"></span>
       <div id="perm-modal-summary" class="perm-modal-summary"></div>
@@ -266,6 +289,34 @@
         <button id="perm-deny-btn" class="perm-deny-btn">Deny</button>
         <button id="perm-allow-btn" class="perm-allow-btn">Allow</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Linear Create Issue Modal -->
+  <div id="linear-create-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Create Issue</h3>
+        <button id="linear-create-close" class="modal-close">&times;</button>
+      </div>
+      <form id="linear-create-form">
+        <label for="linear-create-title">Title</label>
+        <input id="linear-create-title" type="text" placeholder="Issue title" required>
+        <label for="linear-create-desc">Description</label>
+        <textarea id="linear-create-desc" rows="3" placeholder="Optional description..."></textarea>
+        <label for="linear-create-team">Project (Team)</label>
+        <select id="linear-create-team" required>
+          <option value="">Select a team...</option>
+        </select>
+        <label for="linear-create-state">State</label>
+        <select id="linear-create-state" disabled>
+          <option value="">Select a team first...</option>
+        </select>
+        <div class="modal-actions">
+          <button type="button" id="linear-create-cancel" class="modal-btn-cancel">Cancel</button>
+          <button type="submit" id="linear-create-submit" class="modal-btn-save">Create</button>
+        </div>
+      </form>
     </div>
   </div>
 

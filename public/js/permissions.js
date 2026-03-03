@@ -108,11 +108,10 @@ function sendPermissionResponse(id, behavior) {
   }
 }
 
-// Escape key — capture phase so it fires before shortcuts.js closeAllModals
+// Block Escape from closing this modal (capture phase, before shortcuts.js closeAllModals)
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && activeRequest && !$.permModal.classList.contains('hidden')) {
     e.stopImmediatePropagation();
-    handleDeny();
   }
 }, true);
 
@@ -139,12 +138,6 @@ function initPermissions() {
   // Button handlers
   $.permAllowBtn?.addEventListener('click', handleAllow);
   $.permDenyBtn?.addEventListener('click', handleDeny);
-  $.permModalClose?.addEventListener('click', handleDeny);
-
-  // Click overlay to deny
-  $.permModal?.addEventListener('click', (e) => {
-    if (e.target === $.permModal) handleDeny();
-  });
 }
 
 initPermissions();

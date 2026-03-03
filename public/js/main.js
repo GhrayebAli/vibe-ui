@@ -23,3 +23,4 @@ import './cost-dashboard.js';
 import './permissions.js';
 import './shortcuts.js';
 import './chat.js';
+import './linear-panel.js';

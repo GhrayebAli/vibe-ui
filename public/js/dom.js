@@ -76,14 +76,32 @@ export const $ = {
   permAlwaysAllowTool: document.getElementById("perm-always-allow-tool"),
   permAllowBtn: document.getElementById("perm-allow-btn"),
   permDenyBtn: document.getElementById("perm-deny-btn"),
-  permModalClose: document.getElementById("perm-modal-close"),
 
   // Background sessions
   bgConfirmModal: document.getElementById("bg-confirm-modal"),
   bgConfirmCancel: document.getElementById("bg-confirm-cancel"),
   bgConfirmAbort: document.getElementById("bg-confirm-abort"),
   bgConfirmBackground: document.getElementById("bg-confirm-background"),
-  bgConfirmClose: document.getElementById("bg-confirm-close"),
   bgSessionIndicator: document.getElementById("bg-session-indicator"),
   bgSessionBadge: document.getElementById("bg-session-badge"),
+
+  // Linear panel
+  linearPanel: document.getElementById("linear-panel"),
+  linearToggleBtn: document.getElementById("linear-toggle-btn"),
+  linearRefreshBtn: document.getElementById("linear-refresh-btn"),
+  linearCloseBtn: document.getElementById("linear-close-btn"),
+  linearIssuesList: document.getElementById("linear-issues-list"),
+  linearFooter: document.getElementById("linear-footer"),
+
+  // Linear create issue
+  linearCreateBtn: document.getElementById("linear-create-btn"),
+  linearCreateModal: document.getElementById("linear-create-modal"),
+  linearCreateForm: document.getElementById("linear-create-form"),
+  linearCreateTitle: document.getElementById("linear-create-title"),
+  linearCreateDesc: document.getElementById("linear-create-desc"),
+  linearCreateTeam: document.getElementById("linear-create-team"),
+  linearCreateState: document.getElementById("linear-create-state"),
+  linearCreateClose: document.getElementById("linear-create-close"),
+  linearCreateCancel: document.getElementById("linear-create-cancel"),
+  linearCreateSubmit: document.getElementById("linear-create-submit"),
 };

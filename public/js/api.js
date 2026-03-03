@@ -133,3 +133,28 @@ export async function execCommand(command, cwd) {
   });
   return res.json();
 }
+
+export async function fetchLinearIssues() {
+  const res = await fetch("/api/linear/issues");
+  return res.json();
+}
+
+export async function fetchLinearTeams() {
+  const res = await fetch("/api/linear/teams");
+  return res.json();
+}
+
+export async function fetchLinearTeamStates(teamId) {
+  const res = await fetch(`/api/linear/teams/${encodeURIComponent(teamId)}/states`);
+  return res.json();
+}
+
+export async function createLinearIssue({ title, description, teamId, stateId }) {
+  const res = await fetch("/api/linear/issues", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, description, teamId, stateId }),
+  });
+  if (!res.ok) throw new Error("Failed to create issue");
+  return res.json();
+}
