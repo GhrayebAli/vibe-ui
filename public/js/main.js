@@ -22,6 +22,7 @@ import './workflows.js';
 import './cost-dashboard.js';
 import './permissions.js';
 import './model-selector.js';
+import './max-turns.js';
 import './right-panel.js';
 import './shortcuts.js';
 import './chat.js';

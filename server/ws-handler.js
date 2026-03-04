@@ -1,4 +1,6 @@
 import { query } from "@anthropic-ai/claude-code";
+import { execPath } from "process";
+import { existsSync } from "fs";
 import {
   createSession,
   updateClaudeSessionId,
@@ -312,11 +314,13 @@ export function setupWebSocket(wss, sessionIds) {
           const effectivePermMode = wfPermMode || "bypass";
           const useBypass = effectivePermMode === "bypass";
           const usePlan = effectivePermMode === "plan";
+          const wfCwd = (cwd && existsSync(cwd)) ? cwd : process.env.HOME;
           const stepOpts = {
-            cwd: cwd || process.env.HOME,
+            cwd: wfCwd,
             permissionMode: usePlan ? "plan" : (useBypass ? "bypassPermissions" : "default"),
             abortController,
             maxTurns: 30,
+            executable: execPath,
           };
 
           if (!useBypass && !usePlan) {
@@ -359,7 +363,7 @@ export function setupWebSocket(wss, sessionIds) {
       // Chat handler
       if (msg.type !== "chat") return;
 
-      const { message, cwd, sessionId: clientSid, projectName, chatId, permissionMode: clientPermMode, model: chatModel } = msg;
+      const { message, cwd, sessionId: clientSid, projectName, chatId, permissionMode: clientPermMode, model: chatModel, maxTurns: clientMaxTurns } = msg;
       const queryKey = chatId || "__default__";
 
       const sessionKey = chatId ? `${clientSid}::${chatId}` : clientSid;
@@ -373,12 +377,17 @@ export function setupWebSocket(wss, sessionIds) {
       const effectivePermMode = clientPermMode || "bypass";
       const useBypass = effectivePermMode === "bypass";
       const usePlan = effectivePermMode === "plan";
+      const resolvedCwd = (cwd && existsSync(cwd)) ? cwd : process.env.HOME;
+      const stderrChunks = [];
+      const effectiveMaxTurns = clientMaxTurns > 0 ? clientMaxTurns : undefined;
       const opts = {
-        cwd: cwd || process.env.HOME,
+        cwd: resolvedCwd,
         permissionMode: usePlan ? "plan" : (useBypass ? "bypassPermissions" : "default"),
         abortController,
-        maxTurns: 30,
+        executable: execPath,
+        stderr: (text) => stderrChunks.push(text),
       };
+      if (effectiveMaxTurns) opts.maxTurns = effectiveMaxTurns;
 
       if (!useBypass && !usePlan) {
         opts.canUseTool = makeCanUseTool(ws, pendingApprovals, effectivePermMode, chatId);
@@ -401,12 +410,10 @@ export function setupWebSocket(wss, sessionIds) {
       // Register for global tracking if we already know the session
       if (clientSid) registerGlobalQuery(clientSid, queryKey);
 
-      try {
-        const q = query({ prompt: message, options: opts });
+      async function runQuery(queryOpts) {
+        const q = query({ prompt: message, options: queryOpts });
         activeQueries.set(queryKey, { abort: () => abortController.abort() });
 
-        // Process the stream — user message and title set here
-        let sessionCreated = false;
         let claudeSessionId = null;
 
         for await (const sdkMsg of q) {
@@ -465,8 +472,18 @@ export function setupWebSocket(wss, sessionIds) {
               if (sid) addCost(sid, sdkMsg.total_cost_usd || 0, sdkMsg.duration_ms || 0, sdkMsg.num_turns || 0, inputTokens, outputTokens);
               wsSend({ type: "result", duration_ms: sdkMsg.duration_ms, num_turns: sdkMsg.num_turns, cost_usd: sdkMsg.total_cost_usd, totalCost: getTotalCost(), input_tokens: inputTokens, output_tokens: outputTokens });
               if (resolvedSid) addMessage(resolvedSid, "result", JSON.stringify({ duration_ms: sdkMsg.duration_ms, num_turns: sdkMsg.num_turns, cost_usd: sdkMsg.total_cost_usd, input_tokens: inputTokens, output_tokens: outputTokens }), chatId || null);
+            } else if (sdkMsg.subtype === "error_max_turns") {
+              // Max turns reached — treat as a normal completion with a notice
+              const sid = resolvedSid || [...sessionIds.entries()].find(([, v]) => v === claudeSessionId)?.[0];
+              const inputTokens = sdkMsg.usage?.input_tokens || 0;
+              const outputTokens = sdkMsg.usage?.output_tokens || 0;
+              if (sid) addCost(sid, sdkMsg.total_cost_usd || 0, sdkMsg.duration_ms || 0, sdkMsg.num_turns || 0, inputTokens, outputTokens);
+              wsSend({ type: "result", duration_ms: sdkMsg.duration_ms, num_turns: sdkMsg.num_turns, cost_usd: sdkMsg.total_cost_usd, totalCost: getTotalCost(), input_tokens: inputTokens, output_tokens: outputTokens });
+              wsSend({ type: "error", error: `Reached max turns limit (${sdkMsg.num_turns}). Send another message to continue.` });
             } else if (sdkMsg.subtype?.startsWith("error")) {
-              wsSend({ type: "error", error: sdkMsg.errors?.join(", ") || "Unknown error" });
+              const errMsg = sdkMsg.errors?.join(", ") || sdkMsg.error || sdkMsg.message || "Unknown error";
+              console.error("SDK result error:", JSON.stringify(sdkMsg));
+              wsSend({ type: "error", error: errMsg });
             }
             continue;
           }
@@ -484,14 +501,37 @@ export function setupWebSocket(wss, sessionIds) {
             continue;
           }
         }
+      }
 
+      try {
+        await runQuery(opts);
         wsSend({ type: "done" });
       } catch (err) {
         if (err.name === "AbortError") {
           wsSend({ type: "aborted" });
         } else {
-          console.error("Query error:", err);
-          wsSend({ type: "error", error: err.message });
+          const stderrOutput = stderrChunks.join("");
+          // Retry without resume if the Claude session no longer exists
+          if (opts.resume && stderrOutput.includes("No conversation found")) {
+            console.warn("Stale session", opts.resume, "— retrying without resume");
+            delete opts.resume;
+            sessionIds.delete(sessionKey);
+            stderrChunks.length = 0;
+            try {
+              await runQuery(opts);
+              wsSend({ type: "done" });
+            } catch (retryErr) {
+              if (retryErr.name === "AbortError") {
+                wsSend({ type: "aborted" });
+              } else {
+                console.error("Query retry error:", retryErr.message);
+                wsSend({ type: "error", error: retryErr.message });
+              }
+            }
+          } else {
+            console.error("Query error:", err.message, stderrOutput ? "\nstderr: " + stderrOutput : "");
+            wsSend({ type: "error", error: err.message });
+          }
         }
       } finally {
         activeQueries.delete(queryKey);

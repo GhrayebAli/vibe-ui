@@ -3,10 +3,14 @@
   padding: 8px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
 
 .file-explorer-search {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 4px 8px;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -19,6 +23,29 @@
 
 .file-explorer-search:focus {
   border-color: var(--accent);
+}
+
+.file-refresh-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.file-refresh-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.file-refresh-btn.spinning svg {
+  animation: linearSpin 0.6s linear infinite;
 }
 
 /* Tree */

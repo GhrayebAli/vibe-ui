@@ -1,8 +1,23 @@
 /* ── Permission / Tool Approval ────────────────────────── */
 
-/* Header mode selector + model selector */
-.perm-mode-selector select,
-.model-selector select {
+/* Header controls — shared wrapper for label + select pairs */
+.header-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-control-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  user-select: none;
+}
+
+.header-control select {
   background: var(--bg-tertiary);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -17,14 +32,12 @@
   appearance: none;
 }
 
-.perm-mode-selector select:hover,
-.model-selector select:hover {
+.header-control select:hover {
   border-color: var(--text-dim);
   color: var(--text);
 }
 
-.perm-mode-selector select:focus,
-.model-selector select:focus {
+.header-control select:focus {
   border-color: var(--accent);
   color: var(--text);
 }

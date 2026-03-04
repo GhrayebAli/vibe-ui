@@ -69,6 +69,9 @@ export const $ = {
   // Model selector
   modelSelect: document.getElementById("model-select"),
 
+  // Max turns selector
+  maxTurnsSelect: document.getElementById("max-turns-select"),
+
   // Permissions
   permModeSelect: document.getElementById("perm-mode-select"),
   permModal: document.getElementById("perm-modal"),
@@ -100,6 +103,7 @@ export const $ = {
 
   // File explorer (inside right panel files tab)
   fileExplorerSearch: document.getElementById("file-explorer-search"),
+  fileRefreshBtn: document.getElementById("file-refresh-btn"),
   fileTree: document.getElementById("file-tree"),
   filePreview: document.getElementById("file-preview"),
   filePreviewName: document.getElementById("file-preview-name"),

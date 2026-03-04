@@ -109,6 +109,9 @@ function renderSessions(sessions) {
         loadSessions();
       });
     });
+    // Right-click context menu with dev info
+    li.addEventListener("contextmenu", (e) => showSessionContextMenu(e, s));
+
     // Show blinking dot for background sessions
     const bgMap = getState("backgroundSessions");
     if (bgMap && bgMap.has(s.id)) {
@@ -205,6 +208,58 @@ export async function loadPaneMessages(sid, chatId) {
     console.error(`Failed to load messages for ${chatId}:`, err);
   }
 }
+
+// ── Session Context Menu ────────────────────────────────
+let sessionCtxMenu = null;
+
+function hideSessionContextMenu() {
+  if (sessionCtxMenu) {
+    sessionCtxMenu.remove();
+    sessionCtxMenu = null;
+  }
+}
+
+function showSessionContextMenu(e, session) {
+  e.preventDefault();
+  hideSessionContextMenu();
+
+  const items = [
+    { label: "Copy Session ID", value: session.id },
+    { label: "Copy Claude Session ID", value: session.claude_session_id || "(none)" },
+    { label: "Copy Project Path", value: session.project_path || "(none)" },
+    { label: "Copy Title", value: session.title || session.project_name || "(none)" },
+  ];
+
+  sessionCtxMenu = document.createElement("div");
+  sessionCtxMenu.className = "session-ctx-menu";
+
+  for (const item of items) {
+    const btn = document.createElement("button");
+    btn.innerHTML = `<span class="ctx-label">${escapeHtml(item.label)}</span><span class="ctx-value">${escapeHtml(String(item.value).slice(0, 40))}</span>`;
+    btn.addEventListener("click", () => {
+      navigator.clipboard.writeText(item.value);
+      btn.querySelector(".ctx-label").textContent = "Copied!";
+      setTimeout(hideSessionContextMenu, 400);
+    });
+    sessionCtxMenu.appendChild(btn);
+  }
+
+  sessionCtxMenu.style.left = e.clientX + "px";
+  sessionCtxMenu.style.top = e.clientY + "px";
+  document.body.appendChild(sessionCtxMenu);
+
+  // Keep within viewport
+  const rect = sessionCtxMenu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) sessionCtxMenu.style.left = (e.clientX - rect.width) + "px";
+  if (rect.bottom > window.innerHeight) sessionCtxMenu.style.top = (e.clientY - rect.height) + "px";
+}
+
+document.addEventListener("click", (e) => {
+  if (sessionCtxMenu && !sessionCtxMenu.contains(e.target)) hideSessionContextMenu();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") hideSessionContextMenu();
+});
 
 // Session search with debounce
 let searchDebounceTimer = null;

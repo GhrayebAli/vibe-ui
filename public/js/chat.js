@@ -20,6 +20,7 @@ import * as api from './api.js';
 import { isBackgroundSession, removeBackgroundSession, showCompletionToast, reconcileBackgroundSessions } from './background-sessions.js';
 import { enqueuePermissionRequest, getPermissionMode, clearSessionPermissions } from './permissions.js';
 import { getSelectedModel } from './model-selector.js';
+import { getMaxTurns } from './max-turns.js';
 
 export function sendMessage(pane) {
   pane = pane || getPane(null);
@@ -121,6 +122,8 @@ export function sendMessage(pane) {
     permissionMode: getPermissionMode(),
   };
   if (model) payload.model = model;
+  const maxTurns = getMaxTurns();
+  if (maxTurns) payload.maxTurns = maxTurns;
 
   if (parallelMode && pane.chatId) {
     payload.chatId = pane.chatId;

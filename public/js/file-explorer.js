@@ -250,8 +250,22 @@ function resetExplorer() {
   closePreview();
 }
 
+async function refreshFileTree() {
+  $.fileRefreshBtn.classList.add("spinning");
+  try {
+    treeCache.clear();
+    currentProject = null;
+    searchMode = false;
+    $.fileExplorerSearch.value = "";
+    await loadRootTree();
+  } finally {
+    $.fileRefreshBtn.classList.remove("spinning");
+  }
+}
+
 function initFileExplorer() {
   $.filePreviewClose.addEventListener("click", closePreview);
+  $.fileRefreshBtn.addEventListener("click", () => refreshFileTree());
 
   $.fileExplorerSearch.addEventListener("input", (e) => {
     clearTimeout(searchDebounce);

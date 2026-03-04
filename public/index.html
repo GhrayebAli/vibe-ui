@@ -24,7 +24,8 @@
         <span id="bg-session-badge">0</span> bg
       </span>
       <span class="term-sep">&middot;</span>
-      <span class="perm-mode-selector">
+      <span class="header-control">
+        <label class="header-control-label">approval</label>
         <select id="perm-mode-select" title="Tool approval mode">
           <option value="bypass">bypass</option>
           <option value="confirmDangerous" selected>confirm writes</option>
@@ -33,12 +34,24 @@
         </select>
       </span>
       <span class="term-sep">&middot;</span>
-      <span class="model-selector">
+      <span class="header-control">
+        <label class="header-control-label">model</label>
         <select id="model-select" title="Model">
           <option value="">auto</option>
           <option value="sonnet">sonnet</option>
           <option value="opus">opus</option>
           <option value="haiku">haiku</option>
+        </select>
+      </span>
+      <span class="term-sep">&middot;</span>
+      <span class="header-control">
+        <label class="header-control-label">turns</label>
+        <select id="max-turns-select" title="Max turns per query">
+          <option value="10">10</option>
+          <option value="30" selected>30</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="0">unlimited</option>
         </select>
       </span>
       <span class="term-sep">&middot;</span>
@@ -180,6 +193,12 @@
         <div class="right-panel-pane" data-tab="files">
           <div class="file-explorer-toolbar">
             <input id="file-explorer-search" type="text" placeholder="Filter files..." autocomplete="off" class="file-explorer-search">
+            <button id="file-refresh-btn" class="file-refresh-btn" title="Refresh file tree">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+            </button>
           </div>
           <div id="file-tree" class="file-tree"></div>
           <div id="file-preview" class="file-preview hidden">
