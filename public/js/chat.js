@@ -214,7 +214,7 @@ function handleServerMessage(msg) {
       break;
 
     case "tool":
-      appendToolIndicator(msg.name, msg.input, pane);
+      appendToolIndicator(msg.name, msg.input, pane, msg.id);
       showThinking(`Running ${msg.name}...`, pane);
       break;
 

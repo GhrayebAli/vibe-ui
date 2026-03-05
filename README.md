@@ -36,27 +36,28 @@ Requires Node.js 18+ and a valid Claude Code CLI authentication (`claude auth lo
 ```
 browser ──────── WebSocket ──────── server.js ──────── Claude Code SDK
    |                                    |
-   ├── js/main.js (entry point)       ├── server/routes/ (9 route modules)
+   ├── js/main.js (entry point)       ├── server/routes/ (10 route modules)
    │   ├── store.js (reactive state)  ├── server/ws-handler.js
    │   ├── ws.js (WebSocket client)   ├── db.js (SQLite)
    │   ├── api.js (fetch calls)       ├── folders.json (projects)
    │   ├── chat.js, messages.js ...   ├── prompts.json (16 templates)
-   │   └── 19 more modules            └── workflows.json (3 workflows)
-   ├── css/ (16 focused stylesheets)
+   │   └── 25+ more modules           └── workflows.json (3 workflows)
+   ├── css/ (20 focused stylesheets)
    └── index.html
 ```
 
 - **WebSocket** streams assistant text, tool calls, and results in real time
 - **Reconnect with backoff** — exponential backoff (2s → 4s → 8s → ... → 30s cap, 0-25% jitter), distinct `ws:reconnected` event triggers state sync
 - **State sync on reconnect** — reconciles background sessions, resets streaming panes, reloads messages from DB, refreshes session list
-- **Modular frontend** — 26 ES modules (`<script type="module">`) with no bundler
+- **Modular frontend** — 30+ ES modules (`<script type="module">`) with no bundler
 - **Reactive store** — centralized pub/sub state management across modules
 - **Event bus** — decoupled cross-module communication
-- **Modular backend** — 9 Express Router modules + shared WS handler
+- **Modular backend** — 10 Express Router modules + shared WS handler
 - **SQLite + WAL** persists sessions, messages, costs, and Claude session mappings
 - **Indexed queries** — 6 indexes for fast lookups on messages, costs, sessions
 - **Prepared statements** for all DB queries (no SQL injection risk)
 - **Session resumption** via stored Claude session IDs (survives page reloads)
+- **Stale session auto-retry** — if a Claude session no longer exists, automatically retries without `--resume`
 - **Session ID persistence** — active session saved to `localStorage`, restored on page load with auto-message loading
 - **AbortController** for mid-stream cancellation
 - **Server-side abort on disconnect** — all active SDK streams are aborted when a client disconnects (no lingering processes)
@@ -133,6 +134,9 @@ Migrations run automatically on startup (ADD COLUMN with try/catch).
 | Method | Path                          | Description                                  |
 | ------ | ----------------------------- | -------------------------------------------- |
 | GET    | /api/projects                 | List projects from folders.json              |
+| POST   | /api/projects                 | Add new project (name + path, validates dir exists, 409 on duplicate) |
+| DELETE | /api/projects                 | Remove project by path (entry only, not files)|
+| GET    | /api/projects/browse          | Browse server directories (defaults to $HOME, skips hidden dirs) |
 | PUT    | /api/projects/system-prompt   | Save per-project system prompt               |
 | GET    | /api/projects/commands        | Load commands & skills from project `.claude/`|
 
@@ -149,6 +153,15 @@ Migrations run automatically on startup (ADD COLUMN with try/catch).
 | GET    | /api/workflows     | List workflows                           |
 | GET    | /api/files         | Recursive file listing (depth 3, max 500)|
 | GET    | /api/files/content | Read file content (50KB limit)           |
+| GET    | /api/files/tree    | Lazy tree listing (immediate children)   |
+| GET    | /api/files/search  | Recursive name search (LIKE %query%, max 50) |
+
+### MCP Server Management
+| Method | Path                    | Description                            |
+| ------ | ----------------------- | -------------------------------------- |
+| GET    | /api/mcp/servers        | List mcpServers from ~/.claude/settings.json |
+| PUT    | /api/mcp/servers/:name  | Create or update MCP server config     |
+| DELETE | /api/mcp/servers/:name  | Remove MCP server                      |
 
 ### Linear Integration
 | Method | Path                              | Description                                      |
@@ -169,16 +182,16 @@ Migrations run automatically on startup (ADD COLUMN with try/catch).
 ### WebSocket (`/ws`)
 
 **Outgoing** (client to server):
-- `{ type: "chat", message, cwd, sessionId, projectName, chatId, permissionMode }` — send a message
-- `{ type: "workflow", workflow, cwd, sessionId, projectName, permissionMode }` — run a workflow
+- `{ type: "chat", message, cwd, sessionId, projectName, chatId, permissionMode, model, maxTurns }` — send a message
+- `{ type: "workflow", workflow, cwd, sessionId, projectName, permissionMode, model }` — run a workflow
 - `{ type: "abort", chatId? }` — stop generation
 - `{ type: "permission_response", id, behavior }` — approve (`"allow"`) or deny (`"deny"`) a tool call
 
 **Incoming** (server to client):
 - `session` — session created/resumed
 - `text` — streamed assistant text
-- `tool` — tool called (name + input)
-- `tool_result` — tool execution result
+- `tool` — tool called (id + name + input)
+- `tool_result` — tool execution result (linked to tool by id)
 - `result` — query complete (cost, duration, turns)
 - `error` / `aborted` / `done` — terminal states
 - `workflow_started` / `workflow_step` / `workflow_completed` — workflow progress
@@ -206,7 +219,29 @@ All streamed messages include `sessionId` so the client can route background ses
 - Injected into every query for that project
 - Hint in modal: if a `CLAUDE.md` file exists in the project root, the SDK includes it automatically
 
-### 3. AI Workflows
+### 3. Add Project via UI
+- "+" button in the sidebar project picker opens a folder browser modal
+- Server-side directory browsing — navigates the host filesystem (defaults to `$HOME`)
+- Clickable breadcrumb path segments for quick navigation up
+- Directory list with parent directory (..) navigation
+- Hidden directories (`.git`, `.cache`, etc.) are excluded from listing
+- Project name auto-populated from the selected folder's basename
+- Duplicate path detection (client + server side, 409 response)
+- Path validation — server verifies the directory exists via `stat()`
+- New project immediately appears in the dropdown and is auto-selected
+- Security: resolved paths validated, no traversal beyond filesystem root
+
+### 4. Tool Execution Indicators
+- Spinning loader on tool indicators while executing (e.g. Bash, Read, Grep)
+- Pulsing left border animation during "running" state
+- In-place result update — spinner replaced by checkmark (or X for errors)
+- Tool use ID linking — server sends `block.id`, client matches `tool_result` back to the originating indicator
+- Result preview shown inline under the tool name (first 150 chars)
+- Green/red left border for success/error states
+- Expandable body shows full tool input + result
+- Saved messages load without spinners (already complete)
+
+### 5. AI Workflows
 Three pre-built multi-step workflows:
 - **Review PR** — analyze changes, identify issues, suggest improvements
 - **Onboard Repo** — map structure, explain architecture, dev guide
@@ -214,44 +249,47 @@ Three pre-built multi-step workflows:
 
 Each workflow chains prompts sequentially with context passing and step progress indicators.
 
-### 4. Code Diff Viewer
+### 6. Code Diff Viewer
 - LCS-based line diff algorithm for Edit tool output
 - Green/red highlighting (additions/removals)
 - Additions-only view for Write tool output
 - Collapsible tool indicators for other tools
 
-### 5. File Attachments
+### 7. File Attachments
 - File picker modal with recursive tree (depth 3, max 500 files)
 - Search/filter files by name
 - Multi-select with badge count
 - Files prepended as `<file path="...">` blocks
 - 50KB per-file limit with path traversal protection
 
-### 6. Session Management
+### 8. Session Management
 - Title search with debounced input (200ms)
 - Double-click to rename sessions inline
 - Pin/unpin sessions (pinned sort to top)
 - Delete sessions with cascade (messages, costs, claude mappings)
 - Mode detection badges: single, parallel, both
 
-### 7. Cost Dashboard
+### 9. Cost Dashboard
 - Click the cost display in the header to open
 - Summary cards: total, project, today
 - Per-session cost table (sortable by title, turns, cost)
 - Daily cost bar chart (30-day rolling window)
 
-### 8. Keyboard Shortcuts
-| Shortcut     | Action                    |
-| ------------ | ------------------------- |
-| `Cmd+K`      | Focus session search      |
-| `Cmd+N`      | New session               |
-| `Cmd+/`      | Show shortcuts modal      |
-| `Cmd+1`–`4`  | Focus parallel pane 1–4   |
-| `Escape`     | Close any open modal      |
-| `Enter`      | Send message              |
-| `Shift+Enter`| New line in input         |
+### 10. Keyboard Shortcuts
+| Shortcut       | Action                    |
+| -------------- | ------------------------- |
+| `Cmd+K`        | Focus session search      |
+| `Cmd+N`        | New session               |
+| `Cmd+/`        | Show shortcuts modal      |
+| `Cmd+B`        | Toggle right panel        |
+| `Cmd+Shift+E`  | Open Files tab            |
+| `Cmd+Shift+G`  | Open Git tab              |
+| `Cmd+1`–`4`    | Focus parallel pane 1–4   |
+| `Escape`       | Close any open modal      |
+| `Enter`        | Send message              |
+| `Shift+Enter`  | New line in input         |
 
-### 9. Response Formatting
+### 11. Response Formatting
 - Syntax highlighting via highlight.js (language auto-detection for all code blocks)
 - Code blocks with language header bar (e.g. "JAVASCRIPT", "PYTHON", "BASH") — 50+ language labels
 - Copy button in the header bar ("Copied!" feedback)
@@ -263,30 +301,30 @@ Each workflow chains prompts sequentially with context passing and step progress
 - Horizontal rules, links (open in new tab)
 - User messages styled with "YOU" label badge, accent bar, and distinct background
 
-### 10. Export
+### 12. Export
 - `/export md` — download as Markdown
 - `/export html` — download as styled HTML document
 - `@media print` CSS for clean browser PDF export
 
-### 11. Session Pinning
+### 13. Session Pinning
 - Pushpin icon on each session in the sidebar
 - Pinned sessions always sort above unpinned
 - Toggle via click or `PUT /api/sessions/:id/pin`
 
-### 12. Prompt Variables / Templates
+### 14. Prompt Variables / Templates
 - Prompts with `{{variable}}` placeholders
 - Clicking a prompt with variables shows a fill-in form
 - Each variable gets a labeled input field
 - On submit, variables are replaced and the message is sent
 - Works from both toolbox cards and slash commands
 
-### 13. Streaming Token Counter
+### 15. Streaming Token Counter
 - `~N tokens` estimation appears in the header during streaming
 - Calculates as `chars / 4` (standard estimation)
 - Pulsing accent-colored animation
 - Auto-hides on stream completion
 
-### 15. Project Commands & Skills
+### 16. Project Commands & Skills
 - Recursively reads `.claude/commands/**/*.md` and `.claude/skills/*/SKILL.md` from the selected project
 - Registered as slash commands with `project` (red) and `skill` (blue) badges in autocomplete
 - Commands with `$ARGUMENTS` wait for user input (e.g. `/deploy testing`)
@@ -294,12 +332,12 @@ Each workflow chains prompts sequentially with context passing and step progress
 - Commands reload on project switch — each project gets its own set
 - Project/skill commands sort first in autocomplete for quick access
 
-### 16. Active Project in Header
+### 17. Active Project in Header
 - Selected project name displayed bold and centered in the header bar
 - Uppercase accent-colored text
 - Updates dynamically on project switch
 
-### 17. Dark/Light Theme Toggle
+### 18. Dark/Light Theme Toggle
 - Sun/moon toggle button in sidebar header
 - Dark theme: deep blacks (#050508) with terminal green (#33d17a) accents
 - Light theme: warm off-white (#fafaf8) with muted greens
@@ -308,7 +346,7 @@ Each workflow chains prompts sequentially with context passing and step progress
 - Switches Mermaid theme (dark / default)
 - `/theme` slash command
 
-### 18. Permission / Tool Approval
+### 19. Permission / Tool Approval
 Three permission modes selectable from the header dropdown:
 - **Bypass** — all tool calls auto-approved (original behavior)
 - **Confirm Writes** (default) — read-only tools (Read, Glob, Grep, WebSearch, etc.) auto-approve; write/execute tools (Bash, Edit, Write, etc.) show an approval modal
@@ -329,14 +367,14 @@ Behavior:
 - Mode persisted to `localStorage`
 - WebSocket disconnect auto-denies all pending approvals
 
-### 19. PWA / Install as App
+### 20. PWA / Install as App
 - Installable from Chrome's address bar (⊕ icon) on localhost
 - Runs in a standalone window (no browser chrome)
 - Web App Manifest with app name, theme color, and icons (192x192 + 512x512)
 - Minimal service worker with fetch pass-through (no offline caching — localhost app)
 - Apple touch icon and `apple-mobile-web-app-capable` meta for iOS/Safari
 
-### 20. Background Sessions
+### 21. Background Sessions
 When switching sessions or projects while Claude is mid-stream, a confirmation dialog offers three options:
 - **Cancel** — stay on the current session, revert the project dropdown
 - **Abort Session** — stop generation immediately, then switch
@@ -356,7 +394,7 @@ Background session behavior:
 
 The guard dialog intercepts session clicks, project switches, and the New Session button.
 
-### 21. Linear Integration
+### 22. Linear Integration
 Side panel for viewing and creating Linear issues directly from the app:
 - **Tasks panel** — toggle via header button; shows assigned open issues with priority, state, labels, due date
 - **Create issue** — modal with title, description, team selector, and workflow state (loaded dynamically per team)
@@ -365,7 +403,67 @@ Side panel for viewing and creating Linear issues directly from the app:
 - Panel state (open/closed) persisted to `localStorage`
 - Requires `LINEAR_API_KEY` env var (gracefully degrades with hint if missing)
 
-### 22. Persistent Confirmation Modals
+### 23. Tabbed Right Panel
+The right side of the UI hosts a resizable tabbed panel with three tabs:
+- **Tasks** — Linear issues (from the Linear integration)
+- **Files** — file explorer
+- **Git** — git integration
+
+Panel state (open/closed), active tab, and width are persisted to `localStorage`. Resizable by dragging the left edge. Toggle via header button or `Cmd+B`.
+
+### 24. File Explorer
+Lazy-loaded tree view in the Files tab:
+- **Lazy loading** — root dirs load on tab open; subdirs load on click (cached in memory)
+- **Tree items** — chevron (rotates on expand) + folder/file SVG icon + name, indented by depth
+- **File preview** — click a file to see syntax-highlighted content in a split preview pane (bottom half)
+- **Server-side search** — type in the filter input to search file/folder names recursively (LIKE %query%, debounced 250ms, max 50 results)
+- **Search results** — flat list with filename prominent + relative path dimmed
+- **Refresh button** — clears cache and reloads tree from disk (picks up newly created files)
+- **Context menu** — right-click any file/folder for "Copy Full Path" and "Copy Relative Path"
+- **Drag to chat** — drag files from the tree into the message input to insert the file path
+- Resets on project switch; skips .git, node_modules, dist, build, etc.
+
+### 25. Git Integration
+Git panel in the Git tab — all operations via `POST /api/exec`:
+- **Branch selector** — dropdown lists all branches, current branch pre-selected, change triggers `git checkout`
+- **Status groups** — "Staged Changes", "Changes", "Untracked" with color-coded badges (M/A/D/R/?)
+- **Stage/unstage** — click +/- buttons to `git add` or `git reset HEAD` individual files
+- **Commit** — textarea + button, shows error feedback, clears on success
+- **Log** — last 10 commits with hash (accent), subject, and relative time
+- **Refresh** — spinning refresh button reloads branches, status, and log
+- Auto-refreshes on tab switch and project switch
+
+### 26. MCP Server Management
+Modal UI for managing MCP servers in `~/.claude/settings.json`:
+- **Server cards** — name, type badge (stdio/sse/http), command/URL detail, edit/delete buttons
+- **Add form** — type selector toggles between stdio fields (command, args, env) and URL fields (url, headers)
+- **Edit** — pre-fills form, name field disabled
+- **Delete** — confirmation dialog
+- Open via header MCP button or `/mcp` slash command
+
+### 27. Max Turns Selector
+Configurable max turns per query via header dropdown:
+- Options: 10, 30 (default), 50, 100, unlimited
+- Sent from client to server with each query
+- "Unlimited" omits the `maxTurns` option (no cap)
+- `error_max_turns` handled gracefully — shows cost summary + "Reached max turns limit (N). Send another message to continue."
+- Persisted to `localStorage`
+
+### 28. Session Context Menu
+Right-click any session card in the sidebar for developer info:
+- Copy Session ID (our internal UUID)
+- Copy Claude Session ID (SDK session for `--resume`)
+- Copy Project Path
+- Copy Title
+- Click to copy with "Copied!" confirmation; closes on outside click or Escape
+
+### 29. Header Control Labels
+All header dropdowns now have uppercase labels for clarity:
+- **approval** — tool approval mode
+- **model** — model selector
+- **turns** — max turns per query
+
+### 30. Persistent Confirmation Modals
 The background-session and permission approval modals are persistent — they can only be dismissed via their action buttons. Overlay clicks, Escape key, and close buttons are disabled to prevent accidental dismissal of critical decisions.
 
 ---
@@ -385,6 +483,9 @@ The background-session and permission approval modals are persistent — they ca
 | /shortcuts       | Show keyboard shortcuts        |
 | /theme           | Toggle dark/light theme        |
 | /costs           | Open cost dashboard            |
+| /files           | Open Files tab in right panel  |
+| /git             | Open Git tab in right panel    |
+| /mcp             | Open MCP server manager modal  |
 
 ### CLI
 | Command       | Description                     |
@@ -497,9 +598,10 @@ Supports `{{variable}}` placeholders that show a fill-in form.
 All colors are CSS custom properties on `:root` (defined in `css/variables.css`). The light theme overrides them via `html[data-theme="light"]`. No page reload required.
 
 ### Layout
-- **Header** (36px): connection status, background session indicator, permission mode selector, account info, active project name (centered), cost display, token counter
-- **Sidebar** (272px): project selector, session search, session list, parallel toggle
+- **Header** (36px): connection status, background session indicator, labeled dropdowns (approval, model, turns), account info, active project name (centered), MCP button, panel toggle, cost display, token counter
+- **Sidebar** (272px): project selector (with add project button), session search, session list (with right-click context menu), parallel toggle
 - **Main area**: messages (820px max-width), input bar, toolbox/workflow panels
+- **Right panel** (300px, resizable): tabbed container with Tasks (Linear), Files (explorer + preview), Git (status + commit + log)
 
 ---
 
@@ -511,18 +613,19 @@ shawkat-ai/
 ├── db.js                  SQLite layer with indexes + prepared statements
 ├── .env.example           Environment variable template
 ├── server/
-│   ├── ws-handler.js      WebSocket handler with shared processSdkStream()
+│   ├── ws-handler.js      WebSocket handler with stale session retry + stderr capture
 │   └── routes/
 │       ├── projects.js    Project CRUD + system prompts + commands
 │       ├── sessions.js    Session CRUD + pin/unpin
 │       ├── messages.js    Message queries (all, by chat, single-mode)
 │       ├── prompts.js     Prompt template CRUD
 │       ├── stats.js       Cost stats + dashboard + account info
-│       ├── files.js       File listing + content reading
+│       ├── files.js       File listing + content + tree + search
 │       ├── workflows.js   Workflow listing
 │       ├── exec.js        Shell command execution
-│       └── linear.js      Linear API proxy (issues, teams, states)
-├── package.json           5 dependencies
+│       ├── linear.js      Linear API proxy (issues, teams, states)
+│       └── mcp.js         MCP server CRUD (~/.claude/settings.json)
+├── package.json           5 runtime dependencies
 ├── folders.json           Project configurations
 ├── prompts.json           16 prompt templates
 ├── workflows.json         3 multi-step workflows
@@ -539,7 +642,7 @@ shawkat-ai/
     │   ├── variables.css      CSS custom properties + light theme
     │   ├── reset.css          Box-sizing reset + body
     │   ├── layout.css         Header bar + main layout
-    │   ├── sessions.css       Sidebar, folder picker, session list, mode toggle
+    │   ├── sessions.css       Sidebar, session list, session context menu
     │   ├── messages.css       Chat area, messages, tools, input bar, code blocks
     │   ├── parallel.css       2x2 chat grid + pane overrides
     │   ├── modals.css         Modal overlay + form styles
@@ -548,7 +651,11 @@ shawkat-ai/
     │   ├── file-picker.css    File picker modal + attach badge
     │   ├── cost-dashboard.css Cost dashboard cards, table, chart
     │   ├── background-sessions.css Confirm dialog, toast notifications, bg indicator
-    │   ├── permissions.css    Permission modal + mode selector styles
+    │   ├── permissions.css    Header control labels + permission modal styles
+    │   ├── right-panel.css    Tabbed right panel + resize handle
+    │   ├── file-explorer.css  File tree, search, preview, context menu, refresh
+    │   ├── git-panel.css      Git status, staging, commit, log, branches
+    │   ├── mcp-manager.css    MCP server modal, cards, form
     │   ├── linear-panel.css   Linear tasks panel + create issue modal
     │   ├── theme.css          Scanline overlay, animations, scrollbar
     │   └── print.css          Print-friendly styles
@@ -568,7 +675,7 @@ shawkat-ai/
         ├── commands.js        Slash command registry + autocomplete
         ├── messages.js        Message rendering (user, assistant, tool, status)
         ├── parallel.js        Parallel mode (2x2 pane grid)
-        ├── sessions.js        Session list, search, load, delete, rename
+        ├── sessions.js        Session list, search, load, delete, rename, context menu
         ├── projects.js        Project selection, system prompts, commands
         ├── attachments.js     File picker + attachment management
         ├── prompts.js         Prompt toolbox + variable templates
@@ -576,9 +683,14 @@ shawkat-ai/
         ├── cost-dashboard.js  Cost dashboard (cards, table, bar chart)
         ├── background-sessions.js Guard switch, bg tracking, toasts, indicator
         ├── permissions.js     Permission modes, approval queue, modal logic
+        ├── model-selector.js  Model selection dropdown (auto/sonnet/opus/haiku)
+        ├── max-turns.js       Max turns selector (10/30/50/100/unlimited)
+        ├── right-panel.js     Tabbed right panel (Tasks/Files/Git) + resize
+        ├── file-explorer.js   File tree, lazy loading, search, context menu, drag
+        ├── git-panel.js       Git status, staging, commit, branch, log
+        ├── mcp-manager.js     MCP server CRUD modal
         ├── linear-panel.js    Linear tasks panel + create issue modal
         ├── shortcuts.js       Global keyboard shortcuts
-        ├── model-selector.js  Model selection dropdown (auto/sonnet/opus/haiku)
         └── chat.js            Send/stop logic, WS message handler, boot
 ```
 
@@ -587,10 +699,12 @@ shawkat-ai/
 ## Security
 
 - **Tool approval** — three permission modes (bypass, confirm writes, confirm all) with approve/deny modal for dangerous tool calls
-- **Path traversal protection** on file read endpoint
+- **Path traversal protection** on file read and browse endpoints
+- **Browse endpoint security** — resolved path validation, hidden directory filtering, directory existence check via `stat()`
 - **File size limits** (50KB) on content reading
-- **Directory depth limits** (3 levels) on file listing
-- **Skipped directories**: .git, node_modules, dist, build, __pycache__, .venv, coverage
+- **Directory depth limits** (3 levels on listing, 8 levels on search)
+- **Skipped directories**: .git, node_modules, dist, build, __pycache__, .venv, coverage, .cache, .turbo, .nyc_output
+- **CWD validation** — verifies working directory exists before spawning SDK process (fallback to HOME)
 - **CLI timeout**: 30 seconds, 512KB buffer limit
 - **Prepared statements**: All SQL queries use parameterized statements
 - **CORS**: Not explicitly configured (local-only use)
@@ -604,7 +718,6 @@ The following data flows through the app at runtime but is **not** saved to the 
 ### SDK Result Fields
 | Field | Notes |
 | ----- | ----- |
-| `input_tokens` / `output_tokens` | Only `cost_usd` is saved — raw token counts are dropped |
 | `model` | Which model was used (e.g. claude-sonnet-4-20250514) is not recorded |
 | `stop_reason` | Why generation stopped (end_turn, max_tokens, tool_use) is not logged |
 
@@ -628,7 +741,11 @@ The following data flows through the app at runtime but is **not** saved to the 
 | --- | ---- |
 | `shawkat-ai-theme` | Dark/light theme preference |
 | `shawkat-perm-mode` | Permission mode (bypass / confirmDangerous / confirmAll) |
-| `shawkat-linear-panel` | Linear panel open/closed state |
+| `shawkat-model` | Selected model (auto/sonnet/opus/haiku) |
+| `shawkat-max-turns` | Max turns per query (10/30/50/100/0) |
+| `shawkat-right-panel` | Right panel open/closed state |
+| `shawkat-right-panel-tab` | Active right panel tab (tasks/files/git) |
+| `shawkat-right-panel-width` | Right panel width in pixels |
 | `shawkat-ai-session-id` | Active session ID (restored on page load with auto-message loading) |
 | `shawkat-ai-bg-sessions` | Background sessions map (serialized, survives disconnects and page refreshes) |
 | `shawkat-ai-cwd` | Last selected project path |

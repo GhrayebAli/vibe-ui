@@ -99,7 +99,10 @@
       <div class="folder-picker">
         <div class="folder-picker-header">
           <label for="project-select">Project <span id="system-prompt-badge" class="system-prompt-badge hidden" title="System prompt configured">SP</span></label>
-          <button id="system-prompt-edit-btn" class="system-prompt-edit-btn" title="Edit system prompt">&#9881;</button>
+          <div class="folder-picker-actions">
+            <button id="add-project-btn" class="add-project-btn" title="Add project">+</button>
+            <button id="system-prompt-edit-btn" class="system-prompt-edit-btn" title="Edit system prompt">&#9881;</button>
+          </div>
         </div>
         <select id="project-select">
           <option value="">Select a project...</option>
@@ -451,6 +454,24 @@
       </div>
       <div class="mcp-modal-footer">
         <button id="mcp-add-btn" class="modal-btn-save">+ Add Server</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Project Modal -->
+  <div id="add-project-modal" class="modal-overlay hidden">
+    <div class="modal add-project-modal">
+      <div class="modal-header">
+        <h3>Add Project</h3>
+        <button id="add-project-close" class="modal-close">&times;</button>
+      </div>
+      <div class="add-project-body">
+        <div id="folder-breadcrumb" class="folder-breadcrumb"></div>
+        <div id="folder-list" class="folder-list"></div>
+        <div class="folder-select-row">
+          <input id="add-project-name" type="text" placeholder="Project name" autocomplete="off">
+          <button id="add-project-confirm" class="modal-btn-save">Add</button>
+        </div>
       </div>
     </div>
   </div>

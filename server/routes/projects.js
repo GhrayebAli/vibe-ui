@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { readFile } from "fs/promises";
-import { join, dirname } from "path";
+import { readFile, readdir, stat, writeFile } from "fs/promises";
+import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
+import { homedir } from "os";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -49,6 +50,92 @@ router.put("/system-prompt", async (req, res) => {
     project.systemPrompt = systemPrompt || "";
     const { writeFile } = await import("fs/promises");
     await writeFile(filePath, JSON.stringify(data, null, 2) + "\n");
+    await loadProjectConfigs();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Browse directories on the server filesystem
+router.get("/browse", async (req, res) => {
+  try {
+    const requestedDir = req.query.dir || homedir();
+    const current = resolve(requestedDir);
+
+    // Security: ensure resolved path is valid
+    if (!current.startsWith("/")) {
+      return res.status(400).json({ error: "Invalid path" });
+    }
+
+    const s = await stat(current);
+    if (!s.isDirectory()) {
+      return res.status(400).json({ error: "Not a directory" });
+    }
+
+    const entries = await readdir(current, { withFileTypes: true });
+    const dirs = entries
+      .filter((e) => e.isDirectory() && !e.name.startsWith("."))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((e) => ({ name: e.name, path: join(current, e.name) }));
+
+    const parent = current === "/" ? null : dirname(current);
+    res.json({ current, parent, dirs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add a new project to folders.json
+router.post("/", async (req, res) => {
+  try {
+    const { name, path: projectPath } = req.body;
+    if (!name || !projectPath) {
+      return res.status(400).json({ error: "name and path are required" });
+    }
+
+    const resolvedPath = resolve(projectPath);
+
+    // Validate path exists and is a directory
+    const s = await stat(resolvedPath);
+    if (!s.isDirectory()) {
+      return res.status(400).json({ error: "Path is not a directory" });
+    }
+
+    const filePath = join(rootDir, "folders.json");
+    const data = JSON.parse(await readFile(filePath, "utf-8"));
+
+    // Check for duplicate path
+    if (data.some((p) => p.path === resolvedPath)) {
+      return res.status(409).json({ error: "Project with this path already exists" });
+    }
+
+    data.push({ name, path: resolvedPath });
+    await writeFile(filePath, JSON.stringify(data, null, 2) + "\n");
+    await loadProjectConfigs();
+    res.json({ ok: true, project: { name, path: resolvedPath } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Remove a project from folders.json
+router.delete("/", async (req, res) => {
+  try {
+    const { path: projectPath } = req.body;
+    if (!projectPath) {
+      return res.status(400).json({ error: "path is required" });
+    }
+
+    const filePath = join(rootDir, "folders.json");
+    const data = JSON.parse(await readFile(filePath, "utf-8"));
+    const filtered = data.filter((p) => p.path !== projectPath);
+
+    if (filtered.length === data.length) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    await writeFile(filePath, JSON.stringify(filtered, null, 2) + "\n");
     await loadProjectConfigs();
     res.json({ ok: true });
   } catch (err) {

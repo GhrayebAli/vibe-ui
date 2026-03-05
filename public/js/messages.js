@@ -57,7 +57,7 @@ export function appendAssistantText(text, pane) {
   }
 }
 
-export function appendToolIndicator(name, input, pane) {
+export function appendToolIndicator(name, input, pane, toolId, isLive = true) {
   pane = pane || getPane(null);
   const div = document.createElement("div");
   div.className = "msg";
@@ -86,14 +86,17 @@ export function appendToolIndicator(name, input, pane) {
     }
   }
 
-  // Default tool indicator
+  // Default tool indicator — show spinner only for live streaming tools
   const indicator = document.createElement("div");
-  indicator.className = "tool-indicator";
+  indicator.className = isLive ? "tool-indicator tool-running" : "tool-indicator";
+  if (toolId) indicator.dataset.toolId = toolId;
   indicator.innerHTML = `
-    <span class="tool-icon">&gt;</span>
+    <span class="tool-spinner" ${!isLive ? 'style="display:none;"' : ""}></span>
+    <span class="tool-status-icon" style="display:none;"></span>
     <span class="tool-name">${escapeHtml(name)}</span>
     <span class="tool-detail">${getToolDetail(name, input)}</span>
     <div class="tool-body">${escapeHtml(JSON.stringify(input, null, 2))}</div>
+    <div class="tool-result-preview" style="display:none;"></div>
   `;
   indicator.addEventListener("click", () => {
     indicator.classList.toggle("expanded");
@@ -107,16 +110,57 @@ export function appendToolIndicator(name, input, pane) {
 
 export function appendToolResult(toolUseId, content, isError, pane) {
   pane = pane || getPane(null);
+
+  // Try to find the matching tool indicator and update it in-place
+  const existing = toolUseId
+    ? pane.messagesDiv.querySelector(`.tool-indicator[data-tool-id="${toolUseId}"]`)
+    : null;
+
+  if (existing) {
+    // Update the existing indicator: stop spinner, show status icon + result
+    existing.classList.remove("tool-running");
+    existing.classList.add(isError ? "tool-error" : "tool-done");
+
+    const spinner = existing.querySelector(".tool-spinner");
+    if (spinner) spinner.style.display = "none";
+
+    const statusIcon = existing.querySelector(".tool-status-icon");
+    if (statusIcon) {
+      statusIcon.style.display = "";
+      statusIcon.style.color = isError ? "var(--error)" : "var(--success)";
+      statusIcon.innerHTML = isError ? "&#10007;" : "&#10003;";
+    }
+
+    // Show result preview inline
+    const resultPreview = existing.querySelector(".tool-result-preview");
+    if (resultPreview && content) {
+      const preview = typeof content === "string" ? content.slice(0, 150) : "";
+      resultPreview.textContent = preview;
+      resultPreview.style.display = "";
+      resultPreview.className = "tool-result-preview" + (isError ? " error" : "");
+    }
+
+    // Append full result to tool-body
+    const body = existing.querySelector(".tool-body");
+    if (body && content) {
+      body.innerHTML += "\n\n─── Result ───\n" + escapeHtml(content || "");
+    }
+
+    scrollToBottom(pane);
+    return;
+  }
+
+  // Fallback: create a standalone result element (for old messages without tool IDs)
   const div = document.createElement("div");
   div.className = "msg";
 
   const indicator = document.createElement("div");
-  indicator.className = "tool-indicator";
+  indicator.className = "tool-indicator " + (isError ? "tool-error" : "tool-done");
   const preview = typeof content === "string" ? content.slice(0, 120) : "";
   const iconColor = isError ? "var(--error)" : "var(--success)";
   const icon = isError ? "&#10007;" : "&#10003;";
   indicator.innerHTML = `
-    <span class="tool-icon" style="color: ${iconColor};">${icon}</span>
+    <span class="tool-status-icon" style="color: ${iconColor};">${icon}</span>
     <span class="tool-name">${isError ? "Error" : "Result"}</span>
     <span class="tool-detail">${escapeHtml(preview)}</span>
     <div class="tool-body">${escapeHtml(content || "")}</div>
@@ -230,7 +274,7 @@ export function renderMessagesIntoPane(messages, pane) {
         appendAssistantText(data.text, pane);
         break;
       case "tool":
-        appendToolIndicator(data.name, data.input, pane);
+        appendToolIndicator(data.name, data.input, pane, data.id, false);
         break;
       case "tool_result":
         appendToolResult(data.toolUseId, data.content, data.isError, pane);

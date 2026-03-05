@@ -155,9 +155,9 @@ async function processSdkStream(q, { ws, wsSend, sessionIds, clientSid, chatId, 
             addMessage(resolvedSid, "assistant", JSON.stringify({ text: block.text }), chatId || null);
           }
         } else if (block.type === "tool_use") {
-          wsSend({ type: "tool", name: block.name, input: block.input });
+          wsSend({ type: "tool", id: block.id, name: block.name, input: block.input });
           if (resolvedSid) {
-            addMessage(resolvedSid, "tool", JSON.stringify({ name: block.name, input: block.input }), chatId || null);
+            addMessage(resolvedSid, "tool", JSON.stringify({ id: block.id, name: block.name, input: block.input }), chatId || null);
           }
         }
       }
@@ -457,8 +457,8 @@ export function setupWebSocket(wss, sessionIds) {
                 wsSend({ type: "text", text: block.text });
                 if (resolvedSid) addMessage(resolvedSid, "assistant", JSON.stringify({ text: block.text }), chatId || null);
               } else if (block.type === "tool_use") {
-                wsSend({ type: "tool", name: block.name, input: block.input });
-                if (resolvedSid) addMessage(resolvedSid, "tool", JSON.stringify({ name: block.name, input: block.input }), chatId || null);
+                wsSend({ type: "tool", id: block.id, name: block.name, input: block.input });
+                if (resolvedSid) addMessage(resolvedSid, "tool", JSON.stringify({ id: block.id, name: block.name, input: block.input }), chatId || null);
               }
             }
             continue;

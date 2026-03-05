@@ -383,6 +383,7 @@ html[data-theme="light"] .msg-user {
 .tool-indicator {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 7px 12px;
   background: var(--bg-secondary);
@@ -394,13 +395,71 @@ html[data-theme="light"] .msg-user {
   color: var(--text-secondary);
   margin: 4px 0;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, border-left-color 0.3s;
 }
 
 .tool-indicator:hover         { border-color: var(--accent); }
-.tool-indicator .tool-icon    { color: var(--accent); font-weight: 700; }
 .tool-indicator .tool-name    { font-weight: 600; color: var(--accent); }
 .tool-indicator .tool-detail  { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Spinner for running tools */
+.tool-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: toolSpin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes toolSpin {
+  to { transform: rotate(360deg); }
+}
+
+.tool-status-icon {
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* Running state — pulsing left border */
+.tool-indicator.tool-running {
+  border-left-color: var(--accent);
+  animation: toolRunPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes toolRunPulse {
+  0%, 100% { border-left-color: var(--accent); }
+  50% { border-left-color: var(--accent-solid); }
+}
+
+/* Done state */
+.tool-indicator.tool-done {
+  border-left-color: var(--success);
+}
+
+/* Error state */
+.tool-indicator.tool-error {
+  border-left-color: var(--error);
+}
+
+/* Result preview shown inline under the tool detail */
+.tool-result-preview {
+  width: 100%;
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+  padding-top: 3px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tool-result-preview.error {
+  color: var(--error);
+}
 
 .tool-indicator .tool-body {
   display: none;
@@ -415,6 +474,7 @@ html[data-theme="light"] .msg-user {
 }
 
 .tool-indicator.expanded .tool-body { display: block; }
+.tool-indicator.expanded .tool-result-preview { display: none; }
 
 /* ── Status & Thinking ────────────────────────────────── */
 .status {

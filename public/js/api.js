@@ -83,6 +83,44 @@ export async function fetchWorkflows() {
   return res.json();
 }
 
+export async function browseFolders(dir) {
+  const url = dir
+    ? `/api/projects/browse?dir=${encodeURIComponent(dir)}`
+    : "/api/projects/browse";
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error);
+  }
+  return res.json();
+}
+
+export async function addProject(name, path) {
+  const res = await fetch("/api/projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, path }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error);
+  }
+  return res.json();
+}
+
+export async function deleteProject(path) {
+  const res = await fetch("/api/projects", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error);
+  }
+  return res.json();
+}
+
 export async function fetchProjectCommands(path) {
   const res = await fetch(`/api/projects/commands?path=${encodeURIComponent(path)}`);
   return res.json();

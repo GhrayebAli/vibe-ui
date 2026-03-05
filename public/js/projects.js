@@ -121,6 +121,146 @@ export async function loadProjectCommands() {
   }
 }
 
+// ── Add Project (folder browser) ────────────────────────
+let currentBrowsePath = "";
+
+function openAddProjectModal() {
+  $.addProjectModal.classList.remove("hidden");
+  $.addProjectName.value = "";
+  navigateToDir(""); // defaults to $HOME on server
+}
+
+function closeAddProjectModal() {
+  $.addProjectModal.classList.add("hidden");
+}
+
+async function navigateToDir(dir) {
+  $.folderList.innerHTML = '<div class="folder-list-loading">Loading...</div>';
+  try {
+    const data = await api.browseFolders(dir || undefined);
+    currentBrowsePath = data.current;
+    renderBreadcrumb(data.current);
+    renderFolderList(data);
+    // Auto-fill name from last segment
+    const base = data.current.split("/").filter(Boolean).pop() || "";
+    $.addProjectName.value = base;
+  } catch (err) {
+    $.folderList.innerHTML = `<div class="folder-list-empty">Error: ${err.message}</div>`;
+  }
+}
+
+function renderBreadcrumb(pathStr) {
+  $.folderBreadcrumb.innerHTML = "";
+  const parts = pathStr.split("/").filter(Boolean);
+  // Root
+  const rootSeg = document.createElement("span");
+  rootSeg.className = "folder-breadcrumb-seg";
+  rootSeg.textContent = "/";
+  rootSeg.addEventListener("click", () => navigateToDir("/"));
+  $.folderBreadcrumb.appendChild(rootSeg);
+
+  let accumulated = "";
+  for (const part of parts) {
+    accumulated += "/" + part;
+    const sep = document.createElement("span");
+    sep.className = "folder-breadcrumb-sep";
+    sep.textContent = "/";
+    $.folderBreadcrumb.appendChild(sep);
+
+    const seg = document.createElement("span");
+    seg.className = "folder-breadcrumb-seg";
+    seg.textContent = part;
+    const target = accumulated;
+    seg.addEventListener("click", () => navigateToDir(target));
+    $.folderBreadcrumb.appendChild(seg);
+  }
+}
+
+function renderFolderList(data) {
+  $.folderList.innerHTML = "";
+
+  // Parent directory entry
+  if (data.parent) {
+    const parentItem = document.createElement("div");
+    parentItem.className = "folder-list-item";
+    parentItem.innerHTML = '<span class="folder-icon">..</span><span>Parent directory</span>';
+    parentItem.addEventListener("click", () => navigateToDir(data.parent));
+    $.folderList.appendChild(parentItem);
+  }
+
+  if (data.dirs.length === 0 && !data.parent) {
+    $.folderList.innerHTML = '<div class="folder-list-empty">No subdirectories</div>';
+    return;
+  }
+
+  if (data.dirs.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "folder-list-empty";
+    empty.textContent = "No subdirectories";
+    $.folderList.appendChild(empty);
+    return;
+  }
+
+  for (const dir of data.dirs) {
+    const item = document.createElement("div");
+    item.className = "folder-list-item";
+    item.innerHTML = `<span class="folder-icon">\u{1F4C1}</span><span>${dir.name}</span>`;
+    item.addEventListener("click", () => navigateToDir(dir.path));
+    $.folderList.appendChild(item);
+  }
+}
+
+async function confirmAddProject() {
+  const name = $.addProjectName.value.trim();
+  if (!name) {
+    $.addProjectName.focus();
+    return;
+  }
+  if (!currentBrowsePath) return;
+
+  // Check for duplicate in dropdown
+  const existing = [...$.projectSelect.options].find((o) => o.value === currentBrowsePath);
+  if (existing) {
+    alert("This project path is already added.");
+    return;
+  }
+
+  try {
+    const result = await api.addProject(name, currentBrowsePath);
+    const project = result.project;
+
+    // Add to dropdown and select it
+    const opt = document.createElement("option");
+    opt.value = project.path;
+    opt.textContent = project.name;
+    $.projectSelect.appendChild(opt);
+    $.projectSelect.value = project.path;
+
+    // Update state
+    const projects = getState("projectsData");
+    projects.push({ name: project.name, path: project.path });
+
+    localStorage.setItem("shawkat-ai-cwd", project.path);
+    updateSystemPromptIndicator();
+    updateHeaderProjectName();
+    loadProjectCommands();
+    loadSessions();
+    loadStats();
+
+    closeAddProjectModal();
+  } catch (err) {
+    alert("Failed to add project: " + err.message);
+  }
+}
+
+// Add project button & modal event listeners
+$.addProjectBtn.addEventListener("click", openAddProjectModal);
+$.addProjectClose.addEventListener("click", closeAddProjectModal);
+$.addProjectConfirm.addEventListener("click", confirmAddProject);
+$.addProjectModal.addEventListener("click", (e) => {
+  if (e.target === $.addProjectModal) closeAddProjectModal();
+});
+
 // System prompt modal event listeners
 $.spEditBtn.addEventListener("click", openSystemPromptModal);
 $.spForm.addEventListener("submit", async (e) => {

@@ -138,6 +138,15 @@ export const $ = {
   mcpFormSave: document.getElementById("mcp-form-save"),
   mcpAddBtn: document.getElementById("mcp-add-btn"),
 
+  // Add project modal
+  addProjectBtn: document.getElementById("add-project-btn"),
+  addProjectModal: document.getElementById("add-project-modal"),
+  addProjectClose: document.getElementById("add-project-close"),
+  addProjectName: document.getElementById("add-project-name"),
+  addProjectConfirm: document.getElementById("add-project-confirm"),
+  folderBreadcrumb: document.getElementById("folder-breadcrumb"),
+  folderList: document.getElementById("folder-list"),
+
   // Linear create issue
   linearCreateBtn: document.getElementById("linear-create-btn"),
   linearCreateModal: document.getElementById("linear-create-modal"),
