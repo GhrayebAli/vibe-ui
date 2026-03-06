@@ -31,4 +31,5 @@ import './chat.js';
 import './linear-panel.js';
 import './file-explorer.js';
 import './git-panel.js';
+import './repos-panel.js';
 import './mcp-manager.js';

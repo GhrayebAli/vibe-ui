@@ -17,6 +17,7 @@ import workflowsRouter from "./server/routes/workflows.js";
 import execRouter from "./server/routes/exec.js";
 import linearRouter from "./server/routes/linear.js";
 import mcpRouter from "./server/routes/mcp.js";
+import reposRouter from "./server/routes/repos.js";
 import { setupWebSocket } from "./server/ws-handler.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -66,6 +67,7 @@ app.use("/api/workflows", workflowsRouter);
 app.use("/api/exec", execRouter);
 app.use("/api/linear", linearRouter);
 app.use("/api/mcp", mcpRouter);
+app.use("/api/repos", reposRouter);
 
 // WebSocket
 setupWebSocket(wss, sessionIds);

@@ -68,6 +68,13 @@ document.addEventListener("keydown", (e) => {
     return;
   }
 
+  // Cmd+Shift+R — Open Repos tab
+  if (isMeta && e.shiftKey && e.key === "R") {
+    e.preventDefault();
+    openRightPanel("repos");
+    return;
+  }
+
   // Cmd+Shift+A — Open Analytics
   if (isMeta && e.shiftKey && e.key === "A") {
     e.preventDefault();

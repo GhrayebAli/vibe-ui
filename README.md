@@ -40,8 +40,9 @@ browser ──────── WebSocket ──────── server.js �
    │   ├── store.js (reactive state)  ├── server/ws-handler.js
    │   ├── ws.js (WebSocket client)   ├── db.js (SQLite)
    │   ├── api.js (fetch calls)       ├── folders.json (projects)
-   │   ├── chat.js, messages.js ...   ├── prompts.json (16 templates)
-   │   └── 25+ more modules           └── workflows.json (3 workflows)
+   │   ├── chat.js, messages.js ...   ├── repos.json (repositories)
+   │   └── 25+ more modules           ├── prompts.json (16 templates)
+   │                                   └── workflows.json (3 workflows)
    ├── css/ (20 focused stylesheets)
    └── index.html
 ```
@@ -52,12 +53,13 @@ browser ──────── WebSocket ──────── server.js �
 - **Modular frontend** — 30+ ES modules (`<script type="module">`) with no bundler
 - **Reactive store** — centralized pub/sub state management across modules
 - **Event bus** — decoupled cross-module communication
-- **Modular backend** — 10 Express Router modules + shared WS handler
+- **Modular backend** — 11 Express Router modules + shared WS handler
 - **SQLite + WAL** persists sessions, messages, costs, and Claude session mappings
 - **Indexed queries** — 6 indexes for fast lookups on messages, costs, sessions
 - **Prepared statements** for all DB queries (no SQL injection risk)
 - **Session resumption** via stored Claude session IDs (survives page reloads)
 - **Stale session auto-retry** — if a Claude session no longer exists, automatically retries without `--resume`
+- **SDK stderr capture** — stderr output from Claude CLI is captured and included in error messages for better diagnostics
 - **Session ID persistence** — active session saved to `localStorage`, restored on page load with auto-message loading
 - **AbortController** for mid-stream cancellation
 - **Server-side abort on disconnect** — all active SDK streams are aborted when a client disconnects (no lingering processes)
@@ -156,6 +158,17 @@ Migrations run automatically on startup (ADD COLUMN with try/catch).
 | GET    | /api/files/tree    | Lazy tree listing (immediate children)   |
 | GET    | /api/files/search  | Recursive name search (LIKE %query%, max 50) |
 
+### Repos
+| Method | Path                   | Description                                      |
+| ------ | ---------------------- | ------------------------------------------------ |
+| GET    | /api/repos             | Fetch all groups + repos                         |
+| POST   | /api/repos/repos       | Add repo (name required, path + url optional, validates .git if path given) |
+| PUT    | /api/repos/repos/:id   | Update repo (rename, move to group, set URL)     |
+| DELETE | /api/repos/repos/:id   | Remove repo                                      |
+| POST   | /api/repos/groups      | Create group (supports nesting via parentId)     |
+| PUT    | /api/repos/groups/:id  | Rename or reparent group (circular ref protection)|
+| DELETE | /api/repos/groups/:id  | Delete group (children reparented to parent)     |
+
 ### MCP Server Management
 | Method | Path                    | Description                            |
 | ------ | ----------------------- | -------------------------------------- |
@@ -221,6 +234,7 @@ All streamed messages include `sessionId` so the client can route background ses
 
 ### 3. Add Project via UI
 - "+" button in the sidebar project picker opens a folder browser modal
+- "Open in VS Code" button in the project selector header — opens the selected project in VS Code
 - Server-side directory browsing — navigates the host filesystem (defaults to `$HOME`)
 - Clickable breadcrumb path segments for quick navigation up
 - Directory list with parent directory (..) navigation
@@ -263,7 +277,7 @@ Each workflow chains prompts sequentially with context passing and step progress
 - 50KB per-file limit with path traversal protection
 
 ### 8. Session Management
-- Title search with debounced input (200ms)
+- Title and project name search with debounced input (200ms)
 - Double-click to rename sessions inline
 - Pin/unpin sessions (pinned sort to top)
 - Delete sessions with cascade (messages, costs, claude mappings)
@@ -284,6 +298,7 @@ Each workflow chains prompts sequentially with context passing and step progress
 | `Cmd+B`        | Toggle right panel        |
 | `Cmd+Shift+E`  | Open Files tab            |
 | `Cmd+Shift+G`  | Open Git tab              |
+| `Cmd+Shift+R`  | Open Repos tab            |
 | `Cmd+1`–`4`    | Focus parallel pane 1–4   |
 | `Escape`       | Close any open modal      |
 | `Enter`        | Send message              |
@@ -404,10 +419,11 @@ Side panel for viewing and creating Linear issues directly from the app:
 - Requires `LINEAR_API_KEY` env var (gracefully degrades with hint if missing)
 
 ### 23. Tabbed Right Panel
-The right side of the UI hosts a resizable tabbed panel with three tabs:
+The right side of the UI hosts a resizable tabbed panel with four tabs:
 - **Tasks** — Linear issues (from the Linear integration)
 - **Files** — file explorer
 - **Git** — git integration
+- **Repos** — repository management
 
 Panel state (open/closed), active tab, and width are persisted to `localStorage`. Resizable by dragging the left edge. Toggle via header button or `Cmd+B`.
 
@@ -415,7 +431,8 @@ Panel state (open/closed), active tab, and width are persisted to `localStorage`
 Lazy-loaded tree view in the Files tab:
 - **Lazy loading** — root dirs load on tab open; subdirs load on click (cached in memory)
 - **Tree items** — chevron (rotates on expand) + folder/file SVG icon + name, indented by depth
-- **File preview** — click a file to see syntax-highlighted content in a split preview pane (bottom half)
+- **File preview** — click a file to see syntax-highlighted content in a resizable split preview pane (bottom half, drag handle to resize)
+- **Image preview** — image files (png, jpg, gif, svg, webp) render inline via `/api/files/raw` endpoint instead of text
 - **Server-side search** — type in the filter input to search file/folder names recursively (LIKE %query%, debounced 250ms, max 50 results)
 - **Search results** — flat list with filename prominent + relative path dimmed
 - **Refresh button** — clears cache and reloads tree from disk (picks up newly created files)
@@ -433,7 +450,25 @@ Git panel in the Git tab — all operations via `POST /api/exec`:
 - **Refresh** — spinning refresh button reloads branches, status, and log
 - Auto-refreshes on tab switch and project switch
 
-### 26. MCP Server Management
+### 26. Repos Panel
+Repository management panel in the Repos tab — backed by `repos.json`:
+- **Groups** — create nested groups as collapsible containers (folder icon + chevron + badge count)
+- **Repos** — add repositories with name, local path (optional), and GitHub URL (optional)
+- **Two add modes** — "Browse Folder" reuses the folder browser to select a local git repo; "Add Manually" shows an inline form for remote-only repos (no local folder needed)
+- **Add to group** — right-click a group → "Add Repo Here (Browse)" or "Add Repo Here (Manual)"
+- **Move to group** — right-click a repo → "Move to Group" submenu lists all groups + "Ungrouped"
+- **GitHub URL** — right-click a repo → "Set GitHub URL" / "Edit GitHub URL"; once set, "Open in Browser" appears at the top of the context menu
+- **Context menus** — repos: Open in Browser, Open in VS Code, Copy Path, Set GitHub URL, Move to Group, Remove; groups: Add Repo Here, Open All in VS Code, Rename, Delete Group
+- **Inline editing** — rename groups in-place (click, type, Enter/Escape)
+- **Search filter** — debounced (200ms) filter across repo names, paths, and group names
+- **Expand/collapse** — group state persisted per group in `localStorage`
+- **Double-click** — repos with path open in VS Code; repos with URL only open in browser
+- **Delete group** — child groups and repos are reparented to the deleted group's parent
+- **Validation** — path checked for `.git` (walks parent dirs for subdirectories), duplicate path detection, circular parent ref protection
+- **Keyboard shortcut** — `Cmd+Shift+R` opens Repos tab; `/repos` slash command
+- IDs use `g_`/`r_` prefix + `Date.now()`
+
+### 27. MCP Server Management
 Modal UI for managing MCP servers in `~/.claude/settings.json`:
 - **Server cards** — name, type badge (stdio/sse/http), command/URL detail, edit/delete buttons
 - **Add form** — type selector toggles between stdio fields (command, args, env) and URL fields (url, headers)
@@ -441,7 +476,7 @@ Modal UI for managing MCP servers in `~/.claude/settings.json`:
 - **Delete** — confirmation dialog
 - Open via header MCP button or `/mcp` slash command
 
-### 27. Max Turns Selector
+### 28. Max Turns Selector
 Configurable max turns per query via header dropdown:
 - Options: 10, 30 (default), 50, 100, unlimited
 - Sent from client to server with each query
@@ -449,7 +484,7 @@ Configurable max turns per query via header dropdown:
 - `error_max_turns` handled gracefully — shows cost summary + "Reached max turns limit (N). Send another message to continue."
 - Persisted to `localStorage`
 
-### 28. Session Context Menu
+### 29. Session Context Menu
 Right-click any session card in the sidebar for developer info:
 - Copy Session ID (our internal UUID)
 - Copy Claude Session ID (SDK session for `--resume`)
@@ -457,13 +492,13 @@ Right-click any session card in the sidebar for developer info:
 - Copy Title
 - Click to copy with "Copied!" confirmation; closes on outside click or Escape
 
-### 29. Header Control Labels
+### 30. Header Control Labels
 All header dropdowns now have uppercase labels for clarity:
 - **approval** — tool approval mode
 - **model** — model selector
 - **turns** — max turns per query
 
-### 30. Persistent Confirmation Modals
+### 31. Persistent Confirmation Modals
 The background-session and permission approval modals are persistent — they can only be dismissed via their action buttons. Overlay clicks, Escape key, and close buttons are disabled to prevent accidental dismissal of critical decisions.
 
 ---
@@ -485,6 +520,7 @@ The background-session and permission approval modals are persistent — they ca
 | /costs           | Open cost dashboard            |
 | /files           | Open Files tab in right panel  |
 | /git             | Open Git tab in right panel    |
+| /repos           | Open Repos tab in right panel  |
 | /mcp             | Open MCP server manager modal  |
 
 ### CLI
@@ -551,6 +587,20 @@ Copy `.env.example` to `.env` and fill in values. The app works without any env 
 ]
 ```
 
+### repos.json — Repository Management
+```json
+{
+  "groups": [
+    { "id": "g_1709900000", "name": "Frontend", "parentId": null }
+  ],
+  "repos": [
+    { "id": "r_1709900000", "name": "Web App", "path": "/Users/me/web-app", "groupId": "g_1709900000", "url": "https://github.com/org/web-app" },
+    { "id": "r_1709900001", "name": "API Docs", "path": null, "groupId": null, "url": "https://github.com/org/api-docs" }
+  ]
+}
+```
+Groups support nesting via `parentId`. Repos can have a local `path`, a `url`, both, or just a name. IDs use `g_`/`r_` prefix + `Date.now()`.
+
 ### prompts.json — Prompt Templates
 ```json
 [
@@ -598,10 +648,10 @@ Supports `{{variable}}` placeholders that show a fill-in form.
 All colors are CSS custom properties on `:root` (defined in `css/variables.css`). The light theme overrides them via `html[data-theme="light"]`. No page reload required.
 
 ### Layout
-- **Header** (36px): connection status, background session indicator, labeled dropdowns (approval, model, turns), account info, active project name (centered), MCP button, panel toggle, cost display, token counter
+- **Header** (36px): connection status, background session indicator, **Session dropdown** (approval, model, max turns submenus), **Tools dropdown** (MCP servers, analytics), panel toggle — all right-aligned. Active project name centered. Cost display + token counter at far right
 - **Sidebar** (272px): project selector (with add project button), session search, session list (with right-click context menu), parallel toggle
 - **Main area**: messages (820px max-width), input bar, toolbox/workflow panels
-- **Right panel** (300px, resizable): tabbed container with Tasks (Linear), Files (explorer + preview), Git (status + commit + log)
+- **Right panel** (300px, resizable): tabbed container with Tasks (Linear), Files (explorer + preview), Git (status + commit + log), Repos (repository management)
 
 ---
 
@@ -624,9 +674,11 @@ shawkat-ai/
 │       ├── workflows.js   Workflow listing
 │       ├── exec.js        Shell command execution
 │       ├── linear.js      Linear API proxy (issues, teams, states)
-│       └── mcp.js         MCP server CRUD (~/.claude/settings.json)
+│       ├── mcp.js         MCP server CRUD (~/.claude/settings.json)
+│       └── repos.js       Repos CRUD (groups + repos from repos.json)
 ├── package.json           5 runtime dependencies
 ├── folders.json           Project configurations
+├── repos.json             Repository groups + repos
 ├── prompts.json           16 prompt templates
 ├── workflows.json         3 multi-step workflows
 ├── data.db                SQLite database (auto-created)
@@ -654,6 +706,7 @@ shawkat-ai/
     │   ├── permissions.css    Header control labels + permission modal styles
     │   ├── right-panel.css    Tabbed right panel + resize handle
     │   ├── file-explorer.css  File tree, search, preview, context menu, refresh
+    │   ├── repos-panel.css    Repos tree, groups, context menu, manual form
     │   ├── git-panel.css      Git status, staging, commit, log, branches
     │   ├── mcp-manager.css    MCP server modal, cards, form
     │   ├── linear-panel.css   Linear tasks panel + create issue modal
@@ -687,6 +740,7 @@ shawkat-ai/
         ├── max-turns.js       Max turns selector (10/30/50/100/unlimited)
         ├── right-panel.js     Tabbed right panel (Tasks/Files/Git) + resize
         ├── file-explorer.js   File tree, lazy loading, search, context menu, drag
+        ├── repos-panel.js     Repos tree, groups, add/remove, context menus, search
         ├── git-panel.js       Git status, staging, commit, branch, log
         ├── mcp-manager.js     MCP server CRUD modal
         ├── linear-panel.js    Linear tasks panel + create issue modal
@@ -744,11 +798,12 @@ The following data flows through the app at runtime but is **not** saved to the 
 | `shawkat-model` | Selected model (auto/sonnet/opus/haiku) |
 | `shawkat-max-turns` | Max turns per query (10/30/50/100/0) |
 | `shawkat-right-panel` | Right panel open/closed state |
-| `shawkat-right-panel-tab` | Active right panel tab (tasks/files/git) |
+| `shawkat-right-panel-tab` | Active right panel tab (tasks/files/git/repos) |
 | `shawkat-right-panel-width` | Right panel width in pixels |
 | `shawkat-ai-session-id` | Active session ID (restored on page load with auto-message loading) |
 | `shawkat-ai-bg-sessions` | Background sessions map (serialized, survives disconnects and page refreshes) |
 | `shawkat-ai-cwd` | Last selected project path |
+| `shawkat-repos-expanded` | Expanded group IDs in repos panel |
 
 There is no server-side user preferences table — all client preferences are lost if localStorage is cleared or a different browser is used.
 

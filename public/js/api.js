@@ -246,3 +246,79 @@ export async function createLinearIssue({ title, description, teamId, stateId })
   if (!res.ok) throw new Error("Failed to create issue");
   return res.json();
 }
+
+// Repos
+async function throwApiError(res) {
+  const text = await res.text();
+  try {
+    const err = JSON.parse(text);
+    throw new Error(err.error || `Request failed (${res.status})`);
+  } catch (e) {
+    if (e.message && !e.message.startsWith("Unexpected")) throw e;
+    throw new Error(`Request failed (${res.status})`);
+  }
+}
+
+export async function fetchRepos() {
+  const res = await fetch("/api/repos");
+  return res.json();
+}
+
+export async function addRepo(name, path, groupId, url) {
+  const body = { name, groupId };
+  if (path) body.path = path;
+  if (url) body.url = url;
+  const res = await fetch("/api/repos/repos", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) await throwApiError(res);
+  return res.json();
+}
+
+export async function updateRepo(id, updates) {
+  const res = await fetch(`/api/repos/repos/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) await throwApiError(res);
+  return res.json();
+}
+
+export async function deleteRepo(id) {
+  const res = await fetch(`/api/repos/repos/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) await throwApiError(res);
+  return res.json();
+}
+
+export async function createRepoGroup(name, parentId) {
+  const res = await fetch("/api/repos/groups", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, parentId }),
+  });
+  if (!res.ok) await throwApiError(res);
+  return res.json();
+}
+
+export async function updateRepoGroup(id, updates) {
+  const res = await fetch(`/api/repos/groups/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) await throwApiError(res);
+  return res.json();
+}
+
+export async function deleteRepoGroup(id) {
+  const res = await fetch(`/api/repos/groups/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) await throwApiError(res);
+  return res.json();
+}
