@@ -41,19 +41,20 @@ browser ──────── WebSocket ──────── server.js �
    │   ├── ws.js (WebSocket client)   ├── db.js (SQLite)
    │   ├── api.js (fetch calls)       ├── folders.json (projects)
    │   ├── chat.js, messages.js ...   ├── repos.json (repositories)
-   │   └── 28+ more modules           ├── prompts.json (16 templates)
+   │   └── 29+ more modules           ├── prompts.json (16 templates)
+   │                                   ├── bot-prompt.json (assistant bot prompt)
    │                                   └── workflows.json (3 workflows)
-   ├── css/ (24 focused stylesheets)
+   ├── css/ (25 focused stylesheets)
    └── index.html
 ```
 
 - **WebSocket** streams assistant text, tool calls, and results in real time
 - **Reconnect with backoff** — exponential backoff (2s → 4s → 8s → ... → 30s cap, 0-25% jitter), distinct `ws:reconnected` event triggers state sync
 - **State sync on reconnect** — reconciles background sessions, resets streaming panes, reloads messages from DB, refreshes session list
-- **Modular frontend** — 31+ ES modules (`<script type="module">`) with no bundler
+- **Modular frontend** — 32+ ES modules (`<script type="module">`) with no bundler
 - **Reactive store** — centralized pub/sub state management across modules
 - **Event bus** — decoupled cross-module communication
-- **Modular backend** — 12 Express Router modules + shared WS handler
+- **Modular backend** — 13 Express Router modules + shared WS handler
 - **SQLite + WAL** persists sessions, messages, costs, and Claude session mappings
 - **Indexed queries** — 6 indexes for fast lookups on messages, costs, sessions
 - **Prepared statements** for all DB queries (no SQL injection risk)
@@ -200,6 +201,12 @@ Migrations run automatically on startup (ADD COLUMN with try/catch).
 | GET    | /api/tips            | Serve curated tips + feed definitions    |
 | GET    | /api/tips/rss        | Proxy RSS/Atom feed (15-min cache, limit 20 items) |
 
+### Assistant Bot
+| Method | Path                 | Description                              |
+| ------ | -------------------- | ---------------------------------------- |
+| GET    | /api/bot/prompt      | Get bot system prompt from bot-prompt.json |
+| PUT    | /api/bot/prompt      | Update bot system prompt                 |
+
 ### Stats & System
 | Method | Path                 | Description                              |
 | ------ | -------------------- | ---------------------------------------- |
@@ -212,7 +219,7 @@ Migrations run automatically on startup (ADD COLUMN with try/catch).
 ### WebSocket (`/ws`)
 
 **Outgoing** (client to server):
-- `{ type: "chat", message, cwd, sessionId, projectName, chatId, permissionMode, model, maxTurns, images? }` — send a message (images: `[{ name, data, mimeType }]` base64-encoded)
+- `{ type: "chat", message, cwd, sessionId, projectName, chatId, permissionMode, model, maxTurns, images?, systemPrompt? }` — send a message (images: `[{ name, data, mimeType }]` base64-encoded; systemPrompt appended to project prompt)
 - `{ type: "workflow", workflow, cwd, sessionId, projectName, permissionMode, model }` — run a workflow
 - `{ type: "abort", chatId? }` — stop generation
 - `{ type: "permission_response", id, behavior }` — approve (`"allow"`) or deny (`"deny"`) a tool call
@@ -635,7 +642,20 @@ After a query completes, Claude Haiku automatically generates a 1-sentence summa
 - On-demand endpoint: `POST /api/sessions/:id/summary`
 - Graceful degradation: if the API call fails, no crash — just no summary
 
-### 38. Per-Message Token Breakdown
+### 38. Floating Assistant Bot
+A floating chat bubble widget (bottom-left corner) that provides a personal AI assistant with its own independent conversation thread:
+- **Chat bubble** — 48px green circle with robot emoji, click to expand the bot panel
+- **Independent session** — separate from the main chat, per-project session stored in `localStorage`
+- **Linked / Free toggle** — switch between "Linked" mode (uses project context, session, and permission mode) and "Free" mode (no project context, bypass permissions, just answers questions)
+- **Custom system prompt** — editable via gear icon in the bot header; stored server-side in `bot-prompt.json`; default is an expert prompt engineering assistant
+- **REST API** — `GET /api/bot/prompt` and `PUT /api/bot/prompt` for system prompt management
+- **Streaming responses** — uses the same WebSocket infrastructure with `chatId: 'assistant-bot'`; main chat ignores bot messages via early return filter
+- **Markdown rendering** — full markdown support with merged ordered lists, syntax highlighting, copy buttons
+- **Session management** — "New chat" button clears the thread; conversation history loads on panel open
+- **Theme compatible** — follows dark/light theme via CSS custom properties
+- **Responsive** — full-screen on mobile (`<480px`)
+
+### 39. Per-Message Token Breakdown
 Result summaries on each message now show input and output tokens separately (`Xk in / Yk out`) instead of a single total, giving better visibility into token distribution per query.
 
 ---
@@ -744,6 +764,14 @@ Copy `.env.example` to `.env` and fill in values. The app works without any env 
 ```
 Groups support nesting via `parentId`. Repos can have a local `path`, a `url`, both, or just a name. IDs use `g_`/`r_` prefix + `Date.now()`.
 
+### bot-prompt.json — Assistant Bot System Prompt
+```json
+{
+  "systemPrompt": "You are an expert prompt engineer and AI assistant. Help users craft effective prompts, improve existing ones, and explain prompt engineering techniques. Be concise and actionable."
+}
+```
+Editable via the bot panel's settings gear icon or `PUT /api/bot/prompt`.
+
 ### prompts.json — Prompt Templates
 ```json
 [
@@ -820,12 +848,14 @@ shawkat-ai/
 │       ├── linear.js      Linear API proxy (issues, teams, states)
 │       ├── mcp.js         MCP server CRUD (~/.claude/settings.json)
 │       ├── repos.js       Repos CRUD (groups + repos from repos.json)
-│       └── tips.js        Tips feed API + RSS proxy (15-min cache)
+│       ├── tips.js        Tips feed API + RSS proxy (15-min cache)
+│       └── bot.js         Assistant bot system prompt API (GET/PUT)
 ├── package.json           5 runtime dependencies
 ├── folders.json           Project configurations
 ├── repos.json             Repository groups + repos
 ├── prompts.json           16 prompt templates
 ├── workflows.json         3 multi-step workflows
+├── bot-prompt.json        Assistant bot system prompt
 ├── data.db                SQLite database (auto-created)
 ├── public/data/
 │   └── tips.json          20 curated tips + RSS feed definitions
@@ -863,6 +893,7 @@ shawkat-ai/
     │   ├── linear-panel.css   Linear tasks panel + create issue modal
     │   ├── context-gauge.css  Context window usage gauge
     │   ├── event-stream.css   Event stream panel styles
+    │   ├── assistant-bot.css  Floating assistant bot panel styles
     │   ├── theme.css          Scanline overlay, animations, scrollbar
     │   └── print.css          Print-friendly styles
     └── js/
@@ -902,6 +933,7 @@ shawkat-ai/
         ├── shortcuts.js       Global keyboard shortcuts
         ├── context-gauge.js   Session token usage progress bar
         ├── event-stream.js    Event stream panel (structured activity log)
+        ├── assistant-bot.js   Floating assistant bot (chat bubble + panel)
         └── chat.js            Send/stop logic, WS message handler, boot
 ```
 
@@ -967,6 +999,8 @@ The following data flows through the app at runtime but is **not** saved to the 
 | `shawkat-tips-feed` | Tips feed panel open/closed state (1/0) |
 | `shawkat-tips-category` | Active tips category filter (all/prompting/mcp/workflows/commands/claude-md) |
 | `shawkat-tips-width` | Tips feed panel width in pixels |
+| `shawkat-bot-sessions` | Bot session IDs per project (JSON map: path → UUID, `__free__` for free mode) |
+| `shawkat-bot-mode` | Bot context mode (`linked` or `free`) |
 
 There is no server-side user preferences table — all client preferences are lost if localStorage is cleared or a different browser is used.
 

@@ -1,7 +1,7 @@
 // Send/Stop logic + message handler + boot sequence
 import { $ } from './dom.js';
 import { getState, setState } from './store.js';
-import { CHAT_IDS } from './constants.js';
+import { CHAT_IDS, BOT_CHAT_ID } from './constants.js';
 import { on } from './events.js';
 import { escapeHtml } from './utils.js';
 import { commandRegistry, dismissAutocomplete, handleAutocompleteKeydown, handleSlashAutocomplete, registerCommand } from './commands.js';
@@ -184,6 +184,9 @@ _setChatFns({ sendMessage, stopGeneration });
 
 // Handle WebSocket messages
 function handleServerMessage(msg) {
+  // Ignore assistant-bot messages — handled by assistant-bot.js
+  if (msg.chatId === BOT_CHAT_ID) return;
+
   // Route background session messages — skip rendering, only handle terminal states
   // Permission requests must pass through so the user can approve/deny tools
   if (msg.sessionId && isBackgroundSession(msg.sessionId)) {

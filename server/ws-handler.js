@@ -397,7 +397,7 @@ export function setupWebSocket(wss, sessionIds) {
       // Chat handler
       if (msg.type !== "chat") return;
 
-      const { message, cwd, sessionId: clientSid, projectName, chatId, permissionMode: clientPermMode, model: chatModel, maxTurns: clientMaxTurns, images } = msg;
+      const { message, cwd, sessionId: clientSid, projectName, chatId, permissionMode: clientPermMode, model: chatModel, maxTurns: clientMaxTurns, images, systemPrompt } = msg;
       const queryKey = chatId || "__default__";
 
       const sessionKey = chatId ? `${clientSid}::${chatId}` : clientSid;
@@ -430,6 +430,10 @@ export function setupWebSocket(wss, sessionIds) {
 
       const projectPrompt = getProjectSystemPrompt(cwd);
       if (projectPrompt) opts.appendSystemPrompt = projectPrompt;
+      if (systemPrompt) {
+        opts.appendSystemPrompt = (opts.appendSystemPrompt || '') +
+          (opts.appendSystemPrompt ? '\n\n' : '') + systemPrompt;
+      }
       if (resumeId) opts.resume = resumeId;
 
       let resolvedSid = clientSid;

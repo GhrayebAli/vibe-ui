@@ -37,3 +37,4 @@ import './git-panel.js';
 import './repos-panel.js';
 import './mcp-manager.js';
 import './tips-feed.js';
+import './assistant-bot.js';

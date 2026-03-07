@@ -231,6 +231,7 @@ The Claude Code web UI ecosystem has grown significantly. Key developments:
 | Multi-agent/CLI support | No | No | **Yes** | No | No | Yes |
 | Image/vision support | **Yes** | No | No | **Yes** | No | No |
 | Tips feed (curated + RSS) | **Yes** | No | No | No | No | No |
+| Floating assistant bot (linked/free) | **Yes** | No | No | No | No | No |
 | Custom AI agents | No | **Yes** | No | No | No | No |
 | Voice dictation | No | No | No | No | No | **Yes** |
 | **Code & Files** |
@@ -397,6 +398,7 @@ These features are **not found in any competitor** (or found in very few):
 | **PWA offline fallback** | Arabic-styled offline page with geometric patterns | No |
 | **Custom Arabic-style branding** | Bot logo with Islamic geometric star patterns | No |
 | **Tips feed panel** | Inline AI tips + RSS aggregation (8 feeds) with category tabs, tip-of-the-day, source links | No |
+| **Floating assistant bot** | Independent chat bubble with custom system prompt, linked/free mode toggle | No |
 | **Zero-framework architecture** | Vanilla JS, 4 npm dependencies — lightest footprint | No |
 | **Error pattern analytics** | 9-category error classification, timeline, per-tool breakdown, recent errors | Sniffly has CLI-only analysis |
 | **Cost dashboard with daily chart** | Full analytics dashboard with bar chart + session table | Opcode has basic analytics |
@@ -464,7 +466,7 @@ Based on competitive gaps and market trends:
 ### Where shawkat-ai leads:
 - **Deepest AI features**: Workflows, prompt templates, project commands/skills, parallel mode — no competitor matches this depth
 - **Best cost analytics**: Only Opcode comes close, but shawkat-ai has daily charts + session-level tracking + streaming counter
-- **Most unique features**: 14 features not found in any competitor (see table above)
+- **Most unique features**: 15 features not found in any competitor (see table above)
 - **Lightest footprint**: 4 npm deps vs 20-50+ for competitors
 
 ### Where shawkat-ai trails:
