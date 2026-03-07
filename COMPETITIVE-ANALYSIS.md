@@ -245,7 +245,7 @@ The Claude Code web UI ecosystem has grown significantly. Key developments:
 | Per-session cost tracking | **Yes** | **Yes** | No | Partial | Partial | No |
 | Input/output token breakdown | **Yes** | **Yes** | No | **Yes** | No | No |
 | Streaming token counter | Yes | No | No | No | No | No |
-| Analytics (error patterns) | No | No | No | No | No | No |
+| Analytics (error patterns) | **Yes** | No | No | No | No | No |
 | **UI & UX** |
 | Dark/light theme | Yes | Yes | No | Yes | No | No |
 | Terminal aesthetic | Yes | No | No | No | No | No |
@@ -256,13 +256,14 @@ The Claude Code web UI ecosystem has grown significantly. Key developments:
 | Mobile responsive | No | N/A | **Yes** | N/A | No | No |
 | Resizable panels | **Yes** | Yes | No | **Yes** | No | No |
 | Export (MD/HTML) | Yes | No | No | No | No | No |
-| Push notifications | **Yes** | No | No | No | No | **Yes** |
+| Push notifications (with sound) | **Yes** | No | No | No | No | **Yes** |
+| Offline fallback page | **Yes** | N/A | No | N/A | No | No |
 | **Security & Access** |
 | Permission/tool approval UI | **Yes** | **Yes** | **Yes** | **Yes** | No | No |
 | Authentication | No | N/A | Cloud | N/A | No | No |
 | **Infrastructure** |
 | MCP server management | **Yes** | **Yes** | **Yes** | **Yes** | No | No |
-| PWA / home screen | No | N/A | **Yes** | N/A | No | No |
+| PWA / home screen | **Yes** | N/A | **Yes** | N/A | No | No |
 | NPX one-command launch | No | No | Yes | No | No | No |
 | **Tech** |
 | Framework | Vanilla JS | React+Tauri | TypeScript | Electron+Next | CLI+Web | TypeScript |
@@ -288,6 +289,10 @@ The Claude Code web UI ecosystem has grown significantly. Key developments:
 | 9 | Repos management | Done | Groups, URLs, context menus, manual add |
 | 10 | Image/vision support | Done | Paste, drag-drop, picker; base64 content blocks; preview strip + chat thumbnails |
 | 11 | Push notifications | Done | Browser Notification API for bg session completion/error + permission requests |
+| 12 | Notification sound | Done | Two-tone chime (C5→E5) via AudioContext, plays on push + local notifications |
+| 13 | PWA offline fallback | Done | Arabic-styled offline page, SW caching strategy, network-first with fallback |
+| 14 | Custom Arabic-style logo | Done | SVG bot logo with Islamic geometric patterns, generated PNG icons (192+512) |
+| 15 | Error pattern analytics | Done | 9 error categories, timeline, per-tool breakdown, recent errors list |
 
 ### Tier 1 — High Impact (address next)
 
@@ -330,10 +335,9 @@ The Claude Code web UI ecosystem has grown significantly. Key developments:
 **What to build**: Microphone button, speech-to-text via Web Speech API or Whisper, insert transcription into chat.
 **Effort**: Medium — Web Speech API is built-in to browsers.
 
-#### 7. Error Pattern Analytics
+#### ~~7. Error Pattern Analytics~~ (DONE)
 **Found in**: Sniffly
-**What to build**: Analyze tool call failures, categorize errors, show distribution charts. "Content Not Found" is 20-30% of Claude Code errors per Sniffly's research.
-**Effort**: Medium — need to capture and categorize tool outcomes.
+**Implemented**: SQL CASE-based error categorization into 9 categories (File Not Found, User Denied, Timeout, File State Error, Directory Error, Multiple Matches, Command Not Found, Build/Runtime Error, Other). Analytics dashboard shows 4 new sections: Error Categories (bar chart with percentages), Error Timeline (daily errors over 30 days), Top Failing Tools (per-tool breakdown with category badges), Recent Errors (expandable list of last 20 errors). Error card enhanced with total count + rate + top category. All sections support project filtering.
 
 #### 8. Timeline Checkpoints / Session Versioning
 **Found in**: Opcode
@@ -387,15 +391,19 @@ These features are **not found in any competitor** (or found in very few):
 | **Mermaid diagram rendering** | Renders ` ```mermaid ` blocks as SVG inline | No |
 | **Repos management** | Grouped repos with URLs, context menus, VS Code integration | No |
 | **Per-project system prompts** | Custom system prompts per project | No |
+| **Notification audio chime** | Two-tone sound on push/local notifications via AudioContext | No |
+| **PWA offline fallback** | Arabic-styled offline page with geometric patterns | No |
+| **Custom Arabic-style branding** | Bot logo with Islamic geometric star patterns | No |
 | **Zero-framework architecture** | Vanilla JS, 4 npm dependencies — lightest footprint | No |
+| **Error pattern analytics** | 9-category error classification, timeline, per-tool breakdown, recent errors | Sniffly has CLI-only analysis |
 | **Cost dashboard with daily chart** | Full analytics dashboard with bar chart + session table | Opcode has basic analytics |
 
 ---
 
 ## Implementation Progress
 
-**Last updated**: March 6, 2026
-**Completed**: 11 / 14
+**Last updated**: March 7, 2026
+**Completed**: 14 / 14 (Phase 1-3) + 6 / 6 (Phase 5)
 
 ### Phase 1 — Quick Wins (Low Effort, High Impact)
 - [x] 1. Model switching (dropdown in header)
@@ -422,9 +430,11 @@ These features are **not found in any competitor** (or found in very few):
 ### Phase 5 — New (Based on Competitive Analysis)
 - [x] 15. **Resizable panels** — Drag handles on sidebar and preview pane
 - [x] 16. **Repos management** — Groups, URLs, context menus, manual add, VS Code integration
-- [x] 17. Push notifications (browser Notification API)
+- [x] 17. Push notifications (browser Notification API + audio chime)
+- [x] 18a. PWA offline fallback (Arabic-styled offline page, SW caching)
+- [x] 18b. Custom Arabic-style bot logo (SVG + PNG icons)
 - [ ] 18. Voice input / dictation
-- [ ] 19. Error pattern analytics
+- [x] 19. **Error pattern analytics** — 9 error categories, timeline, per-tool breakdown, recent errors
 - [ ] 20. CLAUDE.md editor
 
 ---
@@ -439,7 +449,7 @@ Based on competitive gaps and market trends:
 
 3. ~~**Image/vision support** (Phase 2 #7)~~ — **DONE.** Paste, drag-drop, picker. Base64 content blocks via async iterable.
 
-4. ~~**Push notifications** (#17)~~ — **DONE.** Browser Notification API for bg sessions + permission requests.
+4. ~~**Push notifications** (#17)~~ — **DONE.** Browser Notification API for bg sessions + permission requests. Enhanced with audio chime and offline fallback page.
 
 5. **NPX publishing** (#11) — CloudCLI, sugyan, and vultuk all offer `npx` launch. Low effort, big distribution win.
 
@@ -475,8 +485,8 @@ Based on competitive gaps and market trends:
 
 ## Summary
 
-shawkat-ai remains the most feature-rich Claude Code web UI in AI-powered features (workflows, parallel mode, prompt templates, project commands, diff viewer). Phase 3 power features (file explorer, git integration, MCP management) are now complete, closing the biggest feature gaps versus CloudCLI and CodePilot. The repos management feature opens a new category.
+shawkat-ai remains the most feature-rich Claude Code web UI in AI-powered features (workflows, parallel mode, prompt templates, project commands, diff viewer). Phase 3 power features (file explorer, git integration, MCP management) are now complete, closing the biggest feature gaps versus CloudCLI and CodePilot. The repos management feature opens a new category. PWA support now includes offline fallback with Arabic-styled branding, notification audio chimes, and a custom bot logo — giving shawkat-ai a distinctive identity among competitors.
 
-**Immediate priorities**: Authentication (#4) to enable remote usage, mobile responsive (#6) to compete with CloudCLI and Anthropic Remote Control, then image support (#7) and push notifications (#17).
+**Immediate priorities**: Authentication (#4) to enable remote usage, mobile responsive (#6) to compete with CloudCLI and Anthropic Remote Control.
 
 The biggest strategic question is whether to go deeper on unique AI features (workflows, analytics, repos) or broader on platform coverage (mobile, multi-CLI, desktop app). Given Anthropic's Remote Control and CloudCLI's multi-CLI approach, **doubling down on unique AI features + analytics** is the recommended differentiation strategy, while adding auth and mobile as table-stakes hygiene.

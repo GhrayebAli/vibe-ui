@@ -7,6 +7,7 @@ import {
   getAnalyticsOverview, getDailyBreakdown, getHourlyActivity, getProjectBreakdown,
   getTopSessionsByCost, getToolUsage, getToolErrors, getSessionDepth,
   getMsgLengthDistribution, getTopBashCommands, getTopFiles,
+  getErrorCategories, getErrorTimeline, getErrorsByTool, getRecentErrors,
 } from "../../db.js";
 
 const router = Router();
@@ -76,6 +77,10 @@ router.get("/analytics", (req, res) => {
       msgLength: getMsgLengthDistribution(projectPath),
       topBashCommands: getTopBashCommands(projectPath),
       topFiles: getTopFiles(projectPath),
+      errorCategories: getErrorCategories(projectPath),
+      errorTimeline: getErrorTimeline(projectPath),
+      errorsByTool: getErrorsByTool(projectPath),
+      recentErrors: getRecentErrors(projectPath),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

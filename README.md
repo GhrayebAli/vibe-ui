@@ -28,7 +28,7 @@ Requires Node.js 18+ and a valid Claude Code CLI authentication (`claude auth lo
 | AI SDK    | @anthropic-ai/claude-code ^1                                     |
 | Database  | SQLite 3 via better-sqlite3 ^11, WAL mode, prepared statements   |
 | Frontend  | Vanilla JavaScript ES modules (no bundler), CSS custom properties |
-| PWA       | Web App Manifest, Service Worker (push + pass-through), standalone display |
+| PWA       | Web App Manifest, Service Worker (offline fallback + push + caching), standalone display |
 | Rendering | highlight.js 11.9 (syntax), Mermaid 10 (diagrams) — both via CDN |
 
 ## Architecture
@@ -197,6 +197,7 @@ Migrations run automatically on startup (ADD COLUMN with try/catch).
 | ------ | -------------------- | ---------------------------------------- |
 | GET    | /api/stats           | Total + project cost                     |
 | GET    | /api/stats/dashboard | Full dashboard (timeline, per-session)   |
+| GET    | /api/stats/analytics | Analytics with error patterns, tool usage, trends |
 | GET    | /api/account         | Cached account info (email, plan)        |
 | POST   | /api/exec            | Execute shell command (30s timeout)      |
 
@@ -308,6 +309,19 @@ Each workflow chains prompts sequentially with context passing and step progress
 - Per-session cost table (sortable by title, turns, cost)
 - Daily cost bar chart (30-day rolling window)
 
+### 9b. Analytics Dashboard (Error Pattern Analytics)
+Open via **Tools > Analytics** or `/analytics` slash command. Full analytics with error pattern analysis inspired by Sniffly:
+- **Overview cards** — total cost, sessions, queries, turns, output tokens, error count with rate and top category
+- **Daily activity** — 30-day bar chart of cost per day
+- **Hourly activity** — queries by hour of day
+- **Tool usage** — bar chart with per-tool error badges
+- **Error Categories** — SQL CASE-based classification into 9 categories: File Not Found, User Denied, Timeout, File State Error, Directory Error, Multiple Matches, Command Not Found, Build/Runtime Error, Other. Red bar chart with percentages
+- **Error Timeline** — daily error count over 30 days with red bars
+- **Top Failing Tools** — per-tool error breakdown with top 2 error category badges per tool
+- **Recent Errors** — scrollable list of last 20 errors with tool name (red), session title, timestamp, and content preview. Click to expand full error text
+- **Project filter** — dropdown to scope all sections to a specific project
+- Additional sections: project breakdown, top sessions, session depth, message length distribution, top bash commands, top files
+
 ### 10. Keyboard Shortcuts
 | Shortcut       | Action                    |
 | -------------- | ------------------------- |
@@ -405,7 +419,10 @@ Behavior:
 - Installable from Chrome's address bar (⊕ icon) on localhost
 - Runs in a standalone window (no browser chrome)
 - Web App Manifest with app name, theme color, and icons (192x192 + 512x512)
-- Minimal service worker with fetch pass-through (no offline caching — localhost app)
+- Custom Arabic-style bot logo (SVG source at `icons/logo.svg`, auto-generated PNGs)
+- Service worker with offline fallback — pre-caches offline page and icons; navigation requests fall back to a styled offline page (`offline.html`) when network is unavailable
+- Cache-first strategy for static icon assets; network-only for everything else
+- Offline page features Arabic geometric star pattern, bilingual messaging (English + Arabic), and retry button
 - Apple touch icon and `apple-mobile-web-app-capable` meta for iOS/Safari
 
 ### 21. Background Sessions
@@ -532,11 +549,19 @@ Browser notifications for events that happen while the tab is unfocused, **inclu
 - Service worker `push` event handler checks `clients.matchAll()` — only shows notification when no app window is focused (avoids duplicates with local notifications)
 - Stale/expired subscriptions (404/410) auto-cleaned from DB
 
+**Notification sound:**
+- Two-tone chime (C5 → E5) plays when notifications fire
+- AudioContext created lazily, unlocked on first user click/keypress (browser autoplay policy)
+- Client-side notifications play sound directly via `sendNotification()`
+- Push notifications trigger sound via service worker `postMessage` to the client page
+- OS notification sound suppressed (`silent: true`) to avoid double-chime
+- Sound preference stored in `localStorage` (`shawkat-notifications-sound`)
+
 **Setup & testing:**
 1. Enable notifications via `/notifications` command or **Tools > Notifications** toggle
 2. Accept the browser permission prompt
 3. Verify in DevTools → Application → Service Workers → Push subscription exists
-4. Start a background session, close/unfocus the tab — notification appears on completion
+4. Start a background session, close/unfocus the tab — notification appears on completion with audio chime
 5. Click the notification → app opens/focuses
 6. **Important**: macOS users must enable Chrome notifications in **System Settings → Notifications → Google Chrome**
 
@@ -573,6 +598,7 @@ The background-session and permission approval modals are persistent — they ca
 | /shortcuts       | Show keyboard shortcuts        |
 | /theme           | Toggle dark/light theme        |
 | /costs           | Open cost dashboard            |
+| /analytics       | Open analytics dashboard       |
 | /files           | Open Files tab in right panel  |
 | /git             | Open Git tab in right panel    |
 | /repos           | Open Repos tab in right panel  |
@@ -743,10 +769,12 @@ shawkat-ai/
 └── public/
     ├── index.html         HTML structure + modals + SW registration
     ├── manifest.json      PWA Web App Manifest
-    ├── sw.js              Service worker (fetch pass-through)
+    ├── sw.js              Service worker (offline fallback + push + caching)
+    ├── offline.html       Offline fallback page (Arabic geometric design)
     ├── icons/
-    │   ├── icon-192.png   App icon 192x192
-    │   └── icon-512.png   App icon 512x512
+    │   ├── logo.svg       Source SVG logo (Arabic-style bot)
+    │   ├── icon-192.png   App icon 192x192 (generated from logo.svg)
+    │   └── icon-512.png   App icon 512x512 (generated from logo.svg)
     ├── style.css          CSS entry point (@import hub)
     ├── css/
     │   ├── variables.css      CSS custom properties + light theme
@@ -793,7 +821,7 @@ shawkat-ai/
         ├── prompts.js         Prompt toolbox + variable templates
         ├── workflows.js       Workflow panel + execution
         ├── cost-dashboard.js  Cost dashboard (cards, table, bar chart)
-        ├── notifications.js       Browser notification API + toggle + persistence
+        ├── notifications.js       Browser notification API + toggle + sound + persistence
         ├── background-sessions.js Guard switch, bg tracking, toasts, indicator
         ├── permissions.js     Permission modes, approval queue, modal logic
         ├── model-selector.js  Model selection dropdown (auto/sonnet/opus/haiku)
@@ -866,6 +894,7 @@ The following data flows through the app at runtime but is **not** saved to the 
 | `shawkat-ai-cwd` | Last selected project path |
 | `shawkat-repos-expanded` | Expanded group IDs in repos panel |
 | `shawkat-notifications` | Browser notifications enabled (1/0) |
+| `shawkat-notifications-sound` | Notification sound enabled (default on, set to 0 to disable) |
 
 There is no server-side user preferences table — all client preferences are lost if localStorage is cleared or a different browser is used.
 

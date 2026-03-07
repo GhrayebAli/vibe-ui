@@ -308,6 +308,35 @@ export function getProjectTokens(projectPath) {
   return stmts.getProjectTokens.get(projectPath);
 }
 
+// ── Error categorization CASE (reused in multiple queries) ────
+const ERROR_CATEGORY_CASE = `
+  CASE
+    WHEN json_extract(tr.content, '$.content') LIKE '%ENOENT%'
+      OR json_extract(tr.content, '$.content') LIKE '%does not exist%'
+      OR json_extract(tr.content, '$.content') LIKE '%No such file%'
+      THEN 'File Not Found'
+    WHEN json_extract(tr.content, '$.content') LIKE '%Denied by user%'
+      OR json_extract(tr.content, '$.content') LIKE '%Aborted by user%'
+      THEN 'User Denied'
+    WHEN json_extract(tr.content, '$.content') LIKE '%timed out%'
+      THEN 'Timeout'
+    WHEN json_extract(tr.content, '$.content') LIKE '%File has not been read%'
+      OR json_extract(tr.content, '$.content') LIKE '%File has been modified%'
+      THEN 'File State Error'
+    WHEN json_extract(tr.content, '$.content') LIKE '%EISDIR%'
+      OR json_extract(tr.content, '$.content') LIKE '%illegal operation on a directory%'
+      THEN 'Directory Error'
+    WHEN json_extract(tr.content, '$.content') LIKE '%Found % matches%'
+      THEN 'Multiple Matches'
+    WHEN json_extract(tr.content, '$.content') LIKE '%command not found%'
+      THEN 'Command Not Found'
+    WHEN json_extract(tr.content, '$.content') LIKE '%npm error%'
+      OR json_extract(tr.content, '$.content') LIKE '%SyntaxError%'
+      OR json_extract(tr.content, '$.content') LIKE '%error TS%'
+      THEN 'Build/Runtime Error'
+    ELSE 'Other'
+  END`;
+
 // ── Analytics queries ──────────────────────────────────────────
 
 const analyticsStmts = {
@@ -623,6 +652,102 @@ const analyticsStmts = {
     ORDER BY count DESC
     LIMIT 15
   `),
+
+  // ── Error pattern analytics ──────────────────────────────────
+  errorCategoriesAll: db.prepare(`
+    SELECT ${ERROR_CATEGORY_CASE} AS category, COUNT(*) AS count
+    FROM messages tr
+    WHERE tr.role = 'tool_result' AND json_extract(tr.content, '$.isError') = 1
+    GROUP BY category
+    ORDER BY count DESC
+  `),
+  errorCategoriesByProject: db.prepare(`
+    SELECT ${ERROR_CATEGORY_CASE} AS category, COUNT(*) AS count
+    FROM messages tr
+    JOIN sessions s ON tr.session_id = s.id
+    WHERE tr.role = 'tool_result' AND json_extract(tr.content, '$.isError') = 1
+      AND s.project_path = ?
+    GROUP BY category
+    ORDER BY count DESC
+  `),
+  errorTimelineAll: db.prepare(`
+    SELECT date(tr.created_at, 'unixepoch') AS date, COUNT(*) AS errors
+    FROM messages tr
+    WHERE tr.role = 'tool_result' AND json_extract(tr.content, '$.isError') = 1
+      AND tr.created_at >= unixepoch() - 30 * 86400
+    GROUP BY date(tr.created_at, 'unixepoch')
+    ORDER BY date ASC
+  `),
+  errorTimelineByProject: db.prepare(`
+    SELECT date(tr.created_at, 'unixepoch') AS date, COUNT(*) AS errors
+    FROM messages tr
+    JOIN sessions s ON tr.session_id = s.id
+    WHERE tr.role = 'tool_result' AND json_extract(tr.content, '$.isError') = 1
+      AND s.project_path = ? AND tr.created_at >= unixepoch() - 30 * 86400
+    GROUP BY date(tr.created_at, 'unixepoch')
+    ORDER BY date ASC
+  `),
+  errorsByToolAll: db.prepare(`
+    SELECT
+      COALESCE(json_extract(t.content, '$.name'), 'Unknown') AS tool,
+      ${ERROR_CATEGORY_CASE} AS category,
+      COUNT(*) AS errors
+    FROM messages tr
+    LEFT JOIN messages t ON t.session_id = tr.session_id
+      AND t.role = 'tool'
+      AND json_extract(t.content, '$.id') = json_extract(tr.content, '$.toolUseId')
+    WHERE tr.role = 'tool_result' AND json_extract(tr.content, '$.isError') = 1
+    GROUP BY tool, category
+    ORDER BY errors DESC
+  `),
+  errorsByToolByProject: db.prepare(`
+    SELECT
+      COALESCE(json_extract(t.content, '$.name'), 'Unknown') AS tool,
+      ${ERROR_CATEGORY_CASE} AS category,
+      COUNT(*) AS errors
+    FROM messages tr
+    JOIN sessions s ON tr.session_id = s.id
+    LEFT JOIN messages t ON t.session_id = tr.session_id
+      AND t.role = 'tool'
+      AND json_extract(t.content, '$.id') = json_extract(tr.content, '$.toolUseId')
+    WHERE tr.role = 'tool_result' AND json_extract(tr.content, '$.isError') = 1
+      AND s.project_path = ?
+    GROUP BY tool, category
+    ORDER BY errors DESC
+  `),
+  recentErrorsAll: db.prepare(`
+    SELECT
+      COALESCE(json_extract(t.content, '$.name'), 'Unknown') AS tool,
+      SUBSTR(json_extract(tr.content, '$.content'), 1, 200) AS preview,
+      json_extract(tr.content, '$.content') AS full_content,
+      s.title AS session_title,
+      tr.created_at AS timestamp
+    FROM messages tr
+    JOIN sessions s ON tr.session_id = s.id
+    LEFT JOIN messages t ON t.session_id = tr.session_id
+      AND t.role = 'tool'
+      AND json_extract(t.content, '$.id') = json_extract(tr.content, '$.toolUseId')
+    WHERE tr.role = 'tool_result' AND json_extract(tr.content, '$.isError') = 1
+    ORDER BY tr.created_at DESC
+    LIMIT 20
+  `),
+  recentErrorsByProject: db.prepare(`
+    SELECT
+      COALESCE(json_extract(t.content, '$.name'), 'Unknown') AS tool,
+      SUBSTR(json_extract(tr.content, '$.content'), 1, 200) AS preview,
+      json_extract(tr.content, '$.content') AS full_content,
+      s.title AS session_title,
+      tr.created_at AS timestamp
+    FROM messages tr
+    JOIN sessions s ON tr.session_id = s.id
+    LEFT JOIN messages t ON t.session_id = tr.session_id
+      AND t.role = 'tool'
+      AND json_extract(t.content, '$.id') = json_extract(tr.content, '$.toolUseId')
+    WHERE tr.role = 'tool_result' AND json_extract(tr.content, '$.isError') = 1
+      AND s.project_path = ?
+    ORDER BY tr.created_at DESC
+    LIMIT 20
+  `),
 };
 
 export function getAnalyticsOverview(projectPath) {
@@ -694,6 +819,30 @@ export function getTopFiles(projectPath) {
   return projectPath
     ? analyticsStmts.topFilesByProject.all(projectPath)
     : analyticsStmts.topFilesAll.all();
+}
+
+export function getErrorCategories(projectPath) {
+  return projectPath
+    ? analyticsStmts.errorCategoriesByProject.all(projectPath)
+    : analyticsStmts.errorCategoriesAll.all();
+}
+
+export function getErrorTimeline(projectPath) {
+  return projectPath
+    ? analyticsStmts.errorTimelineByProject.all(projectPath)
+    : analyticsStmts.errorTimelineAll.all();
+}
+
+export function getErrorsByTool(projectPath) {
+  return projectPath
+    ? analyticsStmts.errorsByToolByProject.all(projectPath)
+    : analyticsStmts.errorsByToolAll.all();
+}
+
+export function getRecentErrors(projectPath) {
+  return projectPath
+    ? analyticsStmts.recentErrorsByProject.all(projectPath)
+    : analyticsStmts.recentErrorsAll.all();
 }
 
 // ── Push subscription queries ────────────────────────────────

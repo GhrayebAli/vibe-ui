@@ -3,6 +3,42 @@ import { getState, setState } from './store.js';
 import { registerCommand } from './commands.js';
 
 const STORAGE_KEY = 'shawkat-notifications';
+const SOUND_KEY = 'shawkat-notifications-sound';
+
+// ── Audio ──
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+// Unlock AudioContext on first user interaction (browser autoplay policy)
+document.addEventListener('click', () => getAudioCtx(), { once: true });
+document.addEventListener('keydown', () => getAudioCtx(), { once: true });
+
+function playNotificationSound() {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    // Two-tone chime: C5 → E5
+    [[523, 0], [659, 0.15]].forEach(([freq, offset]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.25, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.3);
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.3);
+    });
+  } catch { /* audio unavailable */ }
+}
+
+export function isNotificationSoundEnabled() {
+  return localStorage.getItem(SOUND_KEY) !== '0';
+}
 
 /**
  * Request notification permission from the browser.
@@ -38,10 +74,14 @@ export async function sendNotification(title, body, tag) {
   if (!isNotificationsEnabled()) return;
   if (document.hasFocus()) return;
 
+  // Play sound (works even when tab is unfocused, as long as page is loaded)
+  if (isNotificationSoundEnabled()) playNotificationSound();
+
   const opts = {
     body,
     tag: tag || undefined,
     icon: '/icons/icon-192.png',
+    silent: true, // suppress OS sound — we play our own
   };
 
   // Prefer SW-based notification (works in PWA standalone + background)
@@ -141,6 +181,15 @@ function updateLabel() {
   if (label) {
     label.textContent = getState('notificationsEnabled') ? 'Notifications (on)' : 'Notifications';
   }
+}
+
+// ── Listen for SW messages (push-triggered sound) ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'play-notification-sound' && isNotificationSoundEnabled()) {
+      playNotificationSound();
+    }
+  });
 }
 
 // ── Init ──

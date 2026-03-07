@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0d1117">
+  <title>shawkat-ai :: offline</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #050508;
+      color: #b8c4d0;
+      font-family: "SF Mono", "Fira Code", "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    .offline-container {
+      text-align: center;
+      padding: 2rem;
+      max-width: 480px;
+    }
+
+    /* Arabic geometric pattern border */
+    .pattern-ring {
+      width: 160px;
+      height: 160px;
+      margin: 0 auto 2rem;
+      position: relative;
+    }
+
+    .pattern-ring svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .offline-title {
+      font-size: 1.4rem;
+      color: #33d17a;
+      margin-bottom: 0.5rem;
+      direction: ltr;
+    }
+
+    .offline-arabic {
+      font-size: 1.6rem;
+      color: #c69ff5;
+      margin-bottom: 1.5rem;
+      font-family: "Noto Kufi Arabic", "Amiri", "Tajawal", serif;
+      direction: rtl;
+    }
+
+    .offline-message {
+      color: #6b7a8d;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      margin-bottom: 2rem;
+    }
+
+    .retry-btn {
+      background: transparent;
+      border: 1px solid #33d17a;
+      color: #33d17a;
+      padding: 0.6rem 1.8rem;
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .retry-btn:hover {
+      background: rgba(51, 209, 122, 0.1);
+      box-shadow: 0 0 12px rgba(51, 209, 122, 0.2);
+    }
+
+    /* Animated pulse on the geometric pattern */
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+
+    .pulse { animation: pulse-glow 3s ease-in-out infinite; }
+
+    /* Floating geometric particles */
+    .particles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .particle {
+      position: absolute;
+      opacity: 0.06;
+      animation: float 20s infinite linear;
+    }
+
+    @keyframes float {
+      0% { transform: translateY(100vh) rotate(0deg); }
+      100% { transform: translateY(-20vh) rotate(360deg); }
+    }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Kufi+Arabic:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Floating geometric particles background -->
+  <div class="particles">
+    <svg class="particle" style="left:10%;width:30px;animation-delay:0s;animation-duration:25s" viewBox="0 0 40 40">
+      <polygon points="20,2 38,20 20,38 2,20" fill="none" stroke="#33d17a" stroke-width="1"/>
+    </svg>
+    <svg class="particle" style="left:30%;width:20px;animation-delay:5s;animation-duration:18s" viewBox="0 0 40 40">
+      <polygon points="20,0 40,20 20,40 0,20" fill="none" stroke="#c69ff5" stroke-width="1"/>
+    </svg>
+    <svg class="particle" style="left:55%;width:25px;animation-delay:2s;animation-duration:22s" viewBox="0 0 40 40">
+      <circle cx="20" cy="20" r="15" fill="none" stroke="#33d17a" stroke-width="1"/>
+    </svg>
+    <svg class="particle" style="left:75%;width:35px;animation-delay:8s;animation-duration:28s" viewBox="0 0 60 60">
+      <path d="M30,5 L55,30 L30,55 L5,30 Z" fill="none" stroke="#c69ff5" stroke-width="1"/>
+      <path d="M30,15 L45,30 L30,45 L15,30 Z" fill="none" stroke="#33d17a" stroke-width="1"/>
+    </svg>
+    <svg class="particle" style="left:90%;width:18px;animation-delay:12s;animation-duration:20s" viewBox="0 0 40 40">
+      <polygon points="20,2 38,20 20,38 2,20" fill="none" stroke="#33d17a" stroke-width="1"/>
+    </svg>
+  </div>
+
+  <div class="offline-container">
+    <!-- Arabic geometric star pattern -->
+    <div class="pattern-ring">
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <!-- Outer octagon -->
+        <polygon points="100,10 158,30 180,88 168,150 120,185 80,185 32,150 20,88 42,30"
+                 fill="none" stroke="#1e2028" stroke-width="1.5"/>
+        <!-- Islamic 8-point star -->
+        <polygon points="100,25 120,75 175,75 130,110 150,165 100,135 50,165 70,110 25,75 80,75"
+                 fill="none" stroke="#33d17a" stroke-width="1" class="pulse"/>
+        <!-- Inner star rotated -->
+        <polygon points="100,40 115,85 165,85 125,115 140,160 100,138 60,160 75,115 35,85 85,85"
+                 fill="none" stroke="rgba(51,209,122,0.3)" stroke-width="0.5"/>
+        <!-- Center circle -->
+        <circle cx="100" cy="100" r="20" fill="none" stroke="#c69ff5" stroke-width="1" class="pulse" style="animation-delay:1.5s"/>
+        <!-- Terminal cursor in center -->
+        <rect x="93" y="93" width="14" height="14" rx="2" fill="none" stroke="#33d17a" stroke-width="1.5"/>
+        <line x1="97" y1="97" x2="97" y2="103" stroke="#33d17a" stroke-width="1.5"/>
+        <line x1="97" y1="100" x2="103" y2="100" stroke="#33d17a" stroke-width="1"/>
+      </svg>
+    </div>
+
+    <div class="offline-title">> offline</div>
+    <div class="offline-arabic">غير متصل</div>
+    <p class="offline-message">
+      No network connection available.<br>
+      shawkat-ai requires a connection to communicate with Claude.
+    </p>
+    <button class="retry-btn" onclick="location.reload()">retry connection</button>
+  </div>
+</body>
+</html>

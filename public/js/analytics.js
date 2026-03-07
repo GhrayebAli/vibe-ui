@@ -135,8 +135,9 @@ function renderAnalytics(data) {
       <div class="cost-card-value">${formatNumber(o.totalOutputTokens)}</div>
     </div>
     <div class="cost-card">
-      <div class="cost-card-label">Error Rate</div>
-      <div class="cost-card-value${o.errorRate > 5 ? ' analytics-error-value' : ''}">${o.errorRate.toFixed(1)}%</div>
+      <div class="cost-card-label">Errors</div>
+      <div class="cost-card-value${o.errorRate > 5 ? ' analytics-error-value' : ''}">${data.errorCategories ? formatNumber(data.errorCategories.reduce((s, c) => s + c.count, 0)) : '0'} <span style="font-size:10px;color:var(--text-dim)">(${o.errorRate.toFixed(1)}%)</span></div>
+      ${data.errorCategories && data.errorCategories.length > 0 ? `<div style="font-size:9px;color:var(--text-dim);margin-top:2px">Top: ${escapeHtml(data.errorCategories[0].category)}</div>` : ''}
     </div>
   `;
   el.appendChild(cardsDiv);
@@ -207,6 +208,105 @@ function renderAnalytics(data) {
     }
     toolSec.appendChild(toolChart);
     el.appendChild(toolSec);
+  }
+
+  // 5b. Error Categories
+  if (data.errorCategories && data.errorCategories.length > 0) {
+    const errCatSec = section('Error Categories');
+    const errCatChart = document.createElement('div');
+    errCatChart.className = 'cost-chart analytics-error-bar';
+    const totalErrors = data.errorCategories.reduce((s, c) => s + c.count, 0);
+    const maxCat = Math.max(...data.errorCategories.map(c => c.count), 1);
+    for (const cat of data.errorCategories) {
+      const p = pct(cat.count, maxCat);
+      const catPct = totalErrors > 0 ? (cat.count / totalErrors * 100).toFixed(1) : '0';
+      const row = document.createElement('div');
+      row.className = 'cost-chart-row';
+      row.innerHTML = `
+        <span class="cost-chart-label analytics-error-category-label">${escapeHtml(cat.category)}</span>
+        <div class="cost-chart-bar-bg"><div class="cost-chart-bar" style="width:${p}%"></div></div>
+        <span class="cost-chart-value">${cat.count} (${catPct}%)</span>
+      `;
+      errCatChart.appendChild(row);
+    }
+    errCatSec.appendChild(errCatChart);
+    el.appendChild(errCatSec);
+  }
+
+  // 5c. Error Timeline
+  if (data.errorTimeline && data.errorTimeline.length > 0) {
+    const errTimeSec = section('Error Timeline (Last 30 Days)');
+    const errTimeChart = document.createElement('div');
+    errTimeChart.className = 'cost-chart analytics-error-bar';
+    renderBarChart(errTimeChart, data.errorTimeline, 'date', 'errors', String);
+    errTimeChart.querySelectorAll('.cost-chart-label').forEach(lbl => {
+      lbl.textContent = lbl.textContent.slice(5); // MM-DD
+    });
+    errTimeSec.appendChild(errTimeChart);
+    el.appendChild(errTimeSec);
+  }
+
+  // 5d. Top Failing Tools
+  if (data.errorsByTool && data.errorsByTool.length > 0) {
+    const errToolSec = section('Top Failing Tools');
+    const errToolChart = document.createElement('div');
+    errToolChart.className = 'cost-chart analytics-error-bar';
+    // Pivot: group by tool, sum errors, collect top 2 categories
+    const toolMap = new Map();
+    for (const row of data.errorsByTool) {
+      if (!toolMap.has(row.tool)) toolMap.set(row.tool, { tool: row.tool, errors: 0, categories: [] });
+      const entry = toolMap.get(row.tool);
+      entry.errors += row.errors;
+      if (entry.categories.length < 2) entry.categories.push(row.category);
+    }
+    const toolList = [...toolMap.values()].sort((a, b) => b.errors - a.errors);
+    const maxToolErr = Math.max(...toolList.map(t => t.errors), 1);
+    for (const tool of toolList) {
+      const p = pct(tool.errors, maxToolErr);
+      const badges = tool.categories.map(c => `<span class="analytics-error-category-badge">${escapeHtml(c)}</span>`).join('');
+      const row = document.createElement('div');
+      row.className = 'cost-chart-row';
+      row.innerHTML = `
+        <span class="cost-chart-label analytics-error-category-label">${escapeHtml(tool.tool)}</span>
+        <div class="cost-chart-bar-bg"><div class="cost-chart-bar" style="width:${p}%"></div></div>
+        <span class="cost-chart-value">${tool.errors}${badges}</span>
+      `;
+      errToolChart.appendChild(row);
+    }
+    errToolSec.appendChild(errToolChart);
+    el.appendChild(errToolSec);
+  }
+
+  // 5e. Recent Errors
+  if (data.recentErrors && data.recentErrors.length > 0) {
+    const errRecSec = section('Recent Errors');
+    const errList = document.createElement('div');
+    errList.className = 'analytics-error-list';
+    for (const err of data.recentErrors) {
+      const item = document.createElement('div');
+      item.className = 'analytics-error-item';
+      const ts = new Date(err.timestamp * 1000);
+      const timeStr = ts.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + ts.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      item.innerHTML = `
+        <div class="analytics-error-item-header">
+          <span class="analytics-error-tool">${escapeHtml(err.tool)}</span>
+          ${err.session_title ? `<span style="font-size:10px;color:var(--text-dim)">${escapeHtml(err.session_title)}</span>` : ''}
+          <span class="analytics-error-time">${timeStr}</span>
+        </div>
+        <div class="analytics-error-preview">${escapeHtml(err.preview || '')}</div>
+      `;
+      item.addEventListener('click', () => {
+        const existing = item.querySelector('.analytics-error-full');
+        if (existing) { existing.remove(); return; }
+        const full = document.createElement('div');
+        full.className = 'analytics-error-full';
+        full.textContent = err.full_content || err.preview || '';
+        item.appendChild(full);
+      });
+      errList.appendChild(item);
+    }
+    errRecSec.appendChild(errList);
+    el.appendChild(errRecSec);
   }
 
   // 6. Top Sessions
