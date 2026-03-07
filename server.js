@@ -4,7 +4,10 @@ import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { appendFileSync } from "fs";
+import webpush from "web-push";
 import { getDb, allClaudeSessions } from "./db.js";
+import { initPushSender } from "./server/push-sender.js";
 
 // Route modules
 import projectsRouter from "./server/routes/projects.js";
@@ -18,6 +21,7 @@ import execRouter from "./server/routes/exec.js";
 import linearRouter from "./server/routes/linear.js";
 import mcpRouter from "./server/routes/mcp.js";
 import reposRouter from "./server/routes/repos.js";
+import notificationsRouter, { setVapidPublicKey } from "./server/routes/notifications.js";
 import { setupWebSocket } from "./server/ws-handler.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -29,6 +33,25 @@ const wss = new WebSocketServer({ server, path: "/ws" });
 
 app.use(express.static(join(__dirname, "public")));
 app.use(express.json());
+
+// ── Web Push (VAPID) setup ──────────────────────────────────
+{
+  let vapidPublic = process.env.VAPID_PUBLIC_KEY;
+  let vapidPrivate = process.env.VAPID_PRIVATE_KEY;
+
+  if (!vapidPublic || !vapidPrivate) {
+    const generated = webpush.generateVAPIDKeys();
+    vapidPublic = generated.publicKey;
+    vapidPrivate = generated.privateKey;
+    // Persist to .env so keys survive restarts
+    appendFileSync(join(__dirname, ".env"), `\nVAPID_PUBLIC_KEY="${vapidPublic}"\nVAPID_PRIVATE_KEY="${vapidPrivate}"\n`);
+    console.log("Generated and saved VAPID keys to .env");
+  }
+
+  webpush.setVapidDetails("mailto:push@shawkat-ai.local", vapidPublic, vapidPrivate);
+  setVapidPublicKey(vapidPublic);
+  initPushSender(webpush);
+}
 
 // Restore session mappings from DB on startup
 const sessionIds = new Map();
@@ -68,6 +91,7 @@ app.use("/api/exec", execRouter);
 app.use("/api/linear", linearRouter);
 app.use("/api/mcp", mcpRouter);
 app.use("/api/repos", reposRouter);
+app.use("/api/notifications", notificationsRouter);
 
 // WebSocket
 setupWebSocket(wss, sessionIds);

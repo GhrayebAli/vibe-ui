@@ -44,6 +44,13 @@ db.exec(`
     claude_session_id TEXT NOT NULL,
     PRIMARY KEY (session_id, chat_id)
   );
+
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    endpoint TEXT PRIMARY KEY,
+    keys_p256dh TEXT NOT NULL,
+    keys_auth TEXT NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch())
+  );
 `);
 
 // Migrations
@@ -687,6 +694,29 @@ export function getTopFiles(projectPath) {
   return projectPath
     ? analyticsStmts.topFilesByProject.all(projectPath)
     : analyticsStmts.topFilesAll.all();
+}
+
+// ── Push subscription queries ────────────────────────────────
+const pushStmts = {
+  upsert: db.prepare(
+    `INSERT INTO push_subscriptions (endpoint, keys_p256dh, keys_auth)
+     VALUES (?, ?, ?)
+     ON CONFLICT(endpoint) DO UPDATE SET keys_p256dh = excluded.keys_p256dh, keys_auth = excluded.keys_auth`
+  ),
+  delete: db.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`),
+  getAll: db.prepare(`SELECT * FROM push_subscriptions`),
+};
+
+export function upsertPushSubscription(endpoint, p256dh, auth) {
+  pushStmts.upsert.run(endpoint, p256dh, auth);
+}
+
+export function deletePushSubscription(endpoint) {
+  pushStmts.delete.run(endpoint);
+}
+
+export function getAllPushSubscriptions() {
+  return pushStmts.getAll.all();
 }
 
 export function getDb() {

@@ -5,6 +5,7 @@ import { on } from './events.js';
 import { panes } from './parallel.js';
 import { CHAT_IDS } from './constants.js';
 import { removeThinking } from './messages.js';
+import { sendNotification } from './notifications.js';
 
 const BG_STORAGE_KEY = "shawkat-ai-bg-sessions";
 
@@ -96,7 +97,34 @@ export function reconcileBackgroundSessions(activeSessionIds) {
   persistBgSessions();
 }
 
+export function showErrorToast(sessionId, title, error) {
+  sendNotification('Session Error', `${title}: ${error}`, `error-${sessionId}`);
+
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+
+  const toast = document.createElement("div");
+  toast.className = "bg-toast bg-toast-error";
+  toast.innerHTML = `
+    <span class="bg-toast-dot error"></span>
+    <div class="bg-toast-body">
+      <div class="bg-toast-label" style="color:var(--error)">Session error</div>
+      <div class="bg-toast-title">${escapeForHtml(title)}</div>
+      <div class="bg-toast-error-msg">${escapeForHtml(error.slice(0, 120))}</div>
+    </div>
+    <button class="bg-toast-close" title="Dismiss">&times;</button>
+  `;
+
+  toast.querySelector(".bg-toast-close").addEventListener("click", () => {
+    dismissToast(toast);
+  });
+
+  container.appendChild(toast);
+}
+
 export function showCompletionToast(sessionId, title, projectPath) {
+  sendNotification('Session Completed', title, `done-${sessionId}`);
+
   const container = document.getElementById("toast-container");
   if (!container) return;
 

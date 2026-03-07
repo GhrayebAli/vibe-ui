@@ -13,11 +13,11 @@ import { loadProjects } from './projects.js';
 import { loadPrompts } from './prompts.js';
 import { loadWorkflows } from './workflows.js';
 import { connectWebSocket } from './ws.js';
-import { updateAttachmentBadge } from './attachments.js';
+import { updateAttachmentBadge, getImageAttachments, clearImageAttachments } from './attachments.js';
 import { applyTheme } from './theme.js';
 import { exportAsMarkdown, exportAsHtml } from './export.js';
 import * as api from './api.js';
-import { isBackgroundSession, removeBackgroundSession, showCompletionToast, reconcileBackgroundSessions } from './background-sessions.js';
+import { isBackgroundSession, removeBackgroundSession, showCompletionToast, showErrorToast, reconcileBackgroundSessions } from './background-sessions.js';
 import { enqueuePermissionRequest, getPermissionMode, clearSessionPermissions } from './permissions.js';
 import { getSelectedModel } from './model-selector.js';
 import { getMaxTurns } from './max-turns.js';
@@ -87,7 +87,8 @@ export function sendMessage(pane) {
     fullMessage = fileBlocks + "\n\n" + text;
   }
 
-  addUserMessage(text, pane);
+  const images = getImageAttachments();
+  addUserMessage(text, pane, images);
   pane.messageInput.value = "";
   pane.messageInput.style.height = "auto";
   setState("streamingCharCount", 0);
@@ -96,6 +97,9 @@ export function sendMessage(pane) {
   if (attachedFiles.length > 0) {
     setState("attachedFiles", []);
     updateAttachmentBadge();
+  }
+  if (images.length > 0) {
+    clearImageAttachments();
   }
 
   pane.isStreaming = true;
@@ -121,6 +125,9 @@ export function sendMessage(pane) {
     projectName,
     permissionMode: getPermissionMode(),
   };
+  if (images.length > 0) {
+    payload.images = images.map(({ name, data, mimeType }) => ({ name, data, mimeType }));
+  }
   if (model) payload.model = model;
   const maxTurns = getMaxTurns();
   if (maxTurns) payload.maxTurns = maxTurns;
@@ -195,7 +202,29 @@ function handleServerMessage(msg) {
       removeBackgroundSession(msg.sessionId);
       loadSessions();
     }
+    if (msg.type === "error") {
+      const bgMap = getState("backgroundSessions");
+      const info = bgMap.get(msg.sessionId);
+      const title = info?.title || "Background session";
+      showErrorToast(msg.sessionId, title, msg.error || "Unknown error");
+      removeBackgroundSession(msg.sessionId);
+      loadSessions();
+    }
     // Silently ignore all other message types — server saves to DB
+    return;
+  }
+
+  // Drop messages from a stale session that isn't the active one
+  // (and wasn't explicitly backgrounded — those are caught above).
+  // Allow: "session" (sets the new id), "permission_request", workflow messages.
+  const currentSessionId = getState("sessionId");
+  if (
+    msg.sessionId &&
+    msg.sessionId !== currentSessionId &&
+    msg.type !== "session" &&
+    msg.type !== "permission_request"
+  ) {
+    // Server already saved to DB — safe to discard on the client
     return;
   }
 

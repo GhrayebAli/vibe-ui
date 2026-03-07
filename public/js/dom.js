@@ -42,6 +42,11 @@ export const $ = {
   fpList: document.getElementById("fp-list"),
   fpCount: document.getElementById("fp-count"),
 
+  // Image attachments
+  imageBtn: document.getElementById("image-btn"),
+  imageFileInput: document.getElementById("image-file-input"),
+  imagePreviewStrip: document.getElementById("image-preview-strip"),
+
   // Prompt modal
   promptModal: document.getElementById("prompt-modal"),
   promptForm: document.getElementById("prompt-form"),

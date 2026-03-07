@@ -24,11 +24,11 @@ Requires Node.js 18+ and a valid Claude Code CLI authentication (`claude auth lo
 | Layer     | Technology                                                        |
 | --------- | ----------------------------------------------------------------- |
 | Runtime   | Node.js 18+ (ESM)                                                |
-| Backend   | Express 4, WebSocket (ws 8), dotenv                              |
+| Backend   | Express 4, WebSocket (ws 8), web-push 3, dotenv                  |
 | AI SDK    | @anthropic-ai/claude-code ^1                                     |
 | Database  | SQLite 3 via better-sqlite3 ^11, WAL mode, prepared statements   |
 | Frontend  | Vanilla JavaScript ES modules (no bundler), CSS custom properties |
-| PWA       | Web App Manifest, Service Worker (pass-through), standalone display |
+| PWA       | Web App Manifest, Service Worker (push + pass-through), standalone display |
 | Rendering | highlight.js 11.9 (syntax), Mermaid 10 (diagrams) — both via CDN |
 
 ## Architecture
@@ -43,7 +43,7 @@ browser ──────── WebSocket ──────── server.js �
    │   ├── chat.js, messages.js ...   ├── repos.json (repositories)
    │   └── 25+ more modules           ├── prompts.json (16 templates)
    │                                   └── workflows.json (3 workflows)
-   ├── css/ (20 focused stylesheets)
+   ├── css/ (21 focused stylesheets)
    └── index.html
 ```
 
@@ -108,6 +108,14 @@ browser ──────── WebSocket ──────── server.js �
 | session_id        | TEXT | Our session UUID                   |
 | chat_id           | TEXT | Parallel pane ID (composite PK)    |
 | claude_session_id | TEXT | Claude SDK session ID              |
+
+### push_subscriptions
+| Column      | Type    | Description                              |
+| ----------- | ------- | ---------------------------------------- |
+| endpoint    | TEXT PK | Push service URL (unique per browser)    |
+| keys_p256dh | TEXT    | Client public key for encryption         |
+| keys_auth   | TEXT    | Client auth secret                       |
+| created_at  | INTEGER | Unix timestamp                           |
 
 Migrations run automatically on startup (ADD COLUMN with try/catch).
 
@@ -195,7 +203,7 @@ Migrations run automatically on startup (ADD COLUMN with try/catch).
 ### WebSocket (`/ws`)
 
 **Outgoing** (client to server):
-- `{ type: "chat", message, cwd, sessionId, projectName, chatId, permissionMode, model, maxTurns }` — send a message
+- `{ type: "chat", message, cwd, sessionId, projectName, chatId, permissionMode, model, maxTurns, images? }` — send a message (images: `[{ name, data, mimeType }]` base64-encoded)
 - `{ type: "workflow", workflow, cwd, sessionId, projectName, permissionMode, model }` — run a workflow
 - `{ type: "abort", chatId? }` — stop generation
 - `{ type: "permission_response", id, behavior }` — approve (`"allow"`) or deny (`"deny"`) a tool call
@@ -275,6 +283,17 @@ Each workflow chains prompts sequentially with context passing and step progress
 - Multi-select with badge count
 - Files prepended as `<file path="...">` blocks
 - 50KB per-file limit with path traversal protection
+
+### 7b. Image / Vision Support
+- Attach images via **image button** (file picker), **paste** (Cmd+V), or **drag-and-drop** onto the message input
+- Supported formats: PNG, JPEG, GIF, WebP (Claude API supported types)
+- 5MB per-image size limit with user-facing error toast
+- **Preview strip** — horizontal thumbnail strip above the input bar with remove (x) buttons
+- **Chat display** — image thumbnails rendered inline in user messages
+- **Click-to-expand** — click any chat thumbnail for a full-size overlay (click to dismiss)
+- **Multimodal SDK integration** — images sent as base64 content blocks via `AsyncIterable<SDKUserMessage>` (async generator)
+- **Session history** — images saved in DB message JSON and re-rendered when loading past sessions
+- Badge count combines file attachments + image attachments
 
 ### 8. Session Management
 - Title and project name search with debounced input (200ms)
@@ -498,7 +517,43 @@ All header dropdowns now have uppercase labels for clarity:
 - **model** — model selector
 - **turns** — max turns per query
 
-### 31. Persistent Confirmation Modals
+### 32. Push Notifications
+Browser notifications for events that happen while the tab is unfocused, **including when the browser tab is closed**:
+
+**Local notifications** (tab open but unfocused):
+- Background session completed — title of the finished session
+- Background session error — session title + error message
+- Permission request — tool name + background session label (if applicable)
+
+**Web Push notifications** (works even with the tab/browser closed):
+- Server sends push via `web-push` library when a chat query or workflow completes
+- Uses VAPID keys (auto-generated on first run, saved to `.env`)
+- Push subscriptions stored in SQLite (`push_subscriptions` table)
+- Service worker `push` event handler checks `clients.matchAll()` — only shows notification when no app window is focused (avoids duplicates with local notifications)
+- Stale/expired subscriptions (404/410) auto-cleaned from DB
+
+**Setup & testing:**
+1. Enable notifications via `/notifications` command or **Tools > Notifications** toggle
+2. Accept the browser permission prompt
+3. Verify in DevTools → Application → Service Workers → Push subscription exists
+4. Start a background session, close/unfocus the tab — notification appears on completion
+5. Click the notification → app opens/focuses
+6. **Important**: macOS users must enable Chrome notifications in **System Settings → Notifications → Google Chrome**
+
+**API endpoints:**
+- `GET /api/notifications/vapid-public-key` — returns VAPID public key for client subscription
+- `POST /api/notifications/subscribe` — stores PushSubscription in DB
+- `POST /api/notifications/unsubscribe` — removes subscription from DB
+
+**General behavior:**
+- Toggle via `/notifications` slash command or **Tools > Notifications** in the header dropdown
+- Click any notification to focus the app window
+- Service worker `notificationclick` handler focuses or opens the app tab
+- Preference persisted to `localStorage`
+- Dedup tags prevent notification spam (e.g. same session won't stack)
+- Graceful degradation: if VAPID keys are missing, push is a no-op; if PushManager is unavailable, local notifications still work
+
+### 33. Persistent Confirmation Modals
 The background-session and permission approval modals are persistent — they can only be dismissed via their action buttons. Overlay clicks, Escape key, and close buttons are disabled to prevent accidental dismissal of critical decisions.
 
 ---
@@ -522,6 +577,7 @@ The background-session and permission approval modals are persistent — they ca
 | /git             | Open Git tab in right panel    |
 | /repos           | Open Repos tab in right panel  |
 | /mcp             | Open MCP server manager modal  |
+| /notifications   | Toggle browser notifications   |
 
 ### CLI
 | Command       | Description                     |
@@ -573,6 +629,8 @@ Autocomplete triggers on `/` with keyboard navigation (arrow keys, Tab, Enter). 
 PORT=9009                        # Server port (default 9009)
 LINEAR_API_KEY=                  # Linear API key for issue integration
 LINEAR_ASSIGNEE_EMAIL=           # Auto-assign new issues to this email
+VAPID_PUBLIC_KEY=                # Auto-generated on first run if missing
+VAPID_PRIVATE_KEY=               # Auto-generated on first run if missing
 ```
 Copy `.env.example` to `.env` and fill in values. The app works without any env vars configured.
 
@@ -709,6 +767,7 @@ shawkat-ai/
     │   ├── repos-panel.css    Repos tree, groups, context menu, manual form
     │   ├── git-panel.css      Git status, staging, commit, log, branches
     │   ├── mcp-manager.css    MCP server modal, cards, form
+    │   ├── image-attachments.css Image preview strip, chat thumbnails, overlay
     │   ├── linear-panel.css   Linear tasks panel + create issue modal
     │   ├── theme.css          Scanline overlay, animations, scrollbar
     │   └── print.css          Print-friendly styles
@@ -734,6 +793,7 @@ shawkat-ai/
         ├── prompts.js         Prompt toolbox + variable templates
         ├── workflows.js       Workflow panel + execution
         ├── cost-dashboard.js  Cost dashboard (cards, table, bar chart)
+        ├── notifications.js       Browser notification API + toggle + persistence
         ├── background-sessions.js Guard switch, bg tracking, toasts, indicator
         ├── permissions.js     Permission modes, approval queue, modal logic
         ├── model-selector.js  Model selection dropdown (auto/sonnet/opus/haiku)
@@ -778,6 +838,7 @@ The following data flows through the app at runtime but is **not** saved to the 
 ### Message-Level Data
 - **Tool results truncated** to 2,000 characters before saving — full output is lost
 - **File attachment metadata** (paths, sizes, count) is never persisted — only injected inline into the prompt
+- **Image attachments** are fully persisted (base64 data + mimeType + name) in the user message JSON — images replay correctly from history
 - **System prompt at time of message** — the active system prompt is not saved per-message, so historical context is lost if the prompt changes
 - **Parallel mode state** — whether a session used single or parallel mode is not stored per-session
 
@@ -804,6 +865,7 @@ The following data flows through the app at runtime but is **not** saved to the 
 | `shawkat-ai-bg-sessions` | Background sessions map (serialized, survives disconnects and page refreshes) |
 | `shawkat-ai-cwd` | Last selected project path |
 | `shawkat-repos-expanded` | Expanded group IDs in repos panel |
+| `shawkat-notifications` | Browser notifications enabled (1/0) |
 
 There is no server-side user preferences table — all client preferences are lost if localStorage is cleared or a different browser is used.
 

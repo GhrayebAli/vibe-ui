@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { execFile } from "child_process";
+import { join } from "path";
+import { existsSync } from "fs";
 import {
   getTotalCost, getProjectCost, getSessionCosts, getCostTimeline, getTotalTokens, getProjectTokens,
   getAnalyticsOverview, getDailyBreakdown, getHourlyActivity, getProjectBreakdown,
@@ -12,13 +14,21 @@ const router = Router();
 // Account info — cached in memory
 let cachedAccountInfo = null;
 
+// Resolve claude binary — check common locations if not on PATH
+function findClaudeBinary() {
+  const localBin = join(process.env.HOME || "", ".local", "bin", "claude");
+  if (existsSync(localBin)) return localBin;
+  return "claude"; // fallback to PATH
+}
+const claudeBin = findClaudeBinary();
+
 router.get("/account", async (req, res) => {
   if (cachedAccountInfo) {
     return res.json(cachedAccountInfo);
   }
   try {
     const data = await new Promise((resolve, reject) => {
-      execFile("claude", ["auth", "status"], (err, stdout) => {
+      execFile(claudeBin, ["auth", "status"], { timeout: 10000 }, (err, stdout) => {
         if (err) return reject(err);
         try { resolve(JSON.parse(stdout)); } catch (e) { reject(e); }
       });

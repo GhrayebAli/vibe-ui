@@ -2,6 +2,7 @@
 import { $ } from './dom.js';
 import { getState } from './store.js';
 import { on as onEvent } from './events.js';
+import { sendNotification } from './notifications.js';
 
 const STORAGE_KEY = 'shawkat-perm-mode';
 
@@ -62,6 +63,10 @@ function showPermissionModal(req) {
 
   $.permModal.classList.remove('hidden');
   $.permAllowBtn.focus();
+
+  // Notify when tab is not focused
+  const bgLabel = req._bgSessionTitle ? ` (${req._bgSessionTitle})` : '';
+  sendNotification('Tool Approval Needed', `${req.toolName}${bgLabel}`, `perm-${req.id}`);
 }
 
 function getToolSummary(name, input) {

@@ -152,6 +152,20 @@
   color: var(--text);
 }
 
+/* Error toast variant */
+.bg-toast-dot.error {
+  background: var(--error);
+}
+
+.bg-toast-error-msg {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Session list blinking dot */
 .session-bg-indicator {
   display: inline-block;

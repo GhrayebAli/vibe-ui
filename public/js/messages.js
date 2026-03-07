@@ -6,7 +6,7 @@ import { getState, setState } from './store.js';
 import { $ } from './dom.js';
 import { getPane } from './parallel.js';
 
-export function addUserMessage(text, pane) {
+export function addUserMessage(text, pane, images = []) {
   pane = pane || getPane(null);
   pane.currentAssistantMsg = null;
   const div = document.createElement("div");
@@ -22,8 +22,38 @@ export function addUserMessage(text, pane) {
 
   div.appendChild(label);
   div.appendChild(body);
+
+  if (images && images.length > 0) {
+    renderChatImages(images, div);
+  }
+
   pane.messagesDiv.appendChild(div);
   scrollToBottom(pane);
+}
+
+function renderChatImages(images, container) {
+  const strip = document.createElement("div");
+  strip.className = "chat-image-strip";
+
+  for (const img of images) {
+    const imgEl = document.createElement("img");
+    imgEl.className = "chat-image-thumb";
+    imgEl.src = `data:${img.mimeType};base64,${img.data}`;
+    imgEl.alt = img.name || "attached image";
+    imgEl.title = img.name || "attached image";
+    imgEl.addEventListener("click", () => {
+      const overlay = document.createElement("div");
+      overlay.className = "chat-image-overlay";
+      const fullImg = document.createElement("img");
+      fullImg.src = imgEl.src;
+      overlay.appendChild(fullImg);
+      overlay.addEventListener("click", () => overlay.remove());
+      document.body.appendChild(overlay);
+    });
+    strip.appendChild(imgEl);
+  }
+
+  container.appendChild(strip);
 }
 
 export function appendAssistantText(text, pane) {
@@ -268,7 +298,7 @@ export function renderMessagesIntoPane(messages, pane) {
     const data = JSON.parse(msg.content);
     switch (msg.role) {
       case "user":
-        addUserMessage(data.text, pane);
+        addUserMessage(data.text, pane, data.images || []);
         break;
       case "assistant":
         appendAssistantText(data.text, pane);

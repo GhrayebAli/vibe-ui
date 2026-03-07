@@ -13,6 +13,7 @@ import {
   updateSessionTitle,
 } from "../db.js";
 import { getProjectSystemPrompt } from "./routes/projects.js";
+import { sendPushNotification } from "./push-sender.js";
 
 // Tools that are read-only and safe to auto-approve in "confirmDangerous" mode
 const READ_ONLY_TOOLS = new Set([
@@ -357,13 +358,14 @@ export function setupWebSocket(wss, sessionIds) {
 
         wfSend({ type: "workflow_completed" });
         wfSend({ type: "done" });
+        sendPushNotification("Shawkat AI", `Workflow "${workflow.title}" completed`, `wf-${resolvedSid}`);
         return;
       }
 
       // Chat handler
       if (msg.type !== "chat") return;
 
-      const { message, cwd, sessionId: clientSid, projectName, chatId, permissionMode: clientPermMode, model: chatModel, maxTurns: clientMaxTurns } = msg;
+      const { message, cwd, sessionId: clientSid, projectName, chatId, permissionMode: clientPermMode, model: chatModel, maxTurns: clientMaxTurns, images } = msg;
       const queryKey = chatId || "__default__";
 
       const sessionKey = chatId ? `${clientSid}::${chatId}` : clientSid;
@@ -410,8 +412,26 @@ export function setupWebSocket(wss, sessionIds) {
       // Register for global tracking if we already know the session
       if (clientSid) registerGlobalQuery(clientSid, queryKey);
 
+      function buildPrompt(text, imgs) {
+        if (!imgs?.length) return text;
+        return (async function*() {
+          yield {
+            type: "user",
+            message: { role: "user", content: [
+              { type: "text", text },
+              ...imgs.map(img => ({
+                type: "image",
+                source: { type: "base64", media_type: img.mimeType, data: img.data },
+              })),
+            ]},
+            parent_tool_use_id: null,
+            session_id: "",
+          };
+        })();
+      }
+
       async function runQuery(queryOpts) {
-        const q = query({ prompt: message, options: queryOpts });
+        const q = query({ prompt: buildPrompt(message, images), options: queryOpts });
         activeQueries.set(queryKey, { abort: () => abortController.abort() });
 
         let claudeSessionId = null;
@@ -438,7 +458,11 @@ export function setupWebSocket(wss, sessionIds) {
             }
 
             wsSend({ type: "session", sessionId: ourSid });
-            addMessage(resolvedSid, "user", JSON.stringify({ text: message }), chatId || null);
+            const userMsgData = { text: message };
+            if (images?.length) {
+              userMsgData.images = images.map(i => ({ name: i.name, data: i.data, mimeType: i.mimeType }));
+            }
+            addMessage(resolvedSid, "user", JSON.stringify(userMsgData), chatId || null);
 
             // Register global query tracking now that we know the session
             if (!clientSid) registerGlobalQuery(resolvedSid, queryKey);
@@ -536,6 +560,10 @@ export function setupWebSocket(wss, sessionIds) {
       } finally {
         activeQueries.delete(queryKey);
         unregisterGlobalQuery(resolvedSid, queryKey);
+        // Send push notification when query completes
+        const session = resolvedSid ? getSession(resolvedSid) : null;
+        const pushTitle = session?.title || "Session complete";
+        sendPushNotification("Shawkat AI", pushTitle, `chat-${resolvedSid}`);
       }
     });
   });

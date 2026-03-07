@@ -8,10 +8,12 @@ const state = {
   workflows: [],
   projectsData: [],
   attachedFiles: [],
+  imageAttachments: [],
   allProjectFiles: [],
   mermaidCounter: 0,
   savedChatArea: null,
   backgroundSessions: new Map(),
+  notificationsEnabled: false,
 };
 
 const listeners = {};
