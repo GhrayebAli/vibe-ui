@@ -1,0 +1,138 @@
+/* ── Status Bar ───────────────────────────────────────── */
+.status-bar {
+  height: 24px;
+  background: var(--bg-deep);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  user-select: none;
+  z-index: 50;
+}
+
+.status-bar-left,
+.status-bar-center,
+.status-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.status-bar-left  { flex: 1; justify-content: flex-start; }
+.status-bar-center { flex: 0 0 auto; }
+.status-bar-right { flex: 1; justify-content: flex-end; }
+
+/* Items */
+.sb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  height: 24px;
+  white-space: nowrap;
+  cursor: default;
+  transition: color 0.15s, background 0.15s;
+}
+
+.sb-item:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sb-item[data-click]:hover {
+  cursor: pointer;
+}
+
+/* Separator */
+.sb-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* Connection dot */
+.sb-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--error);
+  flex-shrink: 0;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+.sb-dot.connected {
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+}
+
+.sb-dot.reconnecting {
+  background: var(--warning);
+  animation: blink 1s infinite;
+}
+
+/* Branch */
+.sb-branch svg { color: var(--text-dim); }
+.sb-branch:hover svg { color: var(--accent); }
+#sb-branch-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+
+/* Project */
+.sb-project svg { color: var(--text-dim); }
+.sb-project:hover svg { color: var(--accent); }
+#sb-project-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+
+/* Activity (center) */
+.sb-activity {
+  color: var(--accent);
+  font-size: 11px;
+  letter-spacing: 0.2px;
+}
+
+.sb-activity:empty {
+  display: none;
+}
+
+/* Background sessions */
+.sb-bg-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warning);
+  animation: blink 1.5s infinite;
+  flex-shrink: 0;
+}
+
+/* Model */
+.sb-model { color: var(--purple); }
+.sb-model:hover { color: var(--text); }
+
+/* Permission mode */
+.sb-perm svg { color: var(--text-dim); }
+.sb-perm:hover svg { color: var(--warning); }
+
+/* Cost */
+.sb-cost { color: var(--text-dim); }
+#sb-session-cost { color: var(--success); font-weight: 600; }
+#sb-total-cost { color: var(--text-dim); }
+.sb-cost-pipe { color: var(--border); margin: 0 2px; }
+.sb-cost:hover #sb-total-cost { color: var(--success); }
+
+/* Blink animation (reuse from layout.css if not already global) */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Light theme */
+html[data-theme="light"] .status-bar {
+  background: var(--bg-tertiary);
+}
+
+html[data-theme="light"] .sb-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}

@@ -2,7 +2,7 @@
 
 .bot-bubble {
   position: fixed;
-  bottom: 20px;
+  bottom: 44px;
   left: 20px;
   width: 48px;
   height: 48px;
@@ -28,7 +28,7 @@
 /* ── Panel ─────────────────────────────────────────────── */
 .bot-panel {
   position: fixed;
-  bottom: 80px;
+  bottom: 104px;
   left: 20px;
   width: 400px;
   max-height: calc(100vh - 120px);

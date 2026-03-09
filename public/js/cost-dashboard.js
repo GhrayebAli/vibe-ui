@@ -42,7 +42,7 @@ export async function loadAccountInfo() {
   }
 }
 
-async function openCostDashboard() {
+export async function openCostDashboard() {
   $.costDashboardModal.classList.remove("hidden");
   const cwd = $.projectSelect.value;
   try {

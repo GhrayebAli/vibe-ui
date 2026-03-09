@@ -280,5 +280,5 @@
 /* ── Layout ───────────────────────────────────────────── */
 .layout {
   display: flex;
-  height: calc(100vh - var(--header-h));
+  height: calc(100vh - var(--header-h) - 24px);
 }
