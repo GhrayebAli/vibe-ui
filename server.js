@@ -4,7 +4,7 @@ import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { appendFileSync } from "fs";
+import { appendFileSync, readdirSync, existsSync } from "fs";
 import webpush from "web-push";
 import { getDb, allClaudeSessions } from "./db.js";
 import { initPushSender } from "./server/push-sender.js";
@@ -100,6 +100,21 @@ app.use("/api/notifications", notificationsRouter);
 app.use("/api/tips", tipsRouter);
 app.use("/api/bot", botRouter);
 app.use("/api/todos", todosRouter);
+
+// Plugin discovery — auto-detect tab-sdk plugins in public/js/plugins/
+app.get("/api/plugins", (req, res) => {
+  const pluginsDir = join(__dirname, "public/js/plugins");
+  if (!existsSync(pluginsDir)) return res.json([]);
+  const files = readdirSync(pluginsDir);
+  const plugins = files
+    .filter(f => f.endsWith(".js"))
+    .map(f => {
+      const name = f.replace(/\.js$/, "");
+      const hasCss = files.includes(name + ".css");
+      return { name, js: `js/plugins/${f}`, css: hasCss ? `js/plugins/${name}.css` : null };
+    });
+  res.json(plugins);
+});
 
 // WebSocket
 setupWebSocket(wss, sessionIds);
