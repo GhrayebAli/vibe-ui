@@ -2,7 +2,6 @@
 import { BOT_CHAT_ID } from '../core/constants.js';
 import { on } from '../core/events.js';
 import { getState } from '../core/store.js';
-import { escapeHtml } from '../core/utils.js';
 import { renderMarkdown, highlightCodeBlocks, addCopyButtons } from '../ui/formatting.js';
 import * as api from '../core/api.js';
 import { getPermissionMode } from '../ui/permissions.js';

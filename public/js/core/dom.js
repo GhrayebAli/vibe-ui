@@ -111,6 +111,18 @@ export const $ = {
   bgSessionIndicator: document.getElementById("bg-session-indicator"),
   bgSessionBadge: document.getElementById("bg-session-badge"),
 
+  // Telegram
+  telegramBtn: document.getElementById("telegram-settings-btn"),
+  telegramModal: document.getElementById("telegram-modal"),
+  telegramEnabled: document.getElementById("telegram-enabled"),
+  telegramBotToken: document.getElementById("telegram-bot-token"),
+  telegramChatId: document.getElementById("telegram-chat-id"),
+  telegramTestBtn: document.getElementById("telegram-test-btn"),
+  telegramSaveBtn: document.getElementById("telegram-save-btn"),
+  telegramClose: document.getElementById("telegram-close"),
+  telegramLabel: document.getElementById("telegram-label"),
+  telegramStatus: document.getElementById("telegram-status"),
+
   // Tips feed panel
   tipsFeedPanel: document.getElementById("tips-feed-panel"),
   tipsFeedToggleBtn: document.getElementById("tips-feed-toggle-btn"),
@@ -123,13 +135,6 @@ export const $ = {
   rightPanelToggleBtn: document.getElementById("right-panel-toggle-btn"),
   rightPanelClose: document.getElementById("right-panel-close"),
 
-  // Event stream (inside right panel events tab)
-  eventStreamSearch: document.getElementById("event-stream-search"),
-  eventStreamList: document.getElementById("event-stream-list"),
-  eventStreamCount: document.getElementById("event-stream-count"),
-  eventStreamClear: document.getElementById("event-stream-clear"),
-  eventAutoscroll: document.getElementById("event-autoscroll"),
-
   // Linear panel (inside right panel tasks tab)
   linearRefreshBtn: document.getElementById("linear-refresh-btn"),
   linearIssuesList: document.getElementById("linear-issues-list"),
@@ -138,7 +143,6 @@ export const $ = {
   // Tasks split
   tasksLinearSection: document.getElementById("tasks-linear-section"),
   tasksSplitHandle: document.getElementById("tasks-split-handle"),
-  tasksTodoSection: document.getElementById("tasks-todo-section"),
 
   // Todo panel
   todoAddBtn: document.getElementById("todo-add-btn"),

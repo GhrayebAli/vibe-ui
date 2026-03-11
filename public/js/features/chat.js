@@ -3,7 +3,6 @@ import { $ } from '../core/dom.js';
 import { getState, setState } from '../core/store.js';
 import { CHAT_IDS, BOT_CHAT_ID } from '../core/constants.js';
 import { on } from '../core/events.js';
-import { escapeHtml } from '../core/utils.js';
 import { commandRegistry, dismissAutocomplete, handleAutocompleteKeydown, handleSlashAutocomplete, registerCommand } from '../ui/commands.js';
 import { addUserMessage, appendAssistantText, appendToolIndicator, appendToolResult, showThinking, removeThinking, addResultSummary, addStatus } from '../ui/messages.js';
 import { getPane, panes, _setChatFns } from '../ui/parallel.js';

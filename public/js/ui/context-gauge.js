@@ -1,7 +1,6 @@
 // Context Window Indicator — cumulative session token gauge
 import { getState, setState } from '../core/store.js';
 import { $ } from '../core/dom.js';
-import { on } from '../core/events.js';
 
 const MODEL_LIMITS = {
   default: 200_000,

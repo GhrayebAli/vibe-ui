@@ -1,8 +1,6 @@
 // Developer Documentation — extensible docs modal
 // To add a new section, push to the `sections` array below.
 
-import { $ } from '../core/dom.js';
-
 // ── Section registry ────────────────────────────────────
 // Each section: { id, title, icon (SVG string), render() → HTML string }
 // render() is called once when the section is first viewed.

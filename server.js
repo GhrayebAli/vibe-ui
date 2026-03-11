@@ -8,6 +8,8 @@ import { appendFileSync, readdirSync, existsSync } from "fs";
 import webpush from "web-push";
 import { getDb, allClaudeSessions } from "./db.js";
 import { initPushSender } from "./server/push-sender.js";
+import { initTelegramSender } from "./server/telegram-sender.js";
+import telegramRouter from "./server/routes/telegram.js";
 
 // Route modules
 import projectsRouter from "./server/routes/projects.js";
@@ -57,6 +59,9 @@ app.use(express.json());
   initPushSender(webpush);
 }
 
+// ── Telegram notifications ──
+initTelegramSender();
+
 // Restore session mappings from DB on startup
 const sessionIds = new Map();
 {
@@ -100,6 +105,7 @@ app.use("/api/notifications", notificationsRouter);
 app.use("/api/tips", tipsRouter);
 app.use("/api/bot", botRouter);
 app.use("/api/todos", todosRouter);
+app.use("/api/telegram", telegramRouter);
 
 // Plugin discovery — auto-detect tab-sdk plugins in public/js/plugins/
 app.get("/api/plugins", (req, res) => {

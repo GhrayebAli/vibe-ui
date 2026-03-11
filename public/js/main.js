@@ -24,6 +24,7 @@ import './features/agents.js';
 import './ui/status-bar.js';
 import './features/cost-dashboard.js';
 import './features/analytics.js';
+import './features/telegram.js';
 import './ui/permissions.js';
 import './ui/model-selector.js';
 import './ui/max-turns.js';

@@ -14,6 +14,7 @@ import {
 } from "../db.js";
 import { getProjectSystemPrompt } from "./routes/projects.js";
 import { sendPushNotification } from "./push-sender.js";
+import { sendTelegramNotification } from "./telegram-sender.js";
 
 /**
  * Build the agent system prompt that instructs Claude to work autonomously
@@ -277,6 +278,7 @@ export async function runAgent({
     if (activeQueries) activeQueries.delete(queryKey);
     agentSend({ type: "done" });
     sendPushNotification("Shawkat AI", `Agent "${agentDef.title}" completed`, `agent-${resolvedSid}`);
+    sendTelegramNotification("Agent Completed", agentDef.title, `agent-${resolvedSid}`);
   }
 
   return { resolvedSid, claudeSessionId };

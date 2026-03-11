@@ -55,5 +55,36 @@
         "prompt": "Create a step-by-step migration plan ordered by priority and risk. Each step should include: what to change, files affected, estimated effort, and any rollback strategy. Format as a clear checklist."
       }
     ]
+  },
+  {
+    "id": "code-health",
+    "title": "Code Health Check",
+    "description": "Lint, format review, and validate that the codebase is clean and runnable",
+    "steps": [
+      {
+        "label": "Discover project tooling",
+        "prompt": "Read the package.json file and inspect the \"scripts\" section. List all available scripts (lint, format, build, test, typecheck, etc.). Also check for config files in the project root: .eslintrc*, .prettierrc*, biome.json, tsconfig.json, .stylelintrc*, etc. Report what tooling is available. If there are lint/format/build/test scripts, we will use those in the next steps. If there are none, we will fall back to manual checks."
+      },
+      {
+        "label": "Lint & format check",
+        "prompt": "Based on the tooling discovered in step 1: If the project has lint scripts (e.g. `npm run lint`, `npm run eslint`, `npm run format:check`), run them and report the results. If the project has a build or typecheck script, run those too. If NO scripts are available, fall back to manual checks: run `node --check` on all JS files to catch syntax errors, then grep all import/require statements and verify the referenced files exist on disk. Report any broken imports, missing files, or syntax issues as a table: file | issue | severity."
+      },
+      {
+        "label": "Code style & consistency",
+        "prompt": "Based on the tooling discovered in step 1: If the project has a formatter (Prettier, Biome, etc.) with a check command, run it. If NOT, manually review the codebase for style consistency: inconsistent quoting (single vs double), inconsistent semicolons, mixed indentation, unused variables or imports, console.log statements that should be removed, commented-out dead code, and inconsistent naming conventions. Focus on source files (not node_modules). Report findings grouped by category with file paths and line numbers."
+      },
+      {
+        "label": "Dead code & unused exports",
+        "prompt": "Find dead code in the project. Check for: source files that exist but are never imported by any other file, exported functions/variables that are never imported anywhere, CSS classes defined but never used in any JS or HTML file, and HTML elements with IDs that are never referenced in JS. List each finding with the file path and what can be safely removed."
+      },
+      {
+        "label": "Server validation",
+        "prompt": "Based on the tooling discovered in step 1: If there is a build or typecheck script, check if it covers server code. If NOT, run `node --check` on all server-side JS files to catch syntax errors. Check that all route files are properly imported. Verify that all API endpoints referenced by the client have corresponding server routes. Report any mismatches or issues found."
+      },
+      {
+        "label": "Summary & fixes",
+        "prompt": "Based on all issues found in previous steps, provide a prioritized summary: 1) Critical issues that would break the app (syntax errors, missing imports, failed build), 2) Important issues (dead code, unused exports, lint errors), 3) Minor style issues. For critical and important issues, provide the exact fix. Ask the user if they want you to auto-fix the issues."
+      }
+    ]
   }
 ]

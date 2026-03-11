@@ -2,7 +2,6 @@
 import { $ } from '../core/dom.js';
 import { getState, setState } from '../core/store.js';
 import { CHAT_IDS } from '../core/constants.js';
-import { slugify } from '../core/utils.js';
 import * as api from '../core/api.js';
 import { commandRegistry, registerCommand } from '../ui/commands.js';
 import { panes } from '../ui/parallel.js';
