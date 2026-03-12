@@ -301,6 +301,9 @@ $.projectSelect.addEventListener("change", async () => {
   guardSwitch(() => {
     localStorage.setItem("shawkat-ai-cwd", $.projectSelect.value);
     setState("sessionId", null);
+    if ($.projectSelect.value) {
+      setState("view", "chat");
+    }
     updateSystemPromptIndicator();
     updateHeaderProjectName();
     loadProjectCommands();

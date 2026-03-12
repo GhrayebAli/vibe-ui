@@ -31,7 +31,15 @@ registerTab({
         <input type="text" placeholder="Search events..." autocomplete="off" class="event-stream-search">
         <button class="event-stream-clear-btn" title="Clear">Clear</button>
       </div>
-      <div class="event-stream-list"></div>
+      <div class="event-stream-list">
+        <div class="event-stream-empty">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+          <span>No events yet</span>
+          <span class="event-stream-empty-hint">Events will appear here as the AI works</span>
+        </div>
+      </div>
       <div class="event-stream-footer">
         <span class="event-stream-count">0 events</span>
         <label class="event-autoscroll-toggle" title="Auto-scroll to latest">
@@ -134,6 +142,9 @@ registerTab({
     function addEvent(evt) {
       evt.timestamp = evt.timestamp || new Date();
       events.push(evt);
+      // Remove empty state placeholder if present
+      const emptyEl = listEl.querySelector('.event-stream-empty');
+      if (emptyEl) emptyEl.remove();
       const row = renderEvent(evt);
       listEl.appendChild(row);
       if (!matchesFilter(evt) || !matchesSearch(row)) {
@@ -145,7 +156,14 @@ registerTab({
 
     function clearEvents() {
       events = [];
-      listEl.innerHTML = '';
+      listEl.innerHTML = `
+        <div class="event-stream-empty">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+          <span>No events yet</span>
+          <span class="event-stream-empty-hint">Events will appear here as the AI works</span>
+        </div>`;
       updateCount(0);
     }
 

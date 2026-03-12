@@ -71,14 +71,26 @@ function parseStatusCode(x, y) {
 async function loadStatus() {
   const cwd = getCwd();
   if (!cwd) {
-    $.gitStatusList.innerHTML = `<div class="git-empty">Select a project</div>`;
+    $.gitStatusList.innerHTML = `
+      <div class="git-empty">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span>Select a project to view git status</span>
+      </div>`;
     return;
   }
 
   try {
     const result = await execCommand("git status --porcelain=v1", cwd);
     if (result.error) {
-      $.gitStatusList.innerHTML = `<div class="git-empty">Not a git repository</div>`;
+      $.gitStatusList.innerHTML = `
+        <div class="git-empty">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+          <span>Not a git repository</span>
+        </div>`;
       return;
     }
 
@@ -101,7 +113,13 @@ async function loadStatus() {
     $.gitStatusList.innerHTML = "";
 
     if (groups.staged.length === 0 && groups.changes.length === 0 && groups.untracked.length === 0) {
-      $.gitStatusList.innerHTML = `<div class="git-empty">Working tree clean</div>`;
+      $.gitStatusList.innerHTML = `
+        <div class="git-empty">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          <span>Working tree clean</span>
+        </div>`;
       return;
     }
 

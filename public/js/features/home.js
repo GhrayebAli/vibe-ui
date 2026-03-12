@@ -40,6 +40,8 @@ $.homeBtn.addEventListener('click', () => {
   setState('view', 'home');
   setState('sessionId', null);
   $.projectSelect.value = '';
+  localStorage.removeItem('shawkat-ai-cwd');
+  $.sessionList.innerHTML = '';
 });
 
 // ── Grid rendering ─────────────────────────────────────
@@ -259,8 +261,9 @@ function formatTokens(n) {
 }
 
 // If a session was already restored from localStorage before this module loaded,
-// switch to chat view; otherwise load the home page.
-if (getState('sessionId')) {
+// or a project was previously selected, switch to chat view; otherwise load home.
+const savedProject = localStorage.getItem('shawkat-ai-cwd');
+if (getState('sessionId') || savedProject) {
   setState('view', 'chat');
 } else if (getState('view') === 'home') {
   loadHome();

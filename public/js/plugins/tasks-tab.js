@@ -277,9 +277,18 @@ registerTab({
         return;
       }
 
-      const emptyMsg = showArchived ? 'No archived todos' : 'No todos yet';
       if (!todos.length) {
-        todoList.innerHTML = `<div class="todo-empty">${emptyMsg}</div>`;
+        const isArchived = showArchived;
+        todoList.innerHTML = `
+          <div class="todo-empty">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              ${isArchived
+                ? '<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>'
+                : '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>'}
+            </svg>
+            <span>${isArchived ? 'No archived todos' : 'No todos yet'}</span>
+            ${!isArchived ? '<span class="todo-empty-hint">Click + to add one</span>' : ''}
+          </div>`;
         return;
       }
 
@@ -338,7 +347,14 @@ registerTab({
 
     function renderBrags() {
       if (!brags.length) {
-        todoList.innerHTML = '<div class="todo-empty">No brags yet</div>';
+        todoList.innerHTML = `
+          <div class="todo-empty">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            <span>No brags yet</span>
+            <span class="todo-empty-hint">Complete a todo and brag about it</span>
+          </div>`;
         return;
       }
       todoList.innerHTML = '';
