@@ -137,21 +137,6 @@ export const $ = {
   rightPanelToggleBtn: document.getElementById("right-panel-toggle-btn"),
   rightPanelClose: document.getElementById("right-panel-close"),
 
-  // Linear panel (inside right panel tasks tab)
-  linearRefreshBtn: document.getElementById("linear-refresh-btn"),
-  linearIssuesList: document.getElementById("linear-issues-list"),
-  linearFooter: document.getElementById("linear-footer"),
-
-  // Tasks split
-  tasksLinearSection: document.getElementById("tasks-linear-section"),
-  tasksSplitHandle: document.getElementById("tasks-split-handle"),
-
-  // Todo panel
-  todoAddBtn: document.getElementById("todo-add-btn"),
-  todoList: document.getElementById("todo-list"),
-  todoInput: document.getElementById("todo-input"),
-  todoInputBar: document.getElementById("todo-input-bar"),
-
   // File explorer (inside right panel files tab)
   fileExplorerSearch: document.getElementById("file-explorer-search"),
   fileRefreshBtn: document.getElementById("file-refresh-btn"),
@@ -201,15 +186,4 @@ export const $ = {
   folderBreadcrumb: document.getElementById("folder-breadcrumb"),
   folderList: document.getElementById("folder-list"),
 
-  // Linear create issue
-  linearCreateBtn: document.getElementById("linear-create-btn"),
-  linearCreateModal: document.getElementById("linear-create-modal"),
-  linearCreateForm: document.getElementById("linear-create-form"),
-  linearCreateTitle: document.getElementById("linear-create-title"),
-  linearCreateDesc: document.getElementById("linear-create-desc"),
-  linearCreateTeam: document.getElementById("linear-create-team"),
-  linearCreateState: document.getElementById("linear-create-state"),
-  linearCreateClose: document.getElementById("linear-create-close"),
-  linearCreateCancel: document.getElementById("linear-create-cancel"),
-  linearCreateSubmit: document.getElementById("linear-create-submit"),
 };

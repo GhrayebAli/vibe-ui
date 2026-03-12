@@ -304,56 +304,13 @@
     <aside id="right-panel" class="right-panel hidden">
       <div id="right-panel-resize" class="right-panel-resize"></div>
       <div class="right-panel-tab-bar">
-        <button class="right-panel-tab active" data-tab="tasks">Tasks</button>
-        <button class="right-panel-tab" data-tab="files">Files</button>
+        <button class="right-panel-tab active" data-tab="files">Files</button>
         <button class="right-panel-tab" data-tab="git">Git</button>
         <button id="right-panel-close" class="right-panel-close" title="Close panel">&times;</button>
       </div>
       <div class="right-panel-content">
-        <!-- Tasks pane (split: Linear + Todo) -->
-        <div class="right-panel-pane active" data-tab="tasks">
-          <!-- Linear section (top) -->
-          <div class="tasks-split-section tasks-linear-section" id="tasks-linear-section">
-            <div class="linear-panel-header">
-              <h3>Linear Tasks</h3>
-              <div class="linear-panel-actions">
-                <button id="linear-create-btn" title="Create issue">+</button>
-                <button id="linear-refresh-btn" title="Refresh issues">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div id="linear-issues-list" class="linear-issues"></div>
-            <div id="linear-footer" class="linear-panel-footer"></div>
-          </div>
-          <!-- Drag handle -->
-          <div class="tasks-split-handle" id="tasks-split-handle" title="Drag to resize"></div>
-          <!-- Todo section (bottom) -->
-          <div class="tasks-split-section tasks-todo-section" id="tasks-todo-section">
-            <div class="todo-panel-header">
-              <h3>Todo</h3>
-              <div class="todo-header-actions">
-                <button id="todo-brag-toggle" class="todo-archive-toggle" title="Show brag list">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                </button>
-                <button id="todo-archive-toggle" class="todo-archive-toggle" title="Show archived">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-                </button>
-                <button id="todo-add-btn" class="todo-add-btn" title="Add todo">+</button>
-              </div>
-            </div>
-            <div id="todo-list" class="todo-list"></div>
-            <div class="todo-input-bar" id="todo-input-bar" style="display:none;">
-              <input type="text" id="todo-input" class="todo-input" placeholder="New todo..." autocomplete="off">
-            </div>
-          </div>
-        </div>
-
         <!-- Files pane -->
-        <div class="right-panel-pane" data-tab="files">
+        <div class="right-panel-pane active" data-tab="files">
           <div class="file-explorer-toolbar">
             <input id="file-explorer-search" type="text" placeholder="Filter files..." autocomplete="off" class="file-explorer-search">
             <button id="file-refresh-btn" class="file-refresh-btn" title="Refresh file tree">

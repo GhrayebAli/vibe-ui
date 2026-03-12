@@ -34,14 +34,11 @@ import './ui/header-dropdowns.js';
 import './ui/context-gauge.js';
 import './ui/shortcuts.js';
 import './features/chat.js';
-import './panels/linear-panel.js';
 import './panels/file-explorer.js';
 import './panels/git-panel.js';
-
 import './panels/mcp-manager.js';
 import './panels/tips-feed.js';
 import './panels/assistant-bot.js';
-import './panels/todo-panel.js';
 import './panels/dev-docs.js';
 
 // Auto-discover and load tab-sdk plugins from /js/plugins/

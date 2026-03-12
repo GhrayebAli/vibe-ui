@@ -254,7 +254,7 @@ registerDocSection({
       <li>Server routes: <code>server/routes/feature.js</code></li>
     </ul>
 
-    <div class="callout">When in doubt, look at <code>event-stream-tab.js</code> (Tab SDK plugin) or <code>todo-panel.js</code> (built-in panel) as reference implementations.</div>
+    <div class="callout">When in doubt, look at <code>event-stream-tab.js</code>, <code>repos-tab.js</code>, or <code>tasks-tab.js</code> in <code>plugins/</code> as reference implementations.</div>
   `,
 });
 

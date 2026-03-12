@@ -17,7 +17,6 @@
 @import url("css/core/print.css");
 @import url("css/features/background-sessions.css");
 @import url("css/ui/permissions.css");
-@import url("css/panels/linear-panel.css");
 @import url("css/ui/right-panel.css");
 @import url("css/panels/file-explorer.css");
 @import url("css/panels/git-panel.css");
@@ -28,7 +27,6 @@
 @import url("css/ui/context-gauge.css");
 
 @import url("css/panels/assistant-bot.css");
-@import url("css/panels/todo-panel.css");
 @import url("css/features/agents.css");
 @import url("css/ui/status-bar.css");
 @import url("css/panels/dev-docs.css");

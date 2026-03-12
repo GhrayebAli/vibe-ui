@@ -229,17 +229,20 @@ function mountTab(tab) {
   titleSpan.textContent = tab.title;
   btn.appendChild(titleSpan);
 
-  // Insert at position (before close button)
+  // Insert before "+" button (or close button as fallback)
+  const addBtn = tabBarEl.querySelector('.right-panel-add-tab');
+  const insertBefore = addBtn || closeBtn;
+
   if (tab.position != null) {
     const allTabs = tabBarEl.querySelectorAll('.right-panel-tab');
     const target = allTabs[tab.position];
     if (target) {
       tabBarEl.insertBefore(btn, target);
     } else {
-      tabBarEl.insertBefore(btn, closeBtn);
+      tabBarEl.insertBefore(btn, insertBefore);
     }
   } else {
-    tabBarEl.insertBefore(btn, closeBtn);
+    tabBarEl.insertBefore(btn, insertBefore);
   }
 
   tab._btnEl = btn;
@@ -317,12 +320,6 @@ export function initTabSDK() {
 
   initialized = true;
 
-  // Mount any tabs registered before init
-  for (const tab of pendingTabs) {
-    mountTab(tab);
-  }
-  pendingTabs.length = 0;
-
   // Add "+" button to open Dev Docs (insert before close button)
   const addBtn = document.createElement('button');
   addBtn.className = 'right-panel-add-tab';
@@ -333,6 +330,12 @@ export function initTabSDK() {
     openDevDocs('tab-sdk');
   });
   tabBarEl.insertBefore(addBtn, closeBtn);
+
+  // Mount any tabs registered before init (inserted before "+" button)
+  for (const tab of pendingTabs) {
+    mountTab(tab);
+  }
+  pendingTabs.length = 0;
 
   // Listen for tab changes to fire lifecycle hooks
   on('rightPanel:tabChanged', onTabActivated);
