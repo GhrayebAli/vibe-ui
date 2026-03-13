@@ -431,6 +431,9 @@ Open via **Tools > Analytics** or `/analytics` slash command. Full analytics wit
 - **Project filter** — dropdown to scope all sections to a specific project
 - Additional sections: project breakdown, top sessions, session depth, message length distribution, top bash commands, top files
 
+### 9c. Easter Egg
+Click the Whaly mascot 5 times rapidly on the empty chat screen — Whaly wiggles and pops up a comic-book-style speech bubble with a sassy greeting. Try it!
+
 ### 10. Keyboard Shortcuts
 | Shortcut       | Action                    |
 | -------------- | ------------------------- |
