@@ -174,6 +174,10 @@ export const $ = {
   mcpFormSave: document.getElementById("mcp-form-save"),
   mcpAddBtn: document.getElementById("mcp-add-btn"),
 
+  // Sidebar toggle (mobile)
+  sidebarToggleBtn: document.getElementById("sidebar-toggle-btn"),
+  sidebarBackdrop: document.getElementById("sidebar-backdrop"),
+
   // Add project modal
   openVscodeBtn: document.getElementById("open-vscode-btn"),
   addProjectBtn: document.getElementById("add-project-btn"),

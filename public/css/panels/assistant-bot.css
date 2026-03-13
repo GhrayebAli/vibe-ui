@@ -403,7 +403,29 @@
 }
 
 /* ── Responsive ────────────────────────────────────────── */
-@media (max-width: 480px) {
+
+/* Desktop: clear the sidebar */
+@media (min-width: 1025px) {
+  .bot-bubble {
+    left: calc(var(--sidebar-w) + 20px);
+  }
+  .bot-panel {
+    left: calc(var(--sidebar-w) + 20px);
+  }
+}
+
+/* Tablet: sidebar is hidden, snap back to left edge */
+@media (max-width: 1024px) {
+  .bot-bubble {
+    left: 20px;
+  }
+  .bot-panel {
+    left: 20px;
+  }
+}
+
+/* Mobile: full-screen panel */
+@media (max-width: 640px) {
   .bot-panel {
     left: 0;
     right: 0;
@@ -414,7 +436,7 @@
     border-radius: 0;
   }
   .bot-bubble {
-    bottom: 12px;
+    bottom: 36px;
     left: 12px;
   }
 }
