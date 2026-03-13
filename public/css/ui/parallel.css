@@ -144,6 +144,7 @@
   justify-content: center;
   flex-shrink: 0;
   transition: opacity 0.15s, background 0.15s;
+  margin-bottom: 0;
 }
 
 .chat-pane .input-bar .pane-send-btn {

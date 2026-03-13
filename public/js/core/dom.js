@@ -55,6 +55,9 @@ export const $ = {
   imageFileInput: document.getElementById("image-file-input"),
   imagePreviewStrip: document.getElementById("image-preview-strip"),
 
+  // Voice input
+  micBtn: document.getElementById("mic-btn"),
+
   // Prompt modal
   promptModal: document.getElementById("prompt-modal"),
   promptForm: document.getElementById("prompt-form"),

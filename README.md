@@ -47,7 +47,7 @@ browser ──────── WebSocket ──────── server.js �
    │   │   ├── utils.js               ├── bot-prompt.json (assistant bot prompt)
    │   │   └── plugin-loader.js       ├── agents.json (4 autonomous agents)
    │   ├── ui/   (shared UI modules)  ├── workflows.json (4 workflows)
-   │   ├── features/ (chat, sessions) └── telegram-config.json
+   │   ├── features/ (chat, voice, sessions) └── telegram-config.json
    │   ├── panels/  (bot, tips, docs)
    │   └── plugins/ (tab-sdk plugins)
    ├── css/
@@ -394,6 +394,16 @@ Each workflow chains prompts sequentially with context passing and step progress
 - **Multimodal SDK integration** — images sent as base64 content blocks via `AsyncIterable<SDKUserMessage>` (async generator)
 - **Session history** — images saved in DB message JSON and re-rendered when loading past sessions
 - Badge count combines file attachments + image attachments
+
+### 7c. Voice Input (Speech-to-Text)
+- **Mic button** in the input bar — click to start/stop recording
+- Uses the browser's built-in **Web Speech API** (`SpeechRecognition`) — zero dependencies
+- Real-time interim transcription appears in the textarea as you speak
+- English only (`en-US`), continuous mode with automatic restart on Chrome's 60s silence cutoff
+- **Graceful degradation** — button hidden on unsupported browsers (Firefox, Edge)
+- Recording stops automatically on: send, Enter, session switch, parallel mode toggle, tab hidden
+- Pulsing red mic icon and "Listening..." indicator bar while recording
+- Mobile-friendly: 44px touch target preserved on small screens
 
 ### 8. Session Management
 - Title and project name search with debounced input (200ms)
