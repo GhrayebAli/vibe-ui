@@ -28,8 +28,8 @@ registerDocSection({
     lifecycle hooks, badges, and state management.</p>
 
     <h3>Quick Start</h3>
-    <pre><code>// my-tab.js
-import { registerTab } from '../ui/tab-sdk.js';
+    <pre><code>// plugins/my-tab/client.js
+import { registerTab } from '/js/ui/tab-sdk.js';
 
 registerTab({
   id: 'my-tab',
@@ -58,7 +58,7 @@ registerTab({
   onDestroy()    { /* cleanup */ },
 });
 
-// main.js — just add:  import '../my-tab.js';</code></pre>
+// Auto-discovered — no main.js changes needed!</code></pre>
 
     <h3>registerTab(config)</h3>
     <table class="param-table">
@@ -134,7 +134,7 @@ registerTab({
   start();
   return root;
 }</code></pre>
-    <p>This pattern ensures zero CPU/GPU usage when your tab isn't visible. See <code>aquarium-tab.js</code> for a real example.</p>
+    <p>This pattern ensures zero CPU/GPU usage when your tab isn't visible.</p>
 
     <h3>Tips</h3>
     <ul>
@@ -146,7 +146,7 @@ registerTab({
       <li>Existing shortcuts (e.g. <code>openRightPanel('my-tab')</code>) work automatically</li>
     </ul>
 
-    <div class="callout">See <code>event-stream-tab.js</code> for a complete working example of a plugin tab.</div>
+    <div class="callout">See <code>plugins/event-stream/client.js</code> for a complete working example of a plugin tab.</div>
   `,
 });
 
@@ -169,7 +169,7 @@ registerDocSection({
   ├── utils.js        → Shared utilities
   ├── ...             → Feature modules
   ├── right-panel.js  → Right panel + Tab SDK init
-  ├── event-stream-tab.js → Events tab (SDK plugin)
+  ├── plugin-loader.js → Loads enabled plugins from plugins/
   └── ...</code></pre>
 
     <h3>Key Patterns</h3>
@@ -215,20 +215,20 @@ registerDocSection({
     <h2>Adding New Features</h2>
     <p>Follow these patterns when extending the application.</p>
 
-    <h3>Adding a New Right Panel Tab</h3>
+    <h3>Adding a New Plugin Tab</h3>
     <ol>
-      <li>Create <code>public/js/my-feature-tab.js</code></li>
-      <li>Import and call <code>registerTab()</code> from <code>tab-sdk.js</code></li>
+      <li>Create a directory: <code>plugins/my-feature/</code></li>
+      <li>Create <code>plugins/my-feature/client.js</code> — import <code>registerTab()</code> from <code>/js/ui/tab-sdk.js</code></li>
       <li>Build all DOM inside <code>init(ctx)</code></li>
-      <li>Add <code>import '../my-feature-tab.js'</code> in <code>main.js</code> (after <code>right-panel.js</code>)</li>
-      <li>Optionally add CSS in <code>public/css/my-feature.css</code> and import in <code>style.css</code></li>
+      <li>Optionally add <code>client.css</code> in the same directory (auto-injected)</li>
+      <li>Optionally add <code>server.js</code> for API routes (auto-mounted at <code>/api/plugins/my-feature/</code>)</li>
     </ol>
 
     <h3>Adding a New API Endpoint</h3>
     <ol>
       <li>Add the route in <code>server/routes/</code> (create a new file or extend existing)</li>
       <li>Register it in <code>server.js</code></li>
-      <li>Add the fetch helper in <code>public/js/api.js</code></li>
+      <li>Add the fetch helper in <code>public/js/core/api.js</code></li>
       <li>Use it from your module</li>
     </ol>
 
@@ -246,15 +246,17 @@ registerDocSection({
       <li>Use CSS variables from <code>variables.css</code> for consistency</li>
     </ol>
 
-    <h3>File Naming Conventions</h3>
+    <h3>Plugin Structure</h3>
     <ul>
-      <li>JS modules: <code>kebab-case.js</code></li>
-      <li>Tab plugins: <code>*-tab.js</code> (e.g. <code>event-stream-tab.js</code>)</li>
-      <li>CSS modules: match the JS module name</li>
-      <li>Server routes: <code>server/routes/feature.js</code></li>
+      <li>Plugin directories: <code>plugins/kebab-case/</code></li>
+      <li>Client module: <code>client.js</code> (required)</li>
+      <li>Client styles: <code>client.css</code> (optional)</li>
+      <li>Server routes: <code>server.js</code> (optional, auto-mounted)</li>
+      <li>Default config: <code>config.json</code> (optional, copied to <code>~/.codedeck/config/</code>)</li>
+      <li>Import paths: use absolute paths (e.g. <code>/js/ui/tab-sdk.js</code>)</li>
     </ul>
 
-    <div class="callout">When in doubt, look at <code>event-stream-tab.js</code>, <code>repos-tab.js</code>, or <code>tasks-tab.js</code> in <code>plugins/</code> as reference implementations.</div>
+    <div class="callout">When in doubt, look at <code>plugins/event-stream/</code>, <code>plugins/repos/</code>, or <code>plugins/tasks/</code> as reference implementations. For full-stack with server routes, see <code>plugins/linear/</code>.</div>
   `,
 });
 

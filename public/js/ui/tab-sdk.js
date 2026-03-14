@@ -8,8 +8,8 @@
 //
 // ── Quick Start ─────────────────────────────────────────────────
 //
-//   // my-tab.js
-//   import { registerTab } from './tab-sdk.js';
+//   // plugins/my-tab/client.js
+//   import { registerTab } from '/js/ui/tab-sdk.js';
 //
 //   registerTab({
 //     id: 'my-tab',
@@ -38,7 +38,7 @@
 //     onDestroy()    { /* tab unregistered — cleanup */ },
 //   });
 //
-//   // main.js — just add: import '../my-tab.js';
+//   // Auto-discovered — no main.js changes needed!
 //
 // ── registerTab(config) ─────────────────────────────────────────
 //
@@ -79,7 +79,7 @@
 //   • Use ctx.on('ws:message', fn) for real-time streaming events
 //   • Use ctx.onState('sessionId', fn) to reload on session switch
 //   • Existing shortcuts (e.g. openRightPanel('my-tab')) work automatically
-//   • See event-stream-tab.js for a full working example
+//   • See plugins/event-stream/client.js for a full working example
 //
 // ════════════════════════════════════════════════════════════════
 

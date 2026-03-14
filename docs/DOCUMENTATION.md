@@ -39,21 +39,21 @@ On first run, CodeDeck creates `~/.codedeck/` with your config files, database, 
 browser ──────── WebSocket ──────── server.js ──────── Claude Code SDK
    |                                    |
    ├── js/main.js (entry point)       ├── server/paths.js (centralized path resolution)
-   │   ├── core/                      ├── server/routes/ (15 route modules)
-   │   │   ├── store.js (reactive)    ├── server/ws-handler.js
-   │   │   ├── ws.js (WebSocket)      ├── server/agent-loop.js
-   │   │   ├── api.js (fetch calls)   ├── server/telegram-sender.js (two-way)
-   │   │   │                          ├── server/telegram-poller.js (callback listener)
-   │   │   ├── events.js (event bus)  ├── db.js (SQLite)
-   │   │   ├── dom.js (DOM refs)      ├── config/ (default configs, copied to ~/.codedeck/)
-   │   │   ├── constants.js           │   ├── folders.json (projects)
-   │   │   ├── utils.js               │   ├── repos.json (repositories)
-   │   │   └── plugin-loader.js       │   ├── prompts.json (16 templates)
-   │   ├── ui/   (shared UI modules)  │   ├── bot-prompt.json (assistant bot)
-   │   ├── features/ (chat, voice, welcome, tour) │   ├── agents.json (4 agents)
-   │   │                              │   ├── workflows.json (4 workflows)
-   │   ├── panels/  (bot, tips, docs) │   └── telegram-config.json
-   │   └── plugins/ (tab-sdk plugins)
+   │   ├── core/                      ├── server/routes/ (route modules)
+   │   │   ├── store.js (reactive)    ├── server/plugin-mount.js (auto-mount plugin routes)
+   │   │   ├── ws.js (WebSocket)      ├── server/ws-handler.js
+   │   │   ├── api.js (fetch calls)   ├── server/agent-loop.js
+   │   │   │                          ├── server/telegram-sender.js (two-way)
+   │   │   ├── events.js (event bus)  ├── server/telegram-poller.js (callback listener)
+   │   │   ├── dom.js (DOM refs)      ├── db.js (SQLite)
+   │   │   ├── constants.js           ├── config/ (default configs, copied to ~/.codedeck/)
+   │   │   ├── utils.js               ├── plugins/ (full-stack plugins)
+   │   │   └── plugin-loader.js       │   ├── linear/ (client.js, server.js, config.json)
+   │   ├── ui/   (shared UI modules)  │   ├── repos/ (client.js, server.js)
+   │   ├── features/ (chat, voice, welcome, tour) │   ├── tasks/ (client.js, server.js)
+   │   │                              │   ├── claude-editor/ (client.js, client.css)
+   │   └── panels/  (bot, tips, docs) │   ├── event-stream/ (client.js, client.css)
+   │                                  │   └── ... (tic-tac-toe, sudoku)
    ├── css/
    │   ├── core/       (variables, reset, responsive)
    │   ├── ui/         (messages, sessions, layout)
@@ -72,7 +72,7 @@ browser ──────── WebSocket ──────── server.js �
 - **Reconnect with backoff** — exponential backoff (2s → 4s → 8s → ... → 30s cap, 0-25% jitter), distinct `ws:reconnected` event triggers state sync
 - **State sync on reconnect** — reconciles background sessions, resets streaming panes, reloads messages from DB, refreshes session list
 - **Modular frontend** — 40+ ES modules organized into `core/`, `ui/`, `features/`, `panels/`, `plugins/` with no bundler
-- **Plugin system** — auto-discovery of tab-sdk plugins from built-in (`public/js/plugins/`) and user (`~/.codedeck/plugins/`) directories via `GET /api/plugins`
+- **Plugin system** — full-stack plugin architecture: `plugins/<name>/` directories with `client.js`, optional `server.js` (auto-mounted at `/api/plugins/<name>/`), `client.css`, and `config.json`. Also supports user plugins from `~/.codedeck/plugins/`. All discovered via `GET /api/plugins`
 - **Reactive store** — centralized pub/sub state management across modules
 - **Event bus** — decoupled cross-module communication
 - **Modular backend** — 15 Express Router modules + shared WS handler + agent loop + Telegram sender
@@ -639,10 +639,10 @@ The guard dialog intercepts session clicks, project switches, and the New Sessio
 Side panel for viewing and creating Linear issues directly from the app:
 - **Tasks panel** — top half of the Tasks tab; shows assigned open issues with priority, state, labels, due date
 - **Create issue** — modal with title, description, team selector, and workflow state (loaded dynamically per team)
-- **Auto-assign** — new issues auto-assigned via `LINEAR_ASSIGNEE_EMAIL` env var
+- **Auto-assign** — new issues auto-assigned via assignee email in Linear settings
 - 60-second client-side cache with manual refresh
 - Panel state (open/closed) persisted to `localStorage`
-- Requires `LINEAR_API_KEY` env var (gracefully degrades with hint if missing)
+- Configure via Linear tab in the right panel (API key, assignee email, enable toggle)
 
 ### 26. Tabbed Right Panel (with Tab SDK)
 The right side of the UI hosts a resizable tabbed panel with built-in and plugin tabs:
@@ -659,9 +659,9 @@ The right side of the UI hosts a resizable tabbed panel with built-in and plugin
 - **Lifecycle hooks** — `onActivate`, `onDeactivate`, `onDestroy`
 - **Lazy initialization** — `lazy: true` defers `init()` until the tab is first opened
 - **Positional insert** — `position` option to control tab order
-- **Auto-discovery** — drop `.js` + `.css` files in `public/js/plugins/` (built-in) or `~/.codedeck/plugins/` (user), server exposes them via `GET /api/plugins`
+- **Auto-discovery** — full-stack plugins live in `plugins/<name>/` (with `client.js`, optional `server.js`, `client.css`, `config.json`). User plugins go in `~/.codedeck/plugins/`. All discovered via `GET /api/plugins`
 - **Plugin marketplace** — enable/disable/reorder plugins from the "+" button; state persisted to `localStorage`
-- **Built-in plugins**: Tasks (Linear + Todo), Repos, Events, CLAUDE.md Editor, Sudoku, Tic-Tac-Toe
+- **Built-in plugins**: Linear (issues + settings), Tasks (todo + brags), Repos, Events, CLAUDE.md Editor, Sudoku, Tic-Tac-Toe
 
 Panel state (open/closed), active tab, and width are persisted to `localStorage`. Resizable by dragging the left edge. Toggle via header button or `Cmd+B`.
 
@@ -796,7 +796,7 @@ A progress bar in the header showing cumulative session token usage against the 
 - Auto-hidden when no tokens recorded
 
 ### 36. Event Stream Panel (Tab SDK Plugin)
-A structured activity log registered as a plugin tab via the Tab SDK (`event-stream-tab.js`):
+A structured activity log registered as a plugin tab via the Tab SDK (`plugins/event-stream/client.js`):
 - Logs all tool calls, results, errors, and completion events in real time
 - Each event shows timestamp, type badge (TOOL/OK/ERR/DONE), and summary
 - Click to expand and see full event details (JSON input, full output)
@@ -927,11 +927,11 @@ A 24px footer bar at the bottom of the page showing key information at a glance:
 
 ### 47. Plugin Marketplace
 A built-in marketplace UI for managing tab-sdk plugins:
-- **Auto-discovery** — server scans built-in (`public/js/plugins/`) and user (`~/.codedeck/plugins/`) directories, merges results with `source: "builtin"` or `source: "user"` field
+- **Auto-discovery** — server scans built-in plugins (`plugins/`) and user plugins (`~/.codedeck/plugins/`), merges results with `source: "builtin"` or `source: "user"` field
 - **Marketplace panel** — accessible from the "+" button in the right panel tab bar
 - **Enable/disable** — toggle plugins on/off; state persisted to `localStorage`
 - **Reorder tabs** — drag handle to reorder plugin tabs; order persisted to `localStorage`
-- **Built-in plugins**: Tasks (Linear + Todo), Repos, Events, CLAUDE.md Editor, Sudoku, Tic-Tac-Toe
+- **Built-in plugins**: Linear (issues + settings), Tasks (todo + brags), Repos, Events, CLAUDE.md Editor, Sudoku, Tic-Tac-Toe
 - **Hot reload** — enable a plugin and it loads immediately without page refresh; disable removes the tab
 
 ### 48. Mobile Responsive Layout
@@ -1080,8 +1080,6 @@ Override the location with `CODEDECK_HOME` environment variable.
 ### .env — Environment Variables
 ```bash
 PORT=9009                        # Server port (default 9009)
-LINEAR_API_KEY=                  # Linear API key for issue integration
-LINEAR_ASSIGNEE_EMAIL=           # Auto-assign new issues to this email
 VAPID_PUBLIC_KEY=                # Auto-generated on first run if missing
 VAPID_PRIVATE_KEY=               # Auto-generated on first run if missing
 ```
@@ -1258,8 +1256,15 @@ CodeDeck/
         ├── core/          store, dom, constants, events, utils, api, ws, plugin-loader
         ├── ui/            messages, formatting, diff, export, theme, commands, parallel, etc.
         ├── features/      chat, sessions, projects, home, welcome, tour, attachments, voice-input, easter-egg, etc.
-        ├── panels/        assistant-bot, tips-feed, dev-docs, file-explorer, git-panel, mcp-manager
-        └── plugins/       Auto-discovered tab-sdk plugins (tasks, repos, events, editor, games)
+        └── panels/        assistant-bot, tips-feed, dev-docs, file-explorer, git-panel, mcp-manager
+plugins/                   Full-stack plugins (client.js, server.js, config.json)
+    ├── linear/            Issues + settings with server-side API routes
+    ├── repos/             Repository management with server-side routes
+    ├── tasks/             Todo + brags with server-side routes
+    ├── claude-editor/     CLAUDE.md editor (client-only)
+    ├── event-stream/      WebSocket event viewer (client-only)
+    ├── tic-tac-toe/       Tic-tac-toe game (client-only)
+    └── sudoku/            Sudoku game (client-only)
 ```
 
 ---

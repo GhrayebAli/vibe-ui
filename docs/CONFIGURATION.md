@@ -18,9 +18,11 @@ CodeDeck separates **package defaults** (read-only, ships with npm) from **user 
 │   ├── agent-dags.json               Agent DAGs — dependency graphs (1 default)
 │   ├── bot-prompt.json               Assistant bot system prompt
 │   └── telegram-config.json          Telegram notification settings
-├── plugins/                          User-installed tab-sdk plugins
-│   ├── my-plugin.js                  Plugin JS module
-│   └── my-plugin.css                 Plugin stylesheet (optional)
+├── plugins/                          User-installed plugins
+│   └── my-plugin/                    Plugin directory
+│       ├── client.js                 Plugin JS module (required)
+│       ├── client.css                Plugin stylesheet (optional)
+│       └── server.js                 Server-side routes (optional, requires CODEDECK_USER_SERVER_PLUGINS=true)
 ├── data.db                           SQLite database (sessions, messages, costs, todos)
 └── .env                              Environment variables (VAPID keys, API keys)
 ```
@@ -71,7 +73,6 @@ NPX upgrade:
 | `userPluginsDir` | `~/.codedeck/plugins` | User-installed plugins |
 | `dbPath` | `~/.codedeck/data.db` | SQLite database path |
 | `defaultConfigDir` | `<package>/config` | Built-in default configs |
-| `builtinPluginsDir` | `<package>/public/js/plugins` | Built-in plugin directory |
 | `configPath(filename)` | `~/.codedeck/config/<filename>` | Helper to resolve a config file |
 
 ---
@@ -141,39 +142,44 @@ Plugins can live in two directories:
 
 | Directory | Source | Writable |
 |-----------|--------|----------|
-| `<package>/public/js/plugins/` | Ships with CodeDeck | No (package-managed) |
+| `<package>/plugins/` | Ships with CodeDeck (full-stack) | No (package-managed) |
 | `~/.codedeck/plugins/` | User-installed | Yes |
 
 The `GET /api/plugins` endpoint merges both directories. Each plugin gets a `source` field (`"builtin"` or `"user"`) so the marketplace UI can distinguish them.
 
+### Plugin directory structure
+
+Each plugin is a directory with at minimum a `client.js` file:
+
+```
+plugins/my-plugin/
+├── client.js       # Tab-sdk module (required) — must call registerTab()
+├── client.css      # Styles (optional, auto-injected if present)
+├── server.js       # Express router (optional, auto-mounted at /api/plugins/my-plugin/)
+└── config.json     # Default config (optional, copied to ~/.codedeck/config/ on first run)
+```
+
 ### Installing a user plugin
 
-Drop a `.js` file (and optional `.css` file) into `~/.codedeck/plugins/`:
+Create a directory in `~/.codedeck/plugins/` with a `client.js` file:
 
 ```bash
-cp my-plugin.js ~/.codedeck/plugins/
-cp my-plugin.css ~/.codedeck/plugins/  # optional
+mkdir -p ~/.codedeck/plugins/my-plugin
+cp client.js ~/.codedeck/plugins/my-plugin/
+cp client.css ~/.codedeck/plugins/my-plugin/  # optional
 ```
 
 The plugin appears in the marketplace on next page load. No server restart needed.
 
-### Plugin file naming
-
-The JS and CSS files must share the same base name:
-
-```
-~/.codedeck/plugins/
-├── weather-tab.js      # Plugin module (required)
-└── weather-tab.css     # Styles (optional, auto-loaded if present)
-```
+**Server-side user plugins**: To allow user plugins with `server.js`, set `CODEDECK_USER_SERVER_PLUGINS=true` in your `.env`. This is disabled by default for security.
 
 ### Static serving
 
 User plugins are served from `/user-plugins/` URL path:
-- `~/.codedeck/plugins/weather-tab.js` → `http://localhost:9009/user-plugins/weather-tab.js`
+- `~/.codedeck/plugins/my-plugin/client.js` → `http://localhost:9009/user-plugins/my-plugin/client.js`
 
-Built-in plugins are served from the normal static path:
-- `public/js/plugins/tasks-tab.js` → `http://localhost:9009/js/plugins/tasks-tab.js`
+Built-in plugins are served from `/plugins/` URL path:
+- `plugins/linear/client.js` → `http://localhost:9009/plugins/linear/client.js`
 
 ---
 
@@ -184,8 +190,6 @@ The `.env` file lives at `~/.codedeck/.env`. On first run, if a `.env` exists in
 ```bash
 # ~/.codedeck/.env
 PORT=9009                        # Server port (default 9009)
-LINEAR_API_KEY=                  # Linear API key for issue integration
-LINEAR_ASSIGNEE_EMAIL=           # Auto-assign new issues to this email
 VAPID_PUBLIC_KEY=                # Auto-generated on first run
 VAPID_PRIVATE_KEY=               # Auto-generated on first run
 ```

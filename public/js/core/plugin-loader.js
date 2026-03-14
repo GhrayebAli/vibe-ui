@@ -1,13 +1,13 @@
-// Plugin Loader — auto-discovers and loads tab-sdk plugins from /js/plugins/
+// Plugin Loader — auto-discovers and loads tab-sdk plugins
 //
 // How it works:
-//   1. Fetches GET /api/plugins → list of {name, js, css} entries
+//   1. Fetches GET /api/plugins → list of {name, js, css, source, apiBase} entries
 //   2. Stores manifest for the marketplace UI
 //   3. Only loads plugins the user has enabled (persisted in localStorage)
 //
-// To create a new plugin, just drop files into public/js/plugins/:
-//   my-plugin.js   — must call registerTab() from tab-sdk.js
-//   my-plugin.css  — optional, auto-injected if present
+// Plugin sources (checked in order, first match wins):
+//   1. Built-in plugins in plugins/<name>/ (client.js, client.css, server.js, config.json)
+//   2. User plugins in ~/.codedeck/plugins/<name>/ (same directory structure)
 
 const STORAGE_KEY = 'codedeck-enabled-plugins';
 const ORDER_KEY = 'codedeck-plugin-order';
@@ -19,10 +19,13 @@ const pluginTabIds = new Map();
 
 /** Plugin descriptions for the marketplace. order: lower = higher in the list */
 const pluginMeta = {
-  'event-stream-tab': { description: 'Real-time WebSocket event viewer with filtering and search', icon: '⚡', order: 10 },
-  'repos-tab':        { description: 'Git repository and group management with tree view',        icon: '📁', order: 20 },
-  'tasks-tab':        { description: 'Linear issues and todo list with priority levels',           icon: '✅', order: 30 },
-  'claude-editor-tab':{ description: 'Edit CLAUDE.md project instructions directly in the UI',    icon: '📝', order: 5 },
+  'claude-editor':    { description: 'Edit CLAUDE.md project instructions directly in the UI',    icon: '📝', order: 5 },
+  'event-stream':     { description: 'Real-time WebSocket event viewer with filtering and search', icon: '⚡', order: 10 },
+  'repos':            { description: 'Git repository and group management with tree view',        icon: '📁', order: 20 },
+  'linear':           { description: 'Linear issue tracking with settings and team management',   icon: '📋', order: 25 },
+  'tasks':            { description: 'Todo list with priority levels and brag tracking',           icon: '✅', order: 30 },
+  'tic-tac-toe':      { description: 'Classic tic-tac-toe game',                                   icon: '🎮', order: 90 },
+  'sudoku':           { description: 'Sudoku puzzle game',                                         icon: '🧩', order: 91 },
 };
 const defaultMeta = { description: 'A tab-sdk plugin', icon: '🧩', order: 100 };
 

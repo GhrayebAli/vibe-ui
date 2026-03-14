@@ -1,8 +1,101 @@
 import { Router } from "express";
+import { readFileSync, writeFileSync } from "fs";
+import { configPath } from "../../server/paths.js";
 
 const router = Router();
 
 const LINEAR_API = "https://api.linear.app/graphql";
+const CONFIG_FILE = configPath("linear-config.json");
+
+// ── Config helpers ──────────────────────────────────────────
+
+function loadConfig() {
+  try {
+    return JSON.parse(readFileSync(CONFIG_FILE, "utf-8"));
+  } catch {
+    return { enabled: false, apiKey: "", assigneeEmail: "" };
+  }
+}
+
+function saveConfig(cfg) {
+  writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2) + "\n");
+}
+
+function getApiKey() {
+  const cfg = loadConfig();
+  return cfg.enabled ? cfg.apiKey : "";
+}
+
+function getAssigneeEmail() {
+  return loadConfig().assigneeEmail || "";
+}
+
+function maskKey(key) {
+  if (!key || key.length < 8) return key ? "****" : "";
+  return key.slice(0, 8) + "****" + key.slice(-4);
+}
+
+// ── Config routes ───────────────────────────────────────────
+
+router.get("/config", (req, res) => {
+  const cfg = loadConfig();
+  res.json({ ...cfg, apiKey: maskKey(cfg.apiKey) });
+});
+
+router.put("/config", (req, res) => {
+  try {
+    const { enabled, apiKey, assigneeEmail } = req.body;
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ error: "enabled must be a boolean" });
+    }
+
+    const existing = loadConfig();
+    const finalKey = apiKey && !apiKey.includes("****") ? apiKey : existing.apiKey;
+
+    saveConfig({
+      enabled,
+      apiKey: finalKey,
+      assigneeEmail: assigneeEmail || "",
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/test", async (req, res) => {
+  const cfg = loadConfig();
+  const apiKey = cfg.apiKey;
+  if (!apiKey) {
+    return res.status(400).json({ ok: false, error: "Linear API key not configured" });
+  }
+
+  try {
+    const response = await fetch(LINEAR_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: apiKey },
+      body: JSON.stringify({ query: `query { viewer { id name email } }` }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      return res.status(response.status).json({ ok: false, error: text });
+    }
+
+    const data = await response.json();
+    if (data.errors) {
+      return res.json({ ok: false, error: data.errors[0].message });
+    }
+
+    const viewer = data.data?.viewer;
+    res.json({ ok: true, user: viewer });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ── GraphQL queries ─────────────────────────────────────────
 
 const TEAMS_QUERY = `
   query { teams { nodes { id name } } }
@@ -62,18 +155,15 @@ const ISSUES_QUERY = `
 `;
 
 router.get("/issues", async (req, res) => {
-  const apiKey = process.env.LINEAR_API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
-    return res.json({ issues: [], error: "LINEAR_API_KEY not configured" });
+    return res.json({ issues: [], error: "Linear not configured" });
   }
 
   try {
     const response = await fetch(LINEAR_API, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: apiKey,
-      },
+      headers: { "Content-Type": "application/json", Authorization: apiKey },
       body: JSON.stringify({ query: ISSUES_QUERY }),
     });
 
@@ -96,18 +186,15 @@ router.get("/issues", async (req, res) => {
 });
 
 router.get("/teams", async (req, res) => {
-  const apiKey = process.env.LINEAR_API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
-    return res.json({ teams: [], error: "LINEAR_API_KEY not configured" });
+    return res.json({ teams: [], error: "Linear not configured" });
   }
 
   try {
     const response = await fetch(LINEAR_API, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: apiKey,
-      },
+      headers: { "Content-Type": "application/json", Authorization: apiKey },
       body: JSON.stringify({ query: TEAMS_QUERY }),
     });
 
@@ -130,18 +217,15 @@ router.get("/teams", async (req, res) => {
 });
 
 router.get("/teams/:teamId/states", async (req, res) => {
-  const apiKey = process.env.LINEAR_API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
-    return res.json({ states: [], error: "LINEAR_API_KEY not configured" });
+    return res.json({ states: [], error: "Linear not configured" });
   }
 
   try {
     const response = await fetch(LINEAR_API, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: apiKey,
-      },
+      headers: { "Content-Type": "application/json", Authorization: apiKey },
       body: JSON.stringify({
         query: TEAM_STATES_QUERY,
         variables: { id: req.params.teamId },
@@ -170,9 +254,9 @@ router.get("/teams/:teamId/states", async (req, res) => {
 });
 
 router.post("/issues", async (req, res) => {
-  const apiKey = process.env.LINEAR_API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
-    return res.status(400).json({ success: false, error: "LINEAR_API_KEY not configured" });
+    return res.status(400).json({ success: false, error: "Linear not configured" });
   }
 
   const { title, description, teamId, stateId } = req.body;
@@ -181,9 +265,8 @@ router.post("/issues", async (req, res) => {
   }
 
   try {
-    // Resolve assignee from LINEAR_ASSIGNEE_EMAIL env var
     let assigneeId;
-    const assigneeEmail = process.env.LINEAR_ASSIGNEE_EMAIL;
+    const assigneeEmail = getAssigneeEmail();
     if (assigneeEmail) {
       const userRes = await fetch(LINEAR_API, {
         method: "POST",
@@ -198,10 +281,7 @@ router.post("/issues", async (req, res) => {
 
     const response = await fetch(LINEAR_API, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: apiKey,
-      },
+      headers: { "Content-Type": "application/json", Authorization: apiKey },
       body: JSON.stringify({
         query: CREATE_ISSUE_MUTATION,
         variables: { title, teamId, description: description || undefined, stateId: stateId || undefined, assigneeId: assigneeId || undefined },

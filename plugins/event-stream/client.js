@@ -1,7 +1,7 @@
 // Event Stream — migrated to Tab SDK plugin
 // This file replaces the old event-stream.js + HTML template
-import { registerTab } from '../ui/tab-sdk.js';
-import { escapeHtml, getToolDetail } from '../core/utils.js';
+import { registerTab } from '/js/ui/tab-sdk.js';
+import { escapeHtml, getToolDetail } from '/js/core/utils.js';
 
 registerTab({
   id: 'events',

@@ -33,7 +33,7 @@ On first run, CodeDeck creates `~/.codedeck/` with your config, database, and pl
 | **Git Panel** | Branch switching, staging, commit, log — all in-app |
 | **Voice Input** | Speech-to-text via Web Speech API (Chrome/Safari) |
 | **Permission System** | Bypass, Confirm Writes, or Confirm All — approve/deny tool calls with "always allow" option. AFK mode via Telegram inline buttons |
-| **Plugin System** | Tab SDK for custom panels — auto-discovered from `public/js/plugins/` and `~/.codedeck/plugins/` |
+| **Plugin System** | Full-stack plugin architecture — `plugins/<name>/` with optional server-side routes, auto-discovered at runtime |
 | **PWA** | Install as a standalone app, push notifications (even with browser closed), offline fallback |
 | **Prompt Templates** | 16 built-in prompts with `{{variable}}` placeholder support |
 | **Project Commands** | Auto-discovers `.claude/commands/` and `.claude/skills/` from your project |
@@ -65,7 +65,8 @@ browser ──── WebSocket ──── server.js ──── Claude Code S
                           server/paths.js ──── ~/.codedeck/
                                │                  ├── config/     (JSON configs)
                           server/routes/           ├── plugins/    (user plugins)
-                          (15 modules)             ├── data.db     (SQLite)
+                          plugins/                 ├── data.db     (SQLite)
+                          (full-stack plugins)
                                                    └── .env        (keys)
 ```
 
@@ -107,7 +108,7 @@ All user data lives in `~/.codedeck/` (override with `CODEDECK_HOME`):
 │   └── telegram-config.json  Telegram bot config + notification preferences
 ├── plugins/             User-installed tab-sdk plugins
 ├── data.db              SQLite database
-└── .env                 VAPID keys, LINEAR_API_KEY, etc.
+└── .env                 VAPID keys, port config
 ```
 
 Defaults are copied once on first run — user edits are never overwritten on upgrade.

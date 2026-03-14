@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { readFile, writeFile, stat, access } from "fs/promises";
 import { join, resolve } from "path";
-import { configPath } from "../paths.js";
+import { configPath } from "../../server/paths.js";
 
 const dataFile = configPath("repos.json");
 

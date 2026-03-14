@@ -20,9 +20,6 @@ export const dbPath = join(userDir, "data.db");
 // Default config (ships with the package, read-only reference)
 export const defaultConfigDir = join(packageRoot, "config");
 
-// Built-in plugins (shipped with package, read-only)
-export const builtinPluginsDir = join(packageRoot, "public/js/plugins");
-
 // Config file helper
 export function configPath(filename) {
   return join(userConfigDir, filename);

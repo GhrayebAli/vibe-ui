@@ -1,6 +1,6 @@
 // Sudoku — Tab SDK plugin
 // A mini sudoku game to play while waiting for tasks to finish
-import { registerTab } from '../ui/tab-sdk.js';
+import { registerTab } from '/js/ui/tab-sdk.js';
 
 registerTab({
   id: 'sudoku',

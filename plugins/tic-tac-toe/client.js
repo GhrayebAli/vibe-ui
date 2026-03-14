@@ -1,6 +1,6 @@
 // Tic Tac Toe — Tab SDK plugin
 // A classic tic-tac-toe game vs AI or a friend
-import { registerTab } from '../ui/tab-sdk.js';
+import { registerTab } from '/js/ui/tab-sdk.js';
 
 registerTab({
   id: 'tic-tac-toe',

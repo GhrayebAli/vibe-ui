@@ -13,18 +13,20 @@ Parse the arguments: the first word is the **plugin name** (kebab-case), the res
 ## Rules
 
 1. The plugin name MUST be kebab-case (e.g. `my-plugin`, `code-metrics`)
-2. All files go in `public/js/plugins/` — NO other files need to be modified (no main.js, no style.css, no index.html)
+2. All files go in `plugins/<name>/` — NO other files need to be modified (no main.js, no style.css, no index.html)
 3. The plugin is auto-discovered by the server at runtime via `GET /api/plugins`
-4. Create exactly two files: `public/js/plugins/<name>.js` and `public/js/plugins/<name>.css`
+4. Create at minimum: `plugins/<name>/client.js` and optionally `plugins/<name>/client.css`
+5. If the plugin needs server-side API routes, also create `plugins/<name>/server.js`
+6. If the plugin needs persistent config, also create `plugins/<name>/config.json`
 
-## JS file template
+## Client JS file template
 
-Create `public/js/plugins/<name>.js` following this structure:
+Create `plugins/<name>/client.js` following this structure:
 
 ```javascript
 // <Title> — Tab SDK plugin
 // <Description of what the plugin does>
-import { registerTab } from '../ui/tab-sdk.js';
+import { registerTab } from '/js/ui/tab-sdk.js';
 
 registerTab({
   id: '<name>',
@@ -57,9 +59,11 @@ registerTab({
 });
 ```
 
-## CSS file template
+**IMPORTANT**: Use absolute import paths (e.g. `'/js/ui/tab-sdk.js'`, `'/js/core/api.js'`) since plugins are served from `/plugins/<name>/client.js`.
 
-Create `public/js/plugins/<name>.css` with styles scoped to `.<name>-tab` to avoid conflicts:
+## Client CSS file template
+
+Create `plugins/<name>/client.css` with styles scoped to `.<name>-tab` to avoid conflicts:
 
 ```css
 /* <Title> — Tab SDK plugin styles */
@@ -75,9 +79,45 @@ Use these CSS custom properties from the app theme:
 - Backgrounds: `var(--bg)`, `var(--bg-secondary)`, `var(--bg-tertiary)`, `var(--bg-deep)`
 - Layout: `var(--border)`, `var(--radius)`, `var(--radius-lg)`, `var(--font-mono)`
 
+## Server JS file template (optional)
+
+Create `plugins/<name>/server.js` if your plugin needs API endpoints. The router is auto-mounted at `/api/plugins/<name>/`:
+
+```javascript
+import { Router } from "express";
+
+const router = Router();
+
+router.get("/", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+export default router;
+```
+
+To use config files, import `configPath` from `../../server/paths.js`:
+
+```javascript
+import { configPath } from "../../server/paths.js";
+import { readFileSync, writeFileSync } from "fs";
+
+const cfgFile = configPath("<name>-config.json");
+```
+
+## Config JSON file template (optional)
+
+Create `plugins/<name>/config.json` with default values. It will be auto-copied to `~/.codedeck/config/` on first run:
+
+```json
+{
+  "enabled": false,
+  "settings": {}
+}
+```
+
 ## Available imports
 
-From `../core/`:
+From `/js/core/`:
 - `store.js` — `getState(key)`, `setState(key, val)`, `onState(key, fn)`
 - `events.js` — `on(event, fn)`, `emit(event, data)`
 - `dom.js` — `$` (cached DOM query map)
@@ -85,7 +125,7 @@ From `../core/`:
 - `api.js` — all fetch helpers (`fetchSessions`, `fetchFileTree`, `execCommand`, etc.)
 - `utils.js` — `escapeHtml()`, `getToolDetail()`, `formatBytes()`, etc.
 
-From `../ui/`:
+From `/js/ui/`:
 - `tab-sdk.js` — `registerTab()`, `unregisterTab()`, `getRegisteredTabs()`
 - `commands.js` — `registerCommand()` for slash commands
 - `formatting.js` — `renderMarkdown()`, `highlightCodeBlocks()`

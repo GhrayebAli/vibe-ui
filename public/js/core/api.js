@@ -412,27 +412,46 @@ export async function execCommand(command, cwd) {
 }
 
 export async function fetchLinearIssues() {
-  const res = await fetch("/api/linear/issues");
+  const res = await fetch("/api/plugins/linear/issues");
   return res.json();
 }
 
 export async function fetchLinearTeams() {
-  const res = await fetch("/api/linear/teams");
+  const res = await fetch("/api/plugins/linear/teams");
   return res.json();
 }
 
 export async function fetchLinearTeamStates(teamId) {
-  const res = await fetch(`/api/linear/teams/${encodeURIComponent(teamId)}/states`);
+  const res = await fetch(`/api/plugins/linear/teams/${encodeURIComponent(teamId)}/states`);
   return res.json();
 }
 
 export async function createLinearIssue({ title, description, teamId, stateId }) {
-  const res = await fetch("/api/linear/issues", {
+  const res = await fetch("/api/plugins/linear/issues", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title, description, teamId, stateId }),
   });
   if (!res.ok) throw new Error("Failed to create issue");
+  return res.json();
+}
+
+export async function fetchLinearConfig() {
+  const res = await fetch("/api/plugins/linear/config");
+  return res.json();
+}
+
+export async function saveLinearConfig(config) {
+  const res = await fetch("/api/plugins/linear/config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
+  return res.json();
+}
+
+export async function testLinearConnection() {
+  const res = await fetch("/api/plugins/linear/test", { method: "POST" });
   return res.json();
 }
 
@@ -451,47 +470,47 @@ export async function fetchRssFeed(url) {
 const CT = { "Content-Type": "application/json" };
 
 export async function fetchTodoCounts() {
-  const res = await fetch("/api/todos/counts");
+  const res = await fetch("/api/plugins/tasks/counts");
   return res.json();
 }
 
 export async function fetchTodos(archived = false) {
-  const res = await fetch("/api/todos" + (archived ? "?archived=1" : ""));
+  const res = await fetch("/api/plugins/tasks" + (archived ? "?archived=1" : ""));
   return res.json();
 }
 
 export async function archiveTodoApi(id, archived = true) {
-  const res = await fetch(`/api/todos/${id}/archive`, { method: "PUT", headers: CT, body: JSON.stringify({ archived }) });
+  const res = await fetch(`/api/plugins/tasks/${id}/archive`, { method: "PUT", headers: CT, body: JSON.stringify({ archived }) });
   return res.json();
 }
 
 export async function createTodoApi(text) {
-  const res = await fetch("/api/todos", { method: "POST", headers: CT, body: JSON.stringify({ text }) });
+  const res = await fetch("/api/plugins/tasks", { method: "POST", headers: CT, body: JSON.stringify({ text }) });
   return res.json();
 }
 
 export async function updateTodoApi(id, data) {
-  const res = await fetch(`/api/todos/${id}`, { method: "PUT", headers: CT, body: JSON.stringify(data) });
+  const res = await fetch(`/api/plugins/tasks/${id}`, { method: "PUT", headers: CT, body: JSON.stringify(data) });
   return res.json();
 }
 
 export async function deleteTodoApi(id) {
-  const res = await fetch(`/api/todos/${id}`, { method: "DELETE" });
+  const res = await fetch(`/api/plugins/tasks/${id}`, { method: "DELETE" });
   return res.json();
 }
 
 export async function bragTodoApi(id, summary) {
-  const res = await fetch(`/api/todos/${id}/brag`, { method: "POST", headers: CT, body: JSON.stringify({ summary }) });
+  const res = await fetch(`/api/plugins/tasks/${id}/brag`, { method: "POST", headers: CT, body: JSON.stringify({ summary }) });
   return res.json();
 }
 
 export async function fetchBrags() {
-  const res = await fetch("/api/todos/brags");
+  const res = await fetch("/api/plugins/tasks/brags");
   return res.json();
 }
 
 export async function deleteBragApi(id) {
-  const res = await fetch(`/api/todos/brags/${id}`, { method: "DELETE" });
+  const res = await fetch(`/api/plugins/tasks/brags/${id}`, { method: "DELETE" });
   return res.json();
 }
 
@@ -508,7 +527,7 @@ async function throwApiError(res) {
 }
 
 export async function fetchRepos() {
-  const res = await fetch("/api/repos");
+  const res = await fetch("/api/plugins/repos");
   return res.json();
 }
 
@@ -516,7 +535,7 @@ export async function addRepo(name, path, groupId, url) {
   const body = { name, groupId };
   if (path) body.path = path;
   if (url) body.url = url;
-  const res = await fetch("/api/repos/repos", {
+  const res = await fetch("/api/plugins/repos/repos", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -526,7 +545,7 @@ export async function addRepo(name, path, groupId, url) {
 }
 
 export async function updateRepo(id, updates) {
-  const res = await fetch(`/api/repos/repos/${encodeURIComponent(id)}`, {
+  const res = await fetch(`/api/plugins/repos/repos/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(updates),
@@ -536,7 +555,7 @@ export async function updateRepo(id, updates) {
 }
 
 export async function deleteRepo(id) {
-  const res = await fetch(`/api/repos/repos/${encodeURIComponent(id)}`, {
+  const res = await fetch(`/api/plugins/repos/repos/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
   if (!res.ok) await throwApiError(res);
@@ -544,7 +563,7 @@ export async function deleteRepo(id) {
 }
 
 export async function createRepoGroup(name, parentId) {
-  const res = await fetch("/api/repos/groups", {
+  const res = await fetch("/api/plugins/repos/groups", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, parentId }),
@@ -554,7 +573,7 @@ export async function createRepoGroup(name, parentId) {
 }
 
 export async function updateRepoGroup(id, updates) {
-  const res = await fetch(`/api/repos/groups/${encodeURIComponent(id)}`, {
+  const res = await fetch(`/api/plugins/repos/groups/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(updates),
@@ -564,7 +583,7 @@ export async function updateRepoGroup(id, updates) {
 }
 
 export async function deleteRepoGroup(id) {
-  const res = await fetch(`/api/repos/groups/${encodeURIComponent(id)}`, {
+  const res = await fetch(`/api/plugins/repos/groups/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
   if (!res.ok) await throwApiError(res);

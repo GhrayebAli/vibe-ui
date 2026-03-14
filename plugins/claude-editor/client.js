@@ -1,6 +1,6 @@
 // CLAUDE.md Editor — Tab SDK plugin
-import { registerTab } from '../ui/tab-sdk.js';
-import { escapeHtml } from '../core/utils.js';
+import { registerTab } from '/js/ui/tab-sdk.js';
+import { escapeHtml } from '/js/core/utils.js';
 
 registerTab({
   id: 'claude-md',

@@ -1,4 +1,5 @@
-import { userDir, builtinPluginsDir, userPluginsDir } from "./server/paths.js";
+import { userDir, userPluginsDir } from "./server/paths.js";
+import { mountPluginRoutes } from "./server/plugin-mount.js";
 import dotenv from "dotenv";
 dotenv.config({ path: join(userDir, ".env") });
 import express from "express";
@@ -6,7 +7,7 @@ import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { appendFileSync, readdirSync, existsSync } from "fs";
+import { appendFileSync, readdirSync, existsSync, statSync } from "fs";
 import webpush from "web-push";
 import { getDb, allClaudeSessions } from "./db.js";
 import { initPushSender } from "./server/push-sender.js";
@@ -24,12 +25,9 @@ import filesRouter from "./server/routes/files.js";
 import workflowsRouter from "./server/routes/workflows.js";
 import agentsRouter from "./server/routes/agents.js";
 import execRouter from "./server/routes/exec.js";
-import linearRouter from "./server/routes/linear.js";
 import mcpRouter from "./server/routes/mcp.js";
-import reposRouter from "./server/routes/repos.js";
 import tipsRouter from "./server/routes/tips.js";
 import botRouter from "./server/routes/bot.js";
-import todosRouter from "./server/routes/todos.js";
 import notificationsRouter, { setVapidPublicKey } from "./server/routes/notifications.js";
 import { setupWebSocket } from "./server/ws-handler.js";
 
@@ -101,14 +99,15 @@ app.use("/api/files", filesRouter);
 app.use("/api/workflows", workflowsRouter);
 app.use("/api/agents", agentsRouter);
 app.use("/api/exec", execRouter);
-app.use("/api/linear", linearRouter);
 app.use("/api/mcp", mcpRouter);
-app.use("/api/repos", reposRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/tips", tipsRouter);
 app.use("/api/bot", botRouter);
-app.use("/api/todos", todosRouter);
 app.use("/api/telegram", telegramRouter);
+
+// Serve full-stack plugin client assets
+const fullStackPluginsDir = join(__dirname, "plugins");
+app.use("/plugins", express.static(fullStackPluginsDir));
 
 // Serve user plugins from ~/.codedeck/plugins/
 app.use("/user-plugins", express.static(userPluginsDir));
@@ -117,24 +116,40 @@ app.use("/user-plugins", express.static(userPluginsDir));
 app.get("/api/plugins", (req, res) => {
   const plugins = [];
 
-  // Built-in plugins from package
-  if (existsSync(builtinPluginsDir)) {
-    const files = readdirSync(builtinPluginsDir);
-    for (const f of files.filter(f => f.endsWith(".js"))) {
-      const name = f.replace(/\.js$/, "");
-      const hasCss = files.includes(name + ".css");
-      plugins.push({ name, js: `js/plugins/${f}`, css: hasCss ? `js/plugins/${name}.css` : null, source: "builtin" });
+  // 1. Built-in full-stack plugins from plugins/ (project root)
+  if (existsSync(fullStackPluginsDir)) {
+    for (const name of readdirSync(fullStackPluginsDir)) {
+      const dir = join(fullStackPluginsDir, name);
+      if (!statSync(dir).isDirectory()) continue;
+      if (!existsSync(join(dir, "client.js"))) continue;
+      const hasCss = existsSync(join(dir, "client.css"));
+      const hasServer = existsSync(join(dir, "server.js"));
+      plugins.push({
+        name,
+        js: `plugins/${name}/client.js`,
+        css: hasCss ? `plugins/${name}/client.css` : null,
+        source: "builtin",
+        apiBase: hasServer ? `/api/plugins/${name}` : null,
+      });
     }
   }
 
-  // User plugins from ~/.codedeck/plugins/
+  // 2. User plugins from ~/.codedeck/plugins/
   if (existsSync(userPluginsDir)) {
-    const files = readdirSync(userPluginsDir);
-    for (const f of files.filter(f => f.endsWith(".js"))) {
-      const name = f.replace(/\.js$/, "");
-      if (plugins.some(p => p.name === name)) continue; // builtin wins on conflict
-      const hasCss = files.includes(name + ".css");
-      plugins.push({ name, js: `user-plugins/${f}`, css: hasCss ? `user-plugins/${name}.css` : null, source: "user" });
+    for (const entry of readdirSync(userPluginsDir)) {
+      const dir = join(userPluginsDir, entry);
+      if (!existsSync(dir) || !statSync(dir).isDirectory() || !existsSync(join(dir, "client.js"))) continue;
+      if (plugins.some(p => p.name === entry)) continue;
+      const hasCss = existsSync(join(dir, "client.css"));
+      const allowUserServer = process.env.CODEDECK_USER_SERVER_PLUGINS === "true";
+      const hasServer = allowUserServer && existsSync(join(dir, "server.js"));
+      plugins.push({
+        name: entry,
+        js: `user-plugins/${entry}/client.js`,
+        css: hasCss ? `user-plugins/${entry}/client.css` : null,
+        source: "user",
+        apiBase: hasServer ? `/api/plugins/${entry}` : null,
+      });
     }
   }
 
@@ -145,8 +160,12 @@ app.get("/api/plugins", (req, res) => {
 setupWebSocket(wss, sessionIds);
 
 const PORT = process.env.PORT || 9009;
-server.listen(PORT, () => {
-  console.log(`CodeDeck running at http://localhost:${PORT}`);
+
+// Mount full-stack plugin routes, then start server
+mountPluginRoutes(app, fullStackPluginsDir).then(() => {
+  server.listen(PORT, () => {
+    console.log(`CodeDeck running at http://localhost:${PORT}`);
+  });
 });
 
 // Graceful shutdown

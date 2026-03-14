@@ -1,6 +1,6 @@
 // Repos Tab — Tab SDK plugin for managing git repositories
-import { registerTab } from '../ui/tab-sdk.js';
-import { escapeHtml } from '../core/utils.js';
+import { registerTab } from '/js/ui/tab-sdk.js';
+import { escapeHtml } from '/js/core/utils.js';
 
 // ── SVG Icons ────────────────────────────────────────
 const ICONS = {
