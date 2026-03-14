@@ -131,7 +131,7 @@ export async function runAgent({
   };
 
   if (!useBypass && !usePlan) {
-    opts.canUseTool = makeCanUseTool(ws, pendingApprovals, effectivePermMode, null);
+    opts.canUseTool = makeCanUseTool(ws, pendingApprovals, effectivePermMode, null, agentDef.title || "Agent");
   }
   if (model) opts.model = resolveModel(model);
 
@@ -150,6 +150,7 @@ export async function runAgent({
   let sessionModel = null;
   let turnCount = 0;
   let lastAssistantText = "";
+  let lastAgentMetrics = {};
 
   try {
     const q = query({ prompt, options: opts });
@@ -270,6 +271,8 @@ export async function runAgent({
             stop_reason: sdkMsg.subtype,
           });
 
+          lastAgentMetrics = { durationMs, costUsd, inputTokens, outputTokens, model: resultModel, turns: numTurns, isError: false };
+
           agentSend({
             type: "agent_completed",
             agentId,
@@ -312,6 +315,7 @@ export async function runAgent({
             addMessage(resolvedSid, "error", JSON.stringify({ error: errMsg, subtype: sdkMsg.subtype }), null);
           }
 
+          lastAgentMetrics = { durationMs, costUsd, inputTokens, outputTokens, model: resultModel, turns: numTurns, isError: true, error: errMsg };
           agentSend({ type: "error", error: errMsg });
           agentSend({ type: "agent_error", agentId, error: errMsg, turn: turnCount });
 
@@ -339,7 +343,42 @@ export async function runAgent({
     if (activeQueries) activeQueries.delete(queryKey);
     agentSend({ type: "done" });
     sendPushNotification("CodeDeck", `Agent "${agentDef.title}" completed`, `agent-${resolvedSid}`);
-    sendTelegramNotification("Agent Completed", agentDef.title, `agent-${resolvedSid}`);
+
+    // Rich Telegram notification — meaningful for AFK developer
+    const goalSnippet = agentDef.goal ? agentDef.goal.slice(0, 150).split("\n")[0] : "";
+    const outputSnippet = lastAssistantText
+      ? lastAssistantText.slice(0, 300).replace(/\n{2,}/g, "\n")
+      : "";
+
+    if (lastAgentMetrics.isError) {
+      const errorBody = [
+        agentDef.title,
+        goalSnippet ? `Goal: ${goalSnippet}` : "",
+        `Error: ${lastAgentMetrics.error || "Unknown error"}`,
+      ].filter(Boolean).join("\n");
+      sendTelegramNotification("error", "Agent Failed", errorBody, {
+        durationMs: lastAgentMetrics.durationMs,
+        costUsd: lastAgentMetrics.costUsd,
+        inputTokens: lastAgentMetrics.inputTokens,
+        outputTokens: lastAgentMetrics.outputTokens,
+        model: lastAgentMetrics.model,
+        turns: lastAgentMetrics.turns,
+      });
+    } else {
+      const body = [
+        agentDef.title,
+        goalSnippet ? `Goal: ${goalSnippet}` : "",
+        outputSnippet ? `\nResult: ${outputSnippet}` : "",
+      ].filter(Boolean).join("\n");
+      sendTelegramNotification("agent", "Agent Completed", body, {
+        durationMs: lastAgentMetrics.durationMs,
+        costUsd: lastAgentMetrics.costUsd,
+        inputTokens: lastAgentMetrics.inputTokens,
+        outputTokens: lastAgentMetrics.outputTokens,
+        model: lastAgentMetrics.model,
+        turns: lastAgentMetrics.turns,
+      });
+    }
   }
 
   return { resolvedSid, claudeSessionId };

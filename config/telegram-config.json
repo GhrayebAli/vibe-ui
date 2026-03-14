@@ -1,5 +1,17 @@
 {
   "enabled": true,
   "botToken": "",
-  "chatId": ""
+  "chatId": "",
+  "afkTimeoutMinutes": 15,
+  "notify": {
+    "sessionComplete": true,
+    "workflowComplete": true,
+    "chainComplete": true,
+    "agentComplete": true,
+    "orchestratorComplete": true,
+    "dagComplete": true,
+    "errors": true,
+    "permissionRequests": true,
+    "taskStart": true
+  }
 }

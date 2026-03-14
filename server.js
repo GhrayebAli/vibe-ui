@@ -11,6 +11,7 @@ import webpush from "web-push";
 import { getDb, allClaudeSessions } from "./db.js";
 import { initPushSender } from "./server/push-sender.js";
 import { initTelegramSender } from "./server/telegram-sender.js";
+import { startTelegramPoller, stopTelegramPoller } from "./server/telegram-poller.js";
 import telegramRouter from "./server/routes/telegram.js";
 
 // Route modules
@@ -61,8 +62,8 @@ app.use(express.json());
   initPushSender(webpush);
 }
 
-// ── Telegram notifications ──
-initTelegramSender();
+// ── Telegram notifications + poller ──
+initTelegramSender().then(() => startTelegramPoller());
 
 // Restore session mappings from DB on startup
 const sessionIds = new Map();
@@ -146,4 +147,14 @@ setupWebSocket(wss, sessionIds);
 const PORT = process.env.PORT || 9009;
 server.listen(PORT, () => {
   console.log(`CodeDeck running at http://localhost:${PORT}`);
+});
+
+// Graceful shutdown
+process.on("SIGINT", () => {
+  stopTelegramPoller();
+  process.exit(0);
+});
+process.on("SIGTERM", () => {
+  stopTelegramPoller();
+  process.exit(0);
 });

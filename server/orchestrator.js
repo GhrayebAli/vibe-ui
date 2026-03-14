@@ -154,6 +154,7 @@ export async function runOrchestrator({
       pendingApprovals,
       effectivePermMode,
       null,
+      `Orchestrator: ${task.slice(0, 40)}`,
     );
   }
   if (model) plannerOpts.model = resolveModel(model);
@@ -501,9 +502,13 @@ export async function runOrchestrator({
     `Orchestrator completed (${agentResults.length} agents)`,
     `orch-${resolvedSid}`,
   );
+  const agentSummary = agentResults
+    .map((r, i) => `  ${i + 1}. ${r.agentTitle || r.agentId}`)
+    .join("\n");
   sendTelegramNotification(
+    "orchestrator",
     "Orchestrator Completed",
-    `${task.slice(0, 60)} — ${agentResults.length} agents`,
-    `orch-${resolvedSid}`,
+    `${task.slice(0, 200)}\n\nDispatched ${agentResults.length} agents:\n${agentSummary}`,
+    { steps: agentResults.length },
   );
 }

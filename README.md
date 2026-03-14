@@ -32,13 +32,13 @@ On first run, CodeDeck creates `~/.codedeck/` with your config, database, and pl
 | **File Explorer** | Lazy-loaded tree, file preview with syntax highlighting, search, drag-to-chat |
 | **Git Panel** | Branch switching, staging, commit, log — all in-app |
 | **Voice Input** | Speech-to-text via Web Speech API (Chrome/Safari) |
-| **Permission System** | Bypass, Confirm Writes, or Confirm All — approve/deny tool calls with "always allow" option |
+| **Permission System** | Bypass, Confirm Writes, or Confirm All — approve/deny tool calls with "always allow" option. AFK mode via Telegram inline buttons |
 | **Plugin System** | Tab SDK for custom panels — auto-discovered from `public/js/plugins/` and `~/.codedeck/plugins/` |
 | **PWA** | Install as a standalone app, push notifications (even with browser closed), offline fallback |
 | **Prompt Templates** | 16 built-in prompts with `{{variable}}` placeholder support |
 | **Project Commands** | Auto-discovers `.claude/commands/` and `.claude/skills/` from your project |
 | **Linear Integration** | View and create issues directly from the sidebar |
-| **Telegram Alerts** | Notifications via Telegram Bot API on session/workflow/agent completion |
+| **Telegram Integration** | Two-way Telegram bot: rich notifications with metrics, AFK approve/deny tool calls via inline keyboard buttons, per-event notification preferences |
 | **Todo & Brags** | Local task list with priority, archive, and brag tracking |
 | **Repos Manager** | Organize repositories in nested groups with GitHub URL linking |
 | **Welcome & Guided Tour** | First-visit welcome screen with Whaly mascot, 18-step interactive tour powered by Driver.js |
@@ -104,7 +104,7 @@ All user data lives in `~/.codedeck/` (override with `CODEDECK_HOME`):
 │   ├── agent-dags.json  Agent DAGs (dependency graphs)
 │   ├── repos.json       Repository groups
 │   ├── bot-prompt.json  Assistant bot prompt
-│   └── telegram-config.json
+│   └── telegram-config.json  Telegram bot config + notification preferences
 ├── plugins/             User-installed tab-sdk plugins
 ├── data.db              SQLite database
 └── .env                 VAPID keys, LINEAR_API_KEY, etc.

@@ -302,7 +302,7 @@ The Claude Code web UI ecosystem has grown significantly. Key developments:
 | 20 | Autonomous agents system | Done | Agent definitions, agent loop, user message styling, input bar tooltips |
 | 21 | Home page | Done | AI activity grid (GitHub-style heatmap), inline analytics dashboard, stat cards |
 | 22 | Plugin system + marketplace | Done | Tab SDK, auto-discovery from plugins/, enable/disable/reorder marketplace UI, drag-to-reorder |
-| 23 | Telegram notifications | Done | Bot token config, push notifications via Telegram API |
+| 23 | Telegram integration (two-way) | Done | Rich notifications with metrics + AFK approve/deny via inline keyboard + per-event preferences + poller |
 | 24 | VS Code-style status bar | Done | Connection, branch, project, model, and cost info |
 | 25 | Whaly mascot + CodeDeck branding | Done | Pixel whale mascot, favicon, distinctive typography, visual depth, animations |
 | 26 | Easter egg | Done | Click Whaly 5 times for comic-book speech bubble greeting |
@@ -433,7 +433,7 @@ These features are **not found in any competitor** (or found in very few):
 | **Plugin system with marketplace** | Auto-discovery, enable/disable/reorder, drag-to-reorder, Tab SDK | No |
 | **Home page activity grid** | GitHub-style AI usage heatmap over past year + inline analytics | No |
 | **Autonomous agents** | Pre-defined agent workflows with agent loop | No |
-| **Telegram notifications** | Push notifications via Telegram bot in addition to browser push | No |
+| **Telegram two-way integration** | Rich notifications with metrics + AFK tool approval via inline keyboard buttons — developers approve/deny from their phone | No |
 | **VS Code-style status bar** | Connection, branch, project, model, cost in persistent footer | No |
 | **Whaly mascot + easter egg** | Pixel whale mascot with hidden comic-book speech bubble | No |
 | **Voice input (Web Speech API)** | Zero-dependency browser-native speech-to-text with real-time transcription | CUI uses Gemini Flash |
@@ -482,7 +482,7 @@ These features are **not found in any competitor** (or found in very few):
 - [x] 22. **Autonomous agents system** — Agent definitions, agent loop, input bar tooltips
 - [x] 23. **Home page** — AI activity grid (GitHub-style heatmap), inline analytics, stat cards
 - [x] 24. **Plugin system + marketplace** — Tab SDK, auto-discovery, enable/disable/reorder, drag-to-reorder
-- [x] 25. **Telegram notifications** — Bot token config, push via Telegram API
+- [x] 25. **Telegram integration (two-way)** — Rich notifications with metrics, AFK approve/deny via inline keyboard, per-event preferences, long-poll callback listener
 - [x] 26. **VS Code-style status bar** — Connection, branch, project, model, cost
 - [x] 27. **Whaly mascot + CodeDeck branding** — Pixel whale, favicon, typography, animations
 - [x] 28. **Easter egg** — Click Whaly 5 times for comic-book speech bubble
@@ -536,7 +536,7 @@ Based on competitive gaps and market trends:
 
 ## Summary
 
-CodeDeck is the most feature-rich Claude Code web UI, with 22+ unique features not found in any competitor. All core feature gaps have been closed: mobile responsive layout, voice input, CLAUDE.md editor, plugin system with marketplace, autonomous agents, home page with AI activity grid, Telegram notifications, and a VS Code-style status bar. The platform now has a distinctive identity with the Whaly pixel whale mascot, CodeDeck branding, and even an easter egg.
+CodeDeck is the most feature-rich Claude Code web UI, with 22+ unique features not found in any competitor. All core feature gaps have been closed: mobile responsive layout, voice input, CLAUDE.md editor, plugin system with marketplace, autonomous agents, home page with AI activity grid, two-way Telegram integration (rich notifications + AFK tool approval), and a VS Code-style status bar. The platform now has a distinctive identity with the Whaly pixel whale mascot, CodeDeck branding, and even an easter egg.
 
 **Remaining gaps**: Authentication (#4) for remote/team usage, and NPX publishing (#11) for frictionless installation. A cross-platform compatibility audit has been completed (`docs/CROSS-PLATFORM-AUDIT.md`) identifying 7 fixes needed for Windows/Linux before NPX publishing.
 

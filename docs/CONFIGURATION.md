@@ -35,7 +35,7 @@ CodeDeck separates **package defaults** (read-only, ships with npm) from **user 
 ├── agent-chains.json                 2 built-in chains
 ├── agent-dags.json                   1 built-in DAG
 ├── bot-prompt.json                   Default bot system prompt
-└── telegram-config.json              { enabled: false, botToken: "", chatId: "" }
+└── telegram-config.json              Telegram bot + notification preferences
 ```
 
 ---
@@ -369,12 +369,31 @@ Groups support nesting via `parentId`. Repos can have a local path, URL, both, o
 ```
 The floating Whaly bot's system prompt. Editable via the bot panel gear icon.
 
-### telegram-config.json — Telegram Notifications
+### telegram-config.json — Telegram Integration
 ```json
 {
   "enabled": false,
   "botToken": "",
-  "chatId": ""
+  "chatId": "",
+  "afkTimeoutMinutes": 15,
+  "notify": {
+    "sessionComplete": true,
+    "workflowComplete": true,
+    "chainComplete": true,
+    "agentComplete": true,
+    "orchestratorComplete": true,
+    "dagComplete": true,
+    "errors": true,
+    "permissionRequests": true,
+    "taskStart": true
+  }
 }
 ```
 Configure via **Tools > Telegram** in the UI. Requires a bot token from [@BotFather](https://t.me/BotFather).
+
+**Two-way communication:**
+- **Outbound** — Rich notifications with metrics (duration, cost, tokens, model) for all event types. Messages include context: user query, agent goal, step names, result summary.
+- **Inbound** — Permission requests appear as inline keyboard buttons (Approve / Deny). Developers can approve tool calls from their phone while AFK. Whichever channel responds first (web UI or Telegram) wins — the other is auto-dismissed.
+- **AFK timeout** — Configurable approval timeout (default 15 minutes, vs 5 minutes for web-only).
+- **Per-event toggles** — Enable/disable notifications per event type via the `notify` object.
+- **Poller** — `server/telegram-poller.js` long-polls the Telegram Bot API for callback queries. Starts automatically on server boot.

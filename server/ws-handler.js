@@ -26,7 +26,8 @@ function resolveModel(name) {
   return MODEL_MAP[name] || name;
 }
 import { sendPushNotification } from "./push-sender.js";
-import { sendTelegramNotification } from "./telegram-sender.js";
+import { sendTelegramNotification, sendPermissionRequest, isEnabled as telegramEnabled, getConfig as getTelegramConfig } from "./telegram-sender.js";
+import { trackApprovalMessage, markTelegramMessageResolved } from "./telegram-poller.js";
 import { generateSessionSummary } from "./summarizer.js";
 import { runAgent } from "./agent-loop.js";
 import { runOrchestrator } from "./orchestrator.js";
@@ -39,7 +40,14 @@ const READ_ONLY_TOOLS = new Set([
   "TaskList", "TaskGet",
 ]);
 
-const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_APPROVAL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes (web)
+function getApprovalTimeoutMs() {
+  const cfg = getTelegramConfig();
+  if (telegramEnabled()) {
+    return (cfg.afkTimeoutMinutes || 15) * 60 * 1000;
+  }
+  return DEFAULT_APPROVAL_TIMEOUT_MS;
+}
 
 // Global tracking of active queries across all connections
 // Key: sessionId, Value: Set<queryKey>
@@ -68,9 +76,9 @@ export function getActiveSessionIds() {
 
 /**
  * Creates a canUseTool callback that sends permission requests over WebSocket
- * and waits for the client to approve/deny.
+ * AND Telegram (for AFK approval). Whichever channel responds first wins.
  */
-export function makeCanUseTool(ws, pendingApprovals, permissionMode, chatId) {
+export function makeCanUseTool(ws, pendingApprovals, permissionMode, chatId, sessionTitle) {
   return async (toolName, toolInput, options) => {
     // Bypass mode — auto-approve everything
     if (permissionMode === "bypass") {
@@ -93,22 +101,35 @@ export function makeCanUseTool(ws, pendingApprovals, permissionMode, chatId) {
 
     ws.send(JSON.stringify(payload));
 
+    // Also send to Telegram for AFK approval
+    if (telegramEnabled()) {
+      sendPermissionRequest(id, toolName, toolInput, sessionTitle).then((result) => {
+        if (result?.result?.message_id) {
+          trackApprovalMessage(id, result.result.message_id, toolName);
+        }
+      }).catch(() => {});
+    }
+
+    const timeoutMs = getApprovalTimeoutMs();
+
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         pendingApprovals.delete(id);
-        resolve({ behavior: "deny", message: "Approval timed out (5 minutes)" });
-      }, APPROVAL_TIMEOUT_MS);
+        markTelegramMessageResolved(id, "timeout").catch(() => {});
+        resolve({ behavior: "deny", message: `Approval timed out (${Math.round(timeoutMs / 60000)}min)` });
+      }, timeoutMs);
 
       // Clean up if aborted via signal
       if (options?.signal) {
         options.signal.addEventListener("abort", () => {
           clearTimeout(timer);
           pendingApprovals.delete(id);
+          markTelegramMessageResolved(id, "abort").catch(() => {});
           resolve({ behavior: "deny", message: "Aborted by user" });
         }, { once: true });
       }
 
-      pendingApprovals.set(id, { resolve, timer, toolInput });
+      pendingApprovals.set(id, { resolve, timer, toolInput, ws });
     });
   };
 }
@@ -118,6 +139,7 @@ async function processSdkStream(q, { ws, wsSend, sessionIds, clientSid, chatId, 
   let claudeSessionId = null;
   let resolvedSid = clientSid;
   let sessionModel = null;
+  let lastMetrics = {}; // Captured from result for Telegram notifications
   const wfMeta = isWorkflow ? { workflowId: workflowId || null, stepIndex: stepIndex ?? null, stepLabel: stepLabel || null } : null;
 
   for await (const sdkMsg of q) {
@@ -217,6 +239,8 @@ async function processSdkStream(q, { ws, wsSend, sessionIds, clientSid, chatId, 
           stop_reason: "success",
         });
 
+        lastMetrics = { durationMs, costUsd, inputTokens, outputTokens, model, turns: numTurns, isError: false };
+
         if (resolvedSid) {
           addMessage(resolvedSid, "result", JSON.stringify({
             duration_ms: sdkMsg.duration_ms,
@@ -243,6 +267,7 @@ async function processSdkStream(q, { ws, wsSend, sessionIds, clientSid, chatId, 
           addCost(sid, costUsd, durationMs, numTurns, inputTokens, outputTokens, { model, stopReason: sdkMsg.subtype, isError: 1, cacheReadTokens, cacheCreationTokens });
           addMessage(sid, "error", JSON.stringify({ error: errMsg, subtype: sdkMsg.subtype, duration_ms: durationMs, cost_usd: costUsd, model }), chatId || null, wfMeta);
         }
+        lastMetrics = { durationMs, costUsd, inputTokens, outputTokens, model, turns: numTurns, isError: true, error: errMsg };
         wsSend({ type: "error", error: errMsg });
       }
       continue;
@@ -277,7 +302,7 @@ async function processSdkStream(q, { ws, wsSend, sessionIds, clientSid, chatId, 
     }
   }
 
-  return { claudeSessionId, resolvedSid };
+  return { claudeSessionId, resolvedSid, lastMetrics };
 }
 
 export function setupWebSocket(wss, sessionIds) {
@@ -326,7 +351,7 @@ export function setupWebSocket(wss, sessionIds) {
         return;
       }
 
-      // Permission response handler
+      // Permission response handler (from web UI)
       if (msg.type === "permission_response") {
         const pending = pendingApprovals.get(msg.id);
         if (pending) {
@@ -337,6 +362,8 @@ export function setupWebSocket(wss, sessionIds) {
           } else {
             pending.resolve({ behavior: "deny", message: "Denied by user" });
           }
+          // Update Telegram message to show it was resolved via web
+          markTelegramMessageResolved(msg.id, msg.behavior === "allow" ? "allow" : "deny").catch(() => {});
         }
         return;
       }
@@ -352,6 +379,10 @@ export function setupWebSocket(wss, sessionIds) {
         }
 
         wfSend({ type: "workflow_started", workflow: { id: workflow.id, title: workflow.title, steps: workflow.steps.map((s) => s.label) } });
+
+        // Telegram start notification
+        const wfStepNames = workflow.steps.map((s, i) => `  ${i + 1}. ${s.label}`).join("\n");
+        sendTelegramNotification("start", "Workflow Started", `${workflow.title}\n\n${workflow.steps.length} steps:\n${wfStepNames}`);
 
         let resumeId = clientSid ? sessionIds.get(clientSid) : undefined;
         let resolvedSid = clientSid;
@@ -380,7 +411,7 @@ export function setupWebSocket(wss, sessionIds) {
           };
 
           if (!useBypass && !usePlan) {
-            stepOpts.canUseTool = makeCanUseTool(ws, pendingApprovals, effectivePermMode, null);
+            stepOpts.canUseTool = makeCanUseTool(ws, pendingApprovals, effectivePermMode, null, `Workflow: ${workflow.title}`);
           }
           if (wfModel) stepOpts.model = resolveModel(wfModel);
 
@@ -411,6 +442,7 @@ export function setupWebSocket(wss, sessionIds) {
               break;
             }
             wfSend({ type: "error", error: `Workflow step "${step.label}" failed: ${err.message}` });
+            sendTelegramNotification("error", "Workflow Step Failed", `${workflow.title}\n\nStep ${i + 1}/${workflow.steps.length}: ${step.label}\nError: ${err.message}`);
             break;
           }
 
@@ -422,11 +454,15 @@ export function setupWebSocket(wss, sessionIds) {
         if (wfAborted) {
           wfSend({ type: "workflow_completed", aborted: true });
           wfSend({ type: "done" });
+          sendTelegramNotification("error", "Workflow Aborted", `${workflow.title}\nAborted during execution`);
         } else {
           wfSend({ type: "workflow_completed" });
           wfSend({ type: "done" });
           sendPushNotification("CodeDeck", `Workflow "${workflow.title}" completed`, `wf-${resolvedSid}`);
-          sendTelegramNotification("Workflow Completed", workflow.title, `wf-${resolvedSid}`);
+          const stepNames = workflow.steps.map((s, i) => `  ${i + 1}. ${s.label}`).join("\n");
+          sendTelegramNotification("workflow", "Workflow Completed", `${workflow.title}\n\nSteps:\n${stepNames}`, {
+            steps: workflow.steps.length,
+          });
         }
         return;
       }
@@ -474,6 +510,10 @@ export function setupWebSocket(wss, sessionIds) {
           agents: agentDefs.map(a => ({ id: a.id, title: a.title })),
           totalSteps: agentDefs.length,
         });
+
+        // Telegram start notification
+        const chainAgentNames = agentDefs.map((a, i) => `  ${i + 1}. ${a.title}`).join("\n");
+        sendTelegramNotification("start", "Chain Started", `${chain.title}\n\n${agentDefs.length} agents:\n${chainAgentNames}`);
 
         let chainResumeId = clientSid ? sessionIds.get(clientSid) : undefined;
         let resolvedSid = clientSid;
@@ -531,13 +571,17 @@ export function setupWebSocket(wss, sessionIds) {
               status: "error",
               error: err.message,
             });
+            sendTelegramNotification("error", "Chain Agent Failed", `${chain.title}\n\nAgent ${i + 1}/${agentDefs.length}: ${agentDef.title}\nError: ${err.message}`);
             break;
           }
         }
 
         chainSend({ type: "agent_chain_completed", chainId: chain.id, runId });
         sendPushNotification("CodeDeck", `Chain "${chain.title}" completed`, `chain-${resolvedSid}`);
-        sendTelegramNotification("Chain Completed", chain.title, `chain-${resolvedSid}`);
+        const agentNames = agentDefs.map((a, i) => `  ${i + 1}. ${a.title}`).join("\n");
+        sendTelegramNotification("chain", "Chain Completed", `${chain.title}\n\nAgents:\n${agentNames}`, {
+          steps: agentDefs.length,
+        });
         return;
       }
 
@@ -625,7 +669,7 @@ export function setupWebSocket(wss, sessionIds) {
       if (effectiveMaxTurns) opts.maxTurns = effectiveMaxTurns;
 
       if (!useBypass && !usePlan) {
-        opts.canUseTool = makeCanUseTool(ws, pendingApprovals, effectivePermMode, chatId);
+        opts.canUseTool = makeCanUseTool(ws, pendingApprovals, effectivePermMode, chatId, projectName || "Chat");
       }
       if (chatModel) opts.model = resolveModel(chatModel);
       if (Array.isArray(disabledTools) && disabledTools.length > 0) {
@@ -669,6 +713,9 @@ export function setupWebSocket(wss, sessionIds) {
           };
         })();
       }
+
+      let lastChatMetrics = {};
+      let lastAssistantText = "";
 
       async function runQuery(queryOpts) {
         const q = query({ prompt: buildPrompt(message, images), options: queryOpts });
@@ -720,6 +767,7 @@ export function setupWebSocket(wss, sessionIds) {
           if (sdkMsg.type === "assistant" && sdkMsg.message?.content) {
             for (const block of sdkMsg.message.content) {
               if (block.type === "text" && block.text) {
+                lastAssistantText = block.text;
                 wsSend({ type: "text", text: block.text });
                 if (resolvedSid) addMessage(resolvedSid, "assistant", JSON.stringify({ text: block.text }), chatId || null);
               } else if (block.type === "tool_use") {
@@ -740,6 +788,7 @@ export function setupWebSocket(wss, sessionIds) {
               const model = Object.keys(sdkMsg.modelUsage || {})[0] || sessionModel;
               if (sid) addCost(sid, sdkMsg.total_cost_usd || 0, sdkMsg.duration_ms || 0, sdkMsg.num_turns || 0, inputTokens, outputTokens, { model, stopReason: "success", isError: 0, cacheReadTokens, cacheCreationTokens });
               wsSend({ type: "result", duration_ms: sdkMsg.duration_ms, num_turns: sdkMsg.num_turns, cost_usd: sdkMsg.total_cost_usd, totalCost: getTotalCost(), input_tokens: inputTokens, output_tokens: outputTokens, cache_read_tokens: cacheReadTokens, cache_creation_tokens: cacheCreationTokens, model, stop_reason: "success" });
+              lastChatMetrics = { durationMs: sdkMsg.duration_ms, costUsd: sdkMsg.total_cost_usd, inputTokens, outputTokens, model, turns: sdkMsg.num_turns, isError: false };
               if (resolvedSid) addMessage(resolvedSid, "result", JSON.stringify({ duration_ms: sdkMsg.duration_ms, num_turns: sdkMsg.num_turns, cost_usd: sdkMsg.total_cost_usd, input_tokens: inputTokens, output_tokens: outputTokens, cache_read_tokens: cacheReadTokens, cache_creation_tokens: cacheCreationTokens, model, stop_reason: "success" }), chatId || null);
             } else if (sdkMsg.subtype === "error_max_turns") {
               // Max turns reached — treat as a normal completion with a notice
@@ -764,6 +813,7 @@ export function setupWebSocket(wss, sessionIds) {
               const cacheCreationTokens = sdkMsg.usage?.cache_creation_input_tokens || 0;
               const model = Object.keys(sdkMsg.modelUsage || {})[0] || sessionModel;
               const sid = resolvedSid || [...sessionIds.entries()].find(([, v]) => v === claudeSessionId)?.[0];
+              lastChatMetrics = { durationMs, costUsd, inputTokens, outputTokens, model, turns: numTurns, isError: true, error: errMsg };
               if (sid) {
                 addCost(sid, costUsd, durationMs, numTurns, inputTokens, outputTokens, { model, stopReason: sdkMsg.subtype, isError: 1, cacheReadTokens, cacheCreationTokens });
                 addMessage(sid, "error", JSON.stringify({ error: errMsg, subtype: sdkMsg.subtype, duration_ms: durationMs, cost_usd: costUsd, model }), chatId || null);
@@ -830,7 +880,40 @@ export function setupWebSocket(wss, sessionIds) {
         const session = resolvedSid ? getSession(resolvedSid) : null;
         const pushTitle = session?.title || "Session complete";
         sendPushNotification("CodeDeck", pushTitle, `chat-${resolvedSid}`);
-        sendTelegramNotification("Session Complete", pushTitle, `chat-${resolvedSid}`);
+
+        // Rich Telegram notification — meaningful for AFK developer
+        const userQuery = (message || "").slice(0, 150).split("\n")[0];
+        const answerSnippet = lastAssistantText
+          ? lastAssistantText.slice(0, 300).replace(/\n{2,}/g, "\n")
+          : "";
+
+        if (lastChatMetrics.isError) {
+          const errorBody = [
+            userQuery ? `Q: ${userQuery}` : "",
+            `Error: ${lastChatMetrics.error || "Unknown error"}`,
+          ].filter(Boolean).join("\n");
+          sendTelegramNotification("error", "Session Failed", errorBody, {
+            durationMs: lastChatMetrics.durationMs,
+            costUsd: lastChatMetrics.costUsd,
+            inputTokens: lastChatMetrics.inputTokens,
+            outputTokens: lastChatMetrics.outputTokens,
+            model: lastChatMetrics.model,
+          });
+        } else {
+          const body = [
+            userQuery ? `Q: ${userQuery}` : pushTitle,
+            answerSnippet ? `\nA: ${answerSnippet}` : "",
+          ].filter(Boolean).join("\n");
+          sendTelegramNotification("session", "Session Complete", body, {
+            durationMs: lastChatMetrics.durationMs,
+            costUsd: lastChatMetrics.costUsd,
+            inputTokens: lastChatMetrics.inputTokens,
+            outputTokens: lastChatMetrics.outputTokens,
+            model: lastChatMetrics.model,
+            turns: lastChatMetrics.turns,
+          });
+        }
+
         // Fire-and-forget summary generation
         if (resolvedSid) {
           generateSessionSummary(resolvedSid).catch(err =>

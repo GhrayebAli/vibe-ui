@@ -19,7 +19,7 @@ import { applyTheme } from '../ui/theme.js';
 import { exportAsMarkdown, exportAsHtml } from '../ui/export.js';
 import * as api from '../core/api.js';
 import { isBackgroundSession, removeBackgroundSession, showCompletionToast, showErrorToast, showInputNeededToast, reconcileBackgroundSessions } from './background-sessions.js';
-import { enqueuePermissionRequest, getPermissionMode, clearSessionPermissions } from '../ui/permissions.js';
+import { enqueuePermissionRequest, getPermissionMode, clearSessionPermissions, handleExternalPermissionResponse } from '../ui/permissions.js';
 import { getSelectedModel } from '../ui/model-selector.js';
 import { getMaxTurns } from '../ui/max-turns.js';
 import { getDisabledTools } from '../ui/disabled-tools.js';
@@ -240,6 +240,10 @@ function handleServerMessage(msg) {
       enqueuePermissionRequest(msg);
       return;
     }
+    if (msg.type === "permission_response_external") {
+      handleExternalPermissionResponse(msg.id, msg.behavior);
+      return;
+    }
     // Track last assistant text for question detection
     if (msg.type === "text") {
       const bgMap = getState("backgroundSessions");
@@ -390,6 +394,10 @@ function handleServerMessage(msg) {
 
     case "permission_request":
       enqueuePermissionRequest(msg);
+      break;
+
+    case "permission_response_external":
+      handleExternalPermissionResponse(msg.id, msg.behavior);
       break;
   }
 }

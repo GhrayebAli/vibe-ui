@@ -42,7 +42,8 @@ browser ──────── WebSocket ──────── server.js �
    │   ├── core/                      ├── server/routes/ (15 route modules)
    │   │   ├── store.js (reactive)    ├── server/ws-handler.js
    │   │   ├── ws.js (WebSocket)      ├── server/agent-loop.js
-   │   │   ├── api.js (fetch calls)   ├── server/telegram-sender.js
+   │   │   ├── api.js (fetch calls)   ├── server/telegram-sender.js (two-way)
+   │   │   │                          ├── server/telegram-poller.js (callback listener)
    │   │   ├── events.js (event bus)  ├── db.js (SQLite)
    │   │   ├── dom.js (DOM refs)      ├── config/ (default configs, copied to ~/.codedeck/)
    │   │   ├── constants.js           │   ├── folders.json (projects)
@@ -358,9 +359,9 @@ All MCP endpoints accept an optional `?project=<path>` query parameter. Without 
 ### Telegram
 | Method | Path                    | Description                              |
 | ------ | ----------------------- | ---------------------------------------- |
-| GET    | /api/telegram/config    | Get Telegram notification config         |
-| PUT    | /api/telegram/config    | Update Telegram config (botToken, chatId, enabled) |
-| POST   | /api/telegram/test      | Send a test Telegram notification        |
+| GET    | /api/telegram/config    | Get config (token masked, includes notify prefs + AFK timeout) |
+| PUT    | /api/telegram/config    | Update config (botToken, chatId, enabled, afkTimeoutMinutes, notify). Restarts poller on change |
+| POST   | /api/telegram/test      | Send a rich test notification with sample metrics |
 
 ### WebSocket (`/ws`)
 
@@ -386,7 +387,8 @@ All MCP endpoints accept an optional `?project=<path>` query parameter. Without 
 - `agent_chain_started` / `agent_chain_step` / `agent_chain_completed` — chain progress
 - `dag_started` / `dag_level` / `dag_node` / `dag_completed` / `dag_error` — DAG execution
 - `orchestrator_started` / `orchestrator_phase` / `orchestrator_dispatching` / `orchestrator_dispatch` / `orchestrator_completed` / `orchestrator_error` — orchestrator lifecycle
-- `permission_request` — tool approval needed (id, toolName, input)
+- `permission_request` — tool approval needed (id, toolName, input). Also sent to Telegram with inline Approve/Deny buttons if configured.
+- `permission_response_external` — approval/denial from an external source (Telegram). Includes `id`, `behavior`, `source`. Frontend auto-dismisses the permission modal.
 
 All streamed messages include `sessionId` so the client can route background session messages correctly.
 
@@ -745,14 +747,30 @@ Browser notifications for events that happen while the tab is unfocused, **inclu
 - OS notification sound suppressed (`silent: true`) to avoid double-chime
 - Sound preference stored in `localStorage` (`codedeck-notifications-sound`)
 
-### 33. Telegram Notifications
-Push notifications to Telegram as an alternative to browser push:
-- **Bot integration** — configure a Telegram bot token and chat ID via **Tools > Telegram** settings modal
-- **Event triggers** — notifications sent on chat completion, workflow completion, and agent completion
-- **Enable/disable toggle** — per-instance setting stored in `~/.codedeck/config/telegram-config.json`
-- **Test button** — send a test notification to verify configuration
-- **Server-side sender** — `server/telegram-sender.js` uses the Telegram Bot API directly (no dependencies)
-- **Graceful degradation** — if not configured, Telegram notifications are silently skipped
+### 33. Telegram Integration (Two-Way)
+Full two-way Telegram bot integration for AFK developers — rich notifications outbound, tool approval inbound:
+
+**Outbound — Rich Notifications:**
+- **Event-specific icons** — session (💬), workflow (⚙️), chain (🔗), agent (🤖), orchestrator (🎯), DAG (🌐), error (⚠️), start (▶️), permission (🔒)
+- **Metrics in every message** — duration, cost, token usage (input/output), model, turn count
+- **Contextual content** — session messages include user query + answer snippet; agent messages include goal + result summary; workflow/chain/DAG messages list step names and node status
+- **Error notifications** — failures send immediately with error details (workflow step failures, chain agent failures, agent errors)
+- **Start notifications** — workflows, chains, and DAGs announce when they begin (with step/agent/node list)
+
+**Inbound — AFK Tool Approval:**
+- **Inline keyboard buttons** — permission requests appear with Approve / Deny buttons on the developer's phone
+- **Race condition handling** — whichever channel responds first (web UI or Telegram) wins; the other is auto-dismissed
+- **Telegram → Web** — when approved via Telegram, the web UI permission modal auto-dismisses via `permission_response_external` WebSocket message
+- **Web → Telegram** — when approved via web, the Telegram message is edited to show "Approved via Web" with strikethrough
+- **Long-poll listener** — `server/telegram-poller.js` polls `getUpdates` for callback queries, routes to `pendingApprovals` Map
+
+**Configuration:**
+- **Bot setup** — configure bot token and chat ID via **Tools > Telegram** settings modal
+- **AFK timeout** — configurable approval timeout (default 15 minutes, vs 5 minutes for web-only)
+- **Per-event toggles** — 9 notification categories: session, workflow, chain, agent, orchestrator, DAG, errors, permission requests, task start
+- **Config stored** in `~/.codedeck/config/telegram-config.json`
+- **Test button** — sends a sample rich notification with metrics to verify configuration
+- **Graceful degradation** — if not configured, all Telegram features are silently skipped
 
 ### 34. Tips Feed Panel
 Inline tips panel that sits side-by-side with chat messages to help sharpen AI skills while working:
@@ -1051,7 +1069,7 @@ On first run, CodeDeck creates `~/.codedeck/` and copies default config files th
 │   ├── agent-chains.json 2 agent chains (sequential pipelines)
 │   ├── agent-dags.json  1 agent DAG (dependency graph)
 │   ├── bot-prompt.json  Assistant bot system prompt
-│   └── telegram-config.json  Telegram notification settings
+│   └── telegram-config.json  Telegram bot config + notification preferences
 ├── plugins/             User-installed tab-sdk plugins
 ├── data.db              SQLite database
 └── .env                 Environment variables
@@ -1130,15 +1148,27 @@ Supports `{{variable}}` placeholders that show a fill-in form.
 ]
 ```
 
-### telegram-config.json — Telegram Notifications
+### telegram-config.json — Telegram Integration
 ```json
 {
+  "enabled": false,
   "botToken": "",
   "chatId": "",
-  "enabled": false
+  "afkTimeoutMinutes": 15,
+  "notify": {
+    "sessionComplete": true,
+    "workflowComplete": true,
+    "chainComplete": true,
+    "agentComplete": true,
+    "orchestratorComplete": true,
+    "dagComplete": true,
+    "errors": true,
+    "permissionRequests": true,
+    "taskStart": true
+  }
 }
 ```
-Configure via **Tools > Telegram** in the header or edit directly. Requires a Telegram bot token (from @BotFather) and a chat ID.
+Configure via **Tools > Telegram** in the header or edit directly. Requires a Telegram bot token (from @BotFather) and a chat ID. See feature section 33 for full two-way integration details.
 
 ---
 
@@ -1180,7 +1210,8 @@ CodeDeck/
 │   ├── agent-loop.js      Autonomous agent execution
 │   ├── summarizer.js      AI session summary generation via Claude Haiku
 │   ├── push-sender.js     Web Push notification sender
-│   ├── telegram-sender.js Telegram Bot API notification sender
+│   ├── telegram-sender.js Telegram Bot API (rich messages, inline keyboards, permissions)
+│   ├── telegram-poller.js Telegram callback listener (long-poll getUpdates, routes approvals)
 │   └── routes/
 │       ├── projects.js    Project CRUD + system prompts + commands
 │       ├── sessions.js    Session CRUD + pin/unpin
@@ -1206,7 +1237,7 @@ CodeDeck/
 │   ├── workflows.json     4 multi-step workflows
 │   ├── agents.json        4 autonomous agent definitions
 │   ├── bot-prompt.json    Assistant bot system prompt
-│   └── telegram-config.json Telegram notification settings
+│   └── telegram-config.json Telegram bot config + notification preferences
 ├── package.json           6 runtime dependencies
 └── public/
     ├── index.html         HTML structure + modals + SW registration

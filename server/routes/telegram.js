@@ -5,6 +5,7 @@ import {
   saveTelegramConfig,
   sendTelegramNotification,
 } from "../telegram-sender.js";
+import { restartTelegramPoller } from "../telegram-poller.js";
 import { configPath } from "../paths.js";
 
 const router = Router();
@@ -17,18 +18,13 @@ router.get("/config", (req, res) => {
 // PUT /config — save new config
 router.put("/config", async (req, res) => {
   try {
-    const { enabled, botToken, chatId } = req.body;
+    const { enabled, botToken, chatId, afkTimeoutMinutes, notify } = req.body;
 
     if (typeof enabled !== "boolean") {
       return res.status(400).json({ error: "enabled must be a boolean" });
     }
 
     // If botToken looks masked (starts with ****), keep the old one
-    const currentConfig = getTelegramConfig();
-    const resolvedToken =
-      botToken && !botToken.startsWith("****") ? botToken : req.body._keepToken ? "" : botToken;
-
-    // Read the raw config to preserve the real token if masked
     const configFile = configPath("telegram-config.json");
 
     let existingToken = "";
@@ -44,7 +40,12 @@ router.put("/config", async (req, res) => {
       enabled,
       botToken: finalToken,
       chatId: chatId || "",
+      afkTimeoutMinutes: afkTimeoutMinutes || 15,
+      notify: notify || {},
     });
+
+    // Restart poller if config changed
+    restartTelegramPoller();
 
     res.json({ ok: true });
   } catch (err) {
@@ -56,9 +57,10 @@ router.put("/config", async (req, res) => {
 router.post("/test", async (req, res) => {
   try {
     await sendTelegramNotification(
-      "CodeDeck",
+      "session",
+      "CodeDeck Test",
       "Telegram notifications are working!",
-      "test"
+      { durationMs: 1234, costUsd: 0.0042, inputTokens: 1500, outputTokens: 800, model: "claude-sonnet-4-6", turns: 3 }
     );
     res.json({ ok: true });
   } catch (err) {

@@ -113,6 +113,26 @@ function sendPermissionResponse(id, behavior) {
   }
 }
 
+/**
+ * Handle external permission response (e.g., from Telegram).
+ * Auto-dismisses the modal if it's showing the same approval.
+ */
+export function handleExternalPermissionResponse(id, behavior) {
+  // If the active modal is for this approval, dismiss it
+  if (activeRequest && activeRequest.id === id) {
+    hideModal();
+    activeRequest = null;
+    processNext();
+    return;
+  }
+
+  // If it's in the queue, remove it
+  const idx = permissionQueue.findIndex((r) => r.id === id);
+  if (idx !== -1) {
+    permissionQueue.splice(idx, 1);
+  }
+}
+
 // Block Escape from closing this modal (capture phase, before shortcuts.js closeAllModals)
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && activeRequest && !$.permModal.classList.contains('hidden')) {

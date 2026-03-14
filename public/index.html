@@ -934,6 +934,26 @@
             <label for="telegram-chat-id">Chat ID</label>
             <input type="text" id="telegram-chat-id" placeholder="-100123456789" autocomplete="off">
           </div>
+          <div class="telegram-field">
+            <label for="telegram-afk-timeout">AFK Approval Timeout (minutes)</label>
+            <input type="number" id="telegram-afk-timeout" min="1" max="120" value="15" style="width:80px;">
+          </div>
+
+          <div class="telegram-notify-section">
+            <label class="telegram-field-label">Notification Events</label>
+            <div class="telegram-notify-grid">
+              <label class="telegram-toggle-row"><input type="checkbox" id="tg-notify-session" checked> Session complete</label>
+              <label class="telegram-toggle-row"><input type="checkbox" id="tg-notify-workflow" checked> Workflow complete</label>
+              <label class="telegram-toggle-row"><input type="checkbox" id="tg-notify-chain" checked> Chain complete</label>
+              <label class="telegram-toggle-row"><input type="checkbox" id="tg-notify-agent" checked> Agent complete</label>
+              <label class="telegram-toggle-row"><input type="checkbox" id="tg-notify-orchestrator" checked> Orchestrator complete</label>
+              <label class="telegram-toggle-row"><input type="checkbox" id="tg-notify-dag" checked> DAG complete</label>
+              <label class="telegram-toggle-row"><input type="checkbox" id="tg-notify-errors" checked> Errors &amp; failures</label>
+              <label class="telegram-toggle-row"><input type="checkbox" id="tg-notify-permissions" checked> Permission requests (AFK approve/deny)</label>
+              <label class="telegram-toggle-row"><input type="checkbox" id="tg-notify-start" checked> Task start</label>
+            </div>
+          </div>
+
           <div class="telegram-actions">
             <button class="btn btn-secondary" id="telegram-test-btn">Send Test</button>
             <button class="btn btn-primary" id="telegram-save-btn">Save</button>

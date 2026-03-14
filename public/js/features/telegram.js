@@ -1,6 +1,18 @@
-// Telegram notification settings — UI for configuring bot token + chat ID
+// Telegram notification settings — UI for configuring bot token, chat ID, and notification preferences
 import { $ } from '../core/dom.js';
 import { registerCommand } from '../ui/commands.js';
+
+const NOTIFY_MAP = {
+  sessionComplete: 'tgNotifySession',
+  workflowComplete: 'tgNotifyWorkflow',
+  chainComplete: 'tgNotifyChain',
+  agentComplete: 'tgNotifyAgent',
+  orchestratorComplete: 'tgNotifyOrchestrator',
+  dagComplete: 'tgNotifyDag',
+  errors: 'tgNotifyErrors',
+  permissionRequests: 'tgNotifyPermissions',
+  taskStart: 'tgNotifyStart',
+};
 
 async function loadConfig() {
   try {
@@ -27,7 +39,17 @@ async function openModal() {
     $.telegramEnabled.checked = config.enabled;
     $.telegramBotToken.value = config.botToken || "";
     $.telegramChatId.value = config.chatId || "";
+    $.telegramAfkTimeout.value = config.afkTimeoutMinutes || 15;
     updateLabel(config.enabled);
+
+    // Load notification preferences
+    if (config.notify) {
+      for (const [key, domKey] of Object.entries(NOTIFY_MAP)) {
+        if ($[domKey]) {
+          $[domKey].checked = config.notify[key] !== false;
+        }
+      }
+    }
   }
   $.telegramModal.classList.remove("hidden");
 }
@@ -36,10 +58,22 @@ function closeModal() {
   $.telegramModal.classList.add("hidden");
 }
 
+function collectNotifyPrefs() {
+  const notify = {};
+  for (const [key, domKey] of Object.entries(NOTIFY_MAP)) {
+    if ($[domKey]) {
+      notify[key] = $[domKey].checked;
+    }
+  }
+  return notify;
+}
+
 async function save() {
   const enabled = $.telegramEnabled.checked;
   const botToken = $.telegramBotToken.value.trim();
   const chatId = $.telegramChatId.value.trim();
+  const afkTimeoutMinutes = parseInt($.telegramAfkTimeout.value, 10) || 15;
+  const notify = collectNotifyPrefs();
 
   if (enabled && (!botToken || !chatId)) {
     showStatus("Bot token and chat ID are required", true);
@@ -50,7 +84,7 @@ async function save() {
     const res = await fetch("/api/telegram/config", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled, botToken, chatId }),
+      body: JSON.stringify({ enabled, botToken, chatId, afkTimeoutMinutes, notify }),
     });
     if (!res.ok) throw new Error((await res.json()).error);
     showStatus("Settings saved", false);

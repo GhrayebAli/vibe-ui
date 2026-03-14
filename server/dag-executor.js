@@ -104,6 +104,13 @@ export async function runDag({
     totalNodes: dag.nodes.length,
   });
 
+  // Telegram start notification
+  const nodeNames = dag.nodes.map((n) => {
+    const title = agents.find((a) => a.id === n.agentId)?.title || n.agentId;
+    return `  \u{2022} ${title}`;
+  }).join("\n");
+  sendTelegramNotification("start", "DAG Started", `${dag.title}\n\n${dag.nodes.length} nodes:\n${nodeNames}`);
+
   let resolvedSid = clientSid;
   const failedNodes = new Set();
   let aborted = false;
@@ -239,9 +246,20 @@ export async function runDag({
     `DAG "${dag.title}" completed`,
     `dag-${resolvedSid}`,
   );
+  const nodeStatus = dag.nodes.map((n) => {
+    const title = agents.find((a) => a.id === n.agentId)?.title || n.agentId;
+    const icon = failedNodes.has(n.id) ? "\u{274C}" : "\u{2705}";
+    return `  ${icon} ${title}`;
+  }).join("\n");
+  const dagEventType = failedNodes.size > 0 ? "error" : "dag";
+  const dagLabel = failedNodes.size > 0 ? "DAG Completed with Failures" : "DAG Completed";
   sendTelegramNotification(
-    "DAG Completed",
-    dag.title,
-    `dag-${resolvedSid}`,
+    dagEventType,
+    dagLabel,
+    `${dag.title}\n\n${nodeStatus}`,
+    {
+      succeeded: dag.nodes.length - failedNodes.size,
+      failed: failedNodes.size,
+    },
   );
 }
