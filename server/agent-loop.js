@@ -23,6 +23,10 @@ import {
   getTotalCost,
   setClaudeSession,
   updateSessionTitle,
+  setAgentContext,
+  getAllAgentContext,
+  recordAgentRunStart,
+  recordAgentRunComplete,
 } from "../db.js";
 import { getProjectSystemPrompt } from "./routes/projects.js";
 import { sendPushNotification } from "./push-sender.js";
@@ -32,11 +36,18 @@ import { sendTelegramNotification } from "./telegram-sender.js";
  * Build the agent system prompt that instructs Claude to work autonomously
  * toward the given goal.
  */
-function buildAgentPrompt(agentDef, userContext) {
+function buildAgentPrompt(agentDef, userContext, sharedContext) {
   let prompt = `You are an autonomous AI agent. Work toward the following goal step by step, using any tools available to you.\n\n`;
   prompt += `## Goal\n${agentDef.goal}\n\n`;
   if (userContext) {
     prompt += `## Additional Context from User\n${userContext}\n\n`;
+  }
+  if (sharedContext && sharedContext.length > 0) {
+    prompt += `## Context from Previous Agents\n`;
+    prompt += `The following is output from agents that ran before you in this chain. Use this context to inform your work.\n\n`;
+    for (const ctx of sharedContext) {
+      prompt += `### From: ${ctx.agent_id}\n${ctx.value}\n\n`;
+    }
   }
   prompt += `## Instructions\n`;
   prompt += `- Break the goal into logical steps and execute them one by one.\n`;
@@ -64,10 +75,21 @@ export async function runAgent({
   makeCanUseTool,
   userContext,
   activeQueries,
+  chainResumeId,
+  runId,
+  runType,
+  parentRunId,
 }) {
   const agentId = agentDef.id;
   const maxTurns = agentDef.constraints?.maxTurns || 50;
   const timeoutMs = agentDef.constraints?.timeoutMs || 300000;
+
+  // Record run start for monitoring dashboard
+  const monitorRunId = runId || `single-${Date.now()}`;
+  const effectiveRunType = runType || 'single';
+  try {
+    recordAgentRunStart(monitorRunId, agentId, agentDef.title, effectiveRunType, parentRunId);
+  } catch (e) { /* ignore duplicates */ }
 
   function agentSend(payload) {
     if (ws.readyState !== 1) return;
@@ -116,15 +138,18 @@ export async function runAgent({
   const projectPrompt = getProjectSystemPrompt(cwd);
   if (projectPrompt) opts.appendSystemPrompt = projectPrompt;
 
-  // Resume existing session if available
-  const resumeId = clientSid ? sessionIds.get(clientSid) : undefined;
+  // Resume existing session — explicit chainResumeId takes priority
+  const resumeId = chainResumeId || (clientSid ? sessionIds.get(clientSid) : undefined);
   if (resumeId) opts.resume = resumeId;
 
-  const prompt = buildAgentPrompt(agentDef, userContext);
+  // Load shared context from previous agents in this run
+  const sharedContext = runId ? getAllAgentContext(runId) : [];
+  const prompt = buildAgentPrompt(agentDef, userContext, sharedContext);
   let resolvedSid = clientSid;
   let claudeSessionId = null;
   let sessionModel = null;
   let turnCount = 0;
+  let lastAssistantText = "";
 
   try {
     const q = query({ prompt, options: opts });
@@ -157,6 +182,7 @@ export async function runAgent({
       if (sdkMsg.type === "assistant" && sdkMsg.message?.content) {
         for (const block of sdkMsg.message.content) {
           if (block.type === "text" && block.text) {
+            lastAssistantText = block.text;
             agentSend({ type: "text", text: block.text });
             if (resolvedSid) {
               addMessage(resolvedSid, "assistant", JSON.stringify({ text: block.text }), null);
@@ -251,6 +277,19 @@ export async function runAgent({
             durationMs,
             costUsd,
           });
+
+          // Record completion for monitoring
+          try {
+            recordAgentRunComplete(monitorRunId, agentId, 'completed', numTurns, costUsd, durationMs, inputTokens, outputTokens);
+          } catch (e) { /* ignore */ }
+
+          // Store agent output as shared context for downstream agents
+          if (runId && lastAssistantText) {
+            const summary = lastAssistantText.length > 4000
+              ? lastAssistantText.slice(0, 4000) + "\n\n[truncated]"
+              : lastAssistantText;
+            setAgentContext(runId, agentId, "output", summary);
+          }
         } else if (sdkMsg.subtype?.startsWith("error")) {
           const errMsg = sdkMsg.errors?.join(", ") || "Unknown error";
           const costUsd = sdkMsg.total_cost_usd || 0;
@@ -275,6 +314,11 @@ export async function runAgent({
 
           agentSend({ type: "error", error: errMsg });
           agentSend({ type: "agent_error", agentId, error: errMsg, turn: turnCount });
+
+          // Record error for monitoring
+          try {
+            recordAgentRunComplete(monitorRunId, agentId, 'error', numTurns, costUsd, durationMs, inputTokens, outputTokens, errMsg);
+          } catch (e) { /* ignore */ }
         }
         continue;
       }
@@ -283,10 +327,13 @@ export async function runAgent({
     if (err.name === "AbortError") {
       agentSend({ type: "agent_aborted", agentId, turn: turnCount });
       agentSend({ type: "aborted" });
+      try { recordAgentRunComplete(monitorRunId, agentId, 'aborted', turnCount, 0, 0, 0, 0, 'Aborted'); } catch (e) { /* ignore */ }
     } else {
       agentSend({ type: "agent_error", agentId, error: err.message, turn: turnCount });
       agentSend({ type: "error", error: err.message });
+      try { recordAgentRunComplete(monitorRunId, agentId, 'error', turnCount, 0, 0, 0, 0, err.message); } catch (e) { /* ignore */ }
     }
+    throw err; // Re-throw so callers (chains, DAGs) know the agent failed
   } finally {
     clearTimeout(timeoutHandle);
     if (activeQueries) activeQueries.delete(queryKey);

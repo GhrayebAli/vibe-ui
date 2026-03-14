@@ -34,6 +34,44 @@ export const $ = {
   // Agents
   agentBtn: document.getElementById("agent-btn"),
   agentPanel: document.getElementById("agent-panel"),
+  agentModal: document.getElementById("agent-modal"),
+  agentModalTitle: document.getElementById("agent-modal-title"),
+  agentModalClose: document.getElementById("agent-modal-close"),
+  agentModalCancel: document.getElementById("agent-modal-cancel"),
+  agentForm: document.getElementById("agent-form"),
+  agentFormTitle: document.getElementById("agent-form-title"),
+  agentFormDesc: document.getElementById("agent-form-desc"),
+  agentFormIcon: document.getElementById("agent-form-icon"),
+  agentFormGoal: document.getElementById("agent-form-goal"),
+  agentFormMaxTurns: document.getElementById("agent-form-max-turns"),
+  agentFormTimeout: document.getElementById("agent-form-timeout"),
+  agentFormEditId: document.getElementById("agent-form-edit-id"),
+
+  // Agent Chains
+  chainModal: document.getElementById("chain-modal"),
+  chainModalTitle: document.getElementById("chain-modal-title"),
+  chainModalClose: document.getElementById("chain-modal-close"),
+  chainModalCancel: document.getElementById("chain-modal-cancel"),
+  chainForm: document.getElementById("chain-form"),
+  chainFormTitle: document.getElementById("chain-form-title"),
+  chainFormDesc: document.getElementById("chain-form-desc"),
+  chainAgentList: document.getElementById("chain-agent-list"),
+  chainAddAgentBtn: document.getElementById("chain-add-agent-btn"),
+  chainFormContext: document.getElementById("chain-form-context"),
+  chainFormEditId: document.getElementById("chain-form-edit-id"),
+
+  // DAG Editor
+  dagModal: document.getElementById("dag-modal"),
+  dagModalTitle: document.getElementById("dag-modal-title"),
+  dagModalClose: document.getElementById("dag-modal-close"),
+  dagModalCancel: document.getElementById("dag-modal-cancel"),
+  dagModalSave: document.getElementById("dag-modal-save"),
+  dagAutoLayout: document.getElementById("dag-auto-layout"),
+  dagFormTitle: document.getElementById("dag-form-title"),
+  dagFormDesc: document.getElementById("dag-form-desc"),
+  dagFormEditId: document.getElementById("dag-form-edit-id"),
+  dagNodePalette: document.getElementById("dag-node-palette"),
+  dagCanvas: document.getElementById("dag-canvas"),
 
   // System prompt
   spBadge: document.getElementById("system-prompt-badge"),
@@ -180,6 +218,22 @@ export const $ = {
   // Sidebar toggle (mobile)
   sidebarToggleBtn: document.getElementById("sidebar-toggle-btn"),
   sidebarBackdrop: document.getElementById("sidebar-backdrop"),
+
+  // Agent sidebar
+  agentSidebar: document.getElementById("agent-sidebar"),
+  agentSidebarClose: document.getElementById("agent-sidebar-close"),
+
+  // Orchestrate modal
+  orchModal: document.getElementById("orch-modal"),
+  orchModalClose: document.getElementById("orch-modal-close"),
+  orchModalCancel: document.getElementById("orch-modal-cancel"),
+  orchModalRun: document.getElementById("orch-modal-run"),
+  orchTaskInput: document.getElementById("orch-task-input"),
+
+  // Agent monitor
+  agentMonitorModal: document.getElementById("agent-monitor-modal"),
+  agentMonitorClose: document.getElementById("agent-monitor-close"),
+  agentMonitorContent: document.getElementById("agent-monitor-content"),
 
   // Add project modal
   openVscodeBtn: document.getElementById("open-vscode-btn"),

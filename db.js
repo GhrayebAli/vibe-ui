@@ -81,6 +81,44 @@ try { db.exec(`ALTER TABLE todos ADD COLUMN archived INTEGER DEFAULT 0`); } catc
 // Todo priority (0=none, 1=low, 2=medium, 3=high)
 try { db.exec(`ALTER TABLE todos ADD COLUMN priority INTEGER DEFAULT 0`); } catch { /* exists */ }
 
+// Agent context (shared memory between agents in a chain/orchestration run)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS agent_context (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch()),
+    UNIQUE(run_id, agent_id, key)
+  );
+  CREATE INDEX IF NOT EXISTS idx_agent_context_run ON agent_context(run_id);
+`);
+
+// Agent runs table (monitoring dashboard)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS agent_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    agent_title TEXT NOT NULL,
+    run_type TEXT NOT NULL DEFAULT 'single',
+    parent_id TEXT,
+    status TEXT NOT NULL DEFAULT 'running',
+    turns INTEGER DEFAULT 0,
+    cost_usd REAL DEFAULT 0,
+    duration_ms INTEGER DEFAULT 0,
+    input_tokens INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    error TEXT,
+    started_at INTEGER DEFAULT (unixepoch()),
+    completed_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_agent_runs_agent ON agent_runs(agent_id);
+  CREATE INDEX IF NOT EXISTS idx_agent_runs_started ON agent_runs(started_at);
+  CREATE INDEX IF NOT EXISTS idx_agent_runs_run_id ON agent_runs(run_id);
+`);
+
 // Brags table
 db.exec(`
   CREATE TABLE IF NOT EXISTS brags (
@@ -1017,6 +1055,142 @@ export function deletePushSubscription(endpoint) {
 
 export function getAllPushSubscriptions() {
   return pushStmts.getAll.all();
+}
+
+// ── Agent context (shared memory) ─────────────────────────
+const ctxStmts = {
+  set: db.prepare(
+    `INSERT INTO agent_context (run_id, agent_id, key, value)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(run_id, agent_id, key) DO UPDATE SET value = excluded.value`
+  ),
+  get: db.prepare(
+    `SELECT value FROM agent_context WHERE run_id = ? AND agent_id = ? AND key = ?`
+  ),
+  getAllForRun: db.prepare(
+    `SELECT agent_id, key, value, created_at FROM agent_context WHERE run_id = ? ORDER BY created_at ASC`
+  ),
+  getByKey: db.prepare(
+    `SELECT agent_id, value FROM agent_context WHERE run_id = ? AND key = ?`
+  ),
+  deleteRun: db.prepare(
+    `DELETE FROM agent_context WHERE run_id = ?`
+  ),
+};
+
+export function setAgentContext(runId, agentId, key, value) {
+  ctxStmts.set.run(runId, agentId, key, typeof value === "string" ? value : JSON.stringify(value));
+}
+
+export function getAgentContext(runId, agentId, key) {
+  const row = ctxStmts.get.get(runId, agentId, key);
+  return row ? row.value : null;
+}
+
+export function getAllAgentContext(runId) {
+  return ctxStmts.getAllForRun.all(runId);
+}
+
+export function getAgentContextByKey(runId, key) {
+  return ctxStmts.getByKey.all(runId, key);
+}
+
+export function deleteAgentContext(runId) {
+  ctxStmts.deleteRun.run(runId);
+}
+
+// ── Agent runs (monitoring) ────────────────────────────
+const runStmts = {
+  insert: db.prepare(
+    `INSERT INTO agent_runs (run_id, agent_id, agent_title, run_type, parent_id, status)
+     VALUES (?, ?, ?, ?, ?, 'running')`
+  ),
+  complete: db.prepare(
+    `UPDATE agent_runs SET status = ?, turns = ?, cost_usd = ?, duration_ms = ?,
+     input_tokens = ?, output_tokens = ?, error = ?, completed_at = unixepoch()
+     WHERE run_id = ? AND agent_id = ?`
+  ),
+  listRecent: db.prepare(
+    `SELECT * FROM agent_runs ORDER BY started_at DESC LIMIT ?`
+  ),
+  agentSummary: db.prepare(
+    `SELECT
+      agent_id, agent_title,
+      COUNT(*) AS runs,
+      SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS successes,
+      SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS errors,
+      COALESCE(SUM(cost_usd), 0) AS total_cost,
+      COALESCE(AVG(CASE WHEN status = 'completed' THEN cost_usd END), 0) AS avg_cost,
+      COALESCE(AVG(CASE WHEN status = 'completed' THEN duration_ms END), 0) AS avg_duration,
+      COALESCE(AVG(CASE WHEN status = 'completed' THEN turns END), 0) AS avg_turns,
+      COALESCE(SUM(input_tokens), 0) AS total_input_tokens,
+      COALESCE(SUM(output_tokens), 0) AS total_output_tokens
+    FROM agent_runs
+    GROUP BY agent_id
+    ORDER BY total_cost DESC`
+  ),
+  overview: db.prepare(
+    `SELECT
+      COUNT(*) AS total_runs,
+      SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+      SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS errored,
+      COALESCE(SUM(cost_usd), 0) AS total_cost,
+      COALESCE(AVG(CASE WHEN status = 'completed' THEN duration_ms END), 0) AS avg_duration,
+      COALESCE(AVG(CASE WHEN status = 'completed' THEN turns END), 0) AS avg_turns,
+      COALESCE(SUM(input_tokens), 0) AS total_input_tokens,
+      COALESCE(SUM(output_tokens), 0) AS total_output_tokens
+    FROM agent_runs`
+  ),
+  byType: db.prepare(
+    `SELECT
+      run_type,
+      COUNT(*) AS runs,
+      COALESCE(SUM(cost_usd), 0) AS cost,
+      COALESCE(AVG(duration_ms), 0) AS avg_duration
+    FROM agent_runs
+    GROUP BY run_type
+    ORDER BY runs DESC`
+  ),
+  dailyRuns: db.prepare(
+    `SELECT
+      date(started_at, 'unixepoch') AS date,
+      COUNT(*) AS runs,
+      SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+      SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS errored,
+      COALESCE(SUM(cost_usd), 0) AS cost
+    FROM agent_runs
+    WHERE started_at >= unixepoch() - 30 * 86400
+    GROUP BY date(started_at, 'unixepoch')
+    ORDER BY date ASC`
+  ),
+};
+
+export function recordAgentRunStart(runId, agentId, agentTitle, runType = 'single', parentId = null) {
+  runStmts.insert.run(runId, agentId, agentTitle, runType, parentId);
+}
+
+export function recordAgentRunComplete(runId, agentId, status, turns, costUsd, durationMs, inputTokens, outputTokens, error = null) {
+  runStmts.complete.run(status, turns, costUsd, durationMs, inputTokens, outputTokens, error, runId, agentId);
+}
+
+export function getAgentRunsRecent(limit = 50) {
+  return runStmts.listRecent.all(limit);
+}
+
+export function getAgentRunsSummary() {
+  return runStmts.agentSummary.all();
+}
+
+export function getAgentRunsOverview() {
+  return runStmts.overview.get();
+}
+
+export function getAgentRunsByType() {
+  return runStmts.byType.all();
+}
+
+export function getAgentRunsDaily() {
+  return runStmts.dailyRuns.all();
 }
 
 export function getDb() {

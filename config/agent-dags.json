@@ -1,0 +1,16 @@
+[
+  {
+    "id": "full-review-pipeline",
+    "title": "Full Review Pipeline",
+    "description": "Find bugs and write tests in parallel, then review everything",
+    "nodes": [
+      { "id": "n1", "agentId": "bug-hunter", "x": 80, "y": 50 },
+      { "id": "n2", "agentId": "test-writer", "x": 80, "y": 200 },
+      { "id": "n3", "agentId": "review-pr", "x": 350, "y": 125 }
+    ],
+    "edges": [
+      { "from": "n1", "to": "n3" },
+      { "from": "n2", "to": "n3" }
+    ]
+  }
+]

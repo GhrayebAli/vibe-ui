@@ -10,6 +10,7 @@ import {
   getMsgLengthDistribution, getTopBashCommands, getTopFiles,
   getErrorCategories, getErrorTimeline, getErrorsByTool, getRecentErrors,
   getModelUsage, getCacheEfficiency, getYearlyActivity,
+  getAgentRunsOverview, getAgentRunsSummary, getAgentRunsByType, getAgentRunsDaily, getAgentRunsRecent,
 } from "../../db.js";
 
 const router = Router();
@@ -107,6 +108,21 @@ router.get("/home", (req, res) => {
     const yearlyActivity = getYearlyActivity();
     const overview = getAnalyticsOverview();
     res.json({ yearlyActivity, overview });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Agent monitoring dashboard
+router.get("/agent-metrics", (req, res) => {
+  try {
+    res.json({
+      overview: getAgentRunsOverview(),
+      agents: getAgentRunsSummary(),
+      byType: getAgentRunsByType(),
+      daily: getAgentRunsDaily(),
+      recent: getAgentRunsRecent(30),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

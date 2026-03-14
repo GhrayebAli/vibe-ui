@@ -93,6 +93,134 @@ export async function fetchAgents() {
   return res.json();
 }
 
+export async function createAgent(agent) {
+  const res = await fetch("/api/agents", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(agent),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to create agent");
+  }
+  return res.json();
+}
+
+export async function updateAgent(id, agent) {
+  const res = await fetch(`/api/agents/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(agent),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to update agent");
+  }
+  return res.json();
+}
+
+export async function deleteAgentApi(id) {
+  const res = await fetch(`/api/agents/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to delete agent");
+  }
+  return res.json();
+}
+
+// Agent Chains
+export async function fetchChains() {
+  const res = await fetch("/api/agents/chains");
+  return res.json();
+}
+
+export async function createChain(chain) {
+  const res = await fetch("/api/agents/chains", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(chain),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to create chain");
+  }
+  return res.json();
+}
+
+export async function updateChain(id, chain) {
+  const res = await fetch(`/api/agents/chains/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(chain),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to update chain");
+  }
+  return res.json();
+}
+
+export async function fetchAgentContext(runId) {
+  const res = await fetch(`/api/agents/context/${encodeURIComponent(runId)}`);
+  return res.json();
+}
+
+// Agent DAGs
+export async function fetchDags() {
+  const res = await fetch("/api/agents/dags");
+  return res.json();
+}
+
+export async function createDag(dag) {
+  const res = await fetch("/api/agents/dags", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(dag),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to create DAG");
+  }
+  return res.json();
+}
+
+export async function updateDag(id, dag) {
+  const res = await fetch(`/api/agents/dags/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(dag),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to update DAG");
+  }
+  return res.json();
+}
+
+export async function deleteDagApi(id) {
+  const res = await fetch(`/api/agents/dags/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to delete DAG");
+  }
+  return res.json();
+}
+
+export async function deleteChainApi(id) {
+  const res = await fetch(`/api/agents/chains/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || "Failed to delete chain");
+  }
+  return res.json();
+}
+
 export async function browseFolders(dir) {
   const url = dir
     ? `/api/projects/browse?dir=${encodeURIComponent(dir)}`
@@ -200,6 +328,11 @@ export async function fetchAnalytics(projectPath) {
 
 export async function fetchAccountInfo() {
   const res = await fetch("/api/account");
+  return res.json();
+}
+
+export async function fetchAgentMetrics() {
+  const res = await fetch("/api/stats/agent-metrics");
   return res.json();
 }
 

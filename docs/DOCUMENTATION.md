@@ -168,6 +168,35 @@ browser ──────── WebSocket ──────── server.js �
 | summary     | TEXT    | User-written brag summary (max 500)   |
 | created_at  | INTEGER | Unix timestamp                         |
 
+### agent_runs
+| Column       | Type    | Description                                |
+| ------------ | ------- | ------------------------------------------ |
+| id           | INTEGER | Auto-increment PK                          |
+| run_id       | TEXT    | UUID grouping chain/DAG runs               |
+| agent_id     | TEXT    | Agent definition ID                        |
+| agent_title  | TEXT    | Agent display name                         |
+| run_type     | TEXT    | "single", "chain", "dag", or "orchestrator"|
+| parent_id    | TEXT    | Chain/DAG ID (null for single runs)        |
+| status       | TEXT    | "running", "completed", "error", "aborted" |
+| turns        | INTEGER | Number of agent turns                      |
+| cost_usd     | REAL    | Cost in USD                                |
+| duration_ms  | INTEGER | Wall-clock time                            |
+| input_tokens | INTEGER | Input token count                          |
+| output_tokens| INTEGER | Output token count                         |
+| error        | TEXT    | Error message (if failed)                  |
+| started_at   | INTEGER | Unix timestamp                             |
+| completed_at | INTEGER | Unix timestamp                             |
+
+### agent_context
+| Column    | Type    | Description                                |
+| --------- | ------- | ------------------------------------------ |
+| id        | INTEGER | Auto-increment PK                          |
+| run_id    | TEXT    | UUID grouping related agent runs           |
+| agent_id  | TEXT    | Agent that produced this context           |
+| key       | TEXT    | Context key (e.g. "summary")               |
+| value     | TEXT    | Context value (agent output)               |
+| created_at| INTEGER | Unix timestamp                             |
+
 Migrations run automatically on startup (ADD COLUMN with try/catch).
 
 ---
@@ -214,6 +243,35 @@ Migrations run automatically on startup (ADD COLUMN with try/catch).
 | ------ | ------------------ | ---------------------------------------- |
 | GET    | /api/agents        | List autonomous agents from agents.json  |
 | GET    | /api/agents/:id    | Get a single agent by ID                 |
+| POST   | /api/agents        | Create a new agent definition            |
+| PUT    | /api/agents/:id    | Update an existing agent                 |
+| DELETE | /api/agents/:id    | Delete an agent by ID                    |
+
+### Agent Chains
+| Method | Path               | Description                              |
+| ------ | ------------------ | ---------------------------------------- |
+| GET    | /api/chains        | List agent chains from agent-chains.json |
+| POST   | /api/chains        | Create a new chain (sequential pipeline) |
+| PUT    | /api/chains/:id    | Update a chain                           |
+| DELETE | /api/chains/:id    | Delete a chain by ID                     |
+
+### Agent DAGs
+| Method | Path               | Description                              |
+| ------ | ------------------ | ---------------------------------------- |
+| GET    | /api/dags          | List agent DAGs from agent-dags.json     |
+| POST   | /api/dags          | Create a new DAG (dependency graph)      |
+| PUT    | /api/dags/:id      | Update a DAG                             |
+| DELETE | /api/dags/:id      | Delete a DAG by ID                       |
+
+### Agent Metrics
+| Method | Path                    | Description                              |
+| ------ | ----------------------- | ---------------------------------------- |
+| GET    | /api/stats/agent-metrics | Overview, per-agent summary, by-type breakdown, daily activity, recent runs |
+
+### Agent Context (Shared State)
+| Method | Path                           | Description                              |
+| ------ | ------------------------------ | ---------------------------------------- |
+| GET    | /api/agent-context/:runId      | Get shared context entries for a run     |
 
 ### Workflows & Files
 | Method | Path               | Description                              |
@@ -305,8 +363,11 @@ All MCP endpoints accept an optional `?project=<path>` query parameter. Without 
 **Outgoing** (client to server):
 - `{ type: "chat", message, cwd, sessionId, projectName, chatId, permissionMode, model, maxTurns, images?, systemPrompt? }` — send a message (images: `[{ name, data, mimeType }]` base64-encoded; systemPrompt appended to project prompt)
 - `{ type: "workflow", workflow, cwd, sessionId, projectName, permissionMode, model }` — run a workflow
-- `{ type: "agent", agentId, cwd, sessionId, projectName, permissionMode, model, userContext? }` — run an autonomous agent
-- `{ type: "abort", chatId? }` — stop generation
+- `{ type: "agent", agentDef, cwd, sessionId, projectName, permissionMode, model, userContext? }` — run an autonomous agent
+- `{ type: "agent_chain", chain, agents, cwd, sessionId, projectName, permissionMode, model }` — run an agent chain
+- `{ type: "agent_dag", dag, agents, cwd, sessionId, projectName, permissionMode, model }` — run an agent DAG
+- `{ type: "orchestrate", task, cwd, sessionId, projectName, permissionMode, model }` — run orchestrator
+- `{ type: "abort", chatId? }` — stop generation (aborts agents, chains, DAGs, and orchestrator)
 - `{ type: "permission_response", id, behavior }` — approve (`"allow"`) or deny (`"deny"`) a tool call
 
 **Incoming** (server to client):
@@ -318,6 +379,9 @@ All MCP endpoints accept an optional `?project=<path>` query parameter. Without 
 - `error` / `aborted` / `done` — terminal states
 - `workflow_started` / `workflow_step` / `workflow_completed` — workflow progress
 - `agent_started` / `agent_progress` / `agent_completed` / `agent_error` / `agent_aborted` — agent lifecycle
+- `agent_chain_started` / `agent_chain_step` / `agent_chain_completed` — chain progress
+- `dag_started` / `dag_level` / `dag_node` / `dag_completed` / `dag_error` — DAG execution
+- `orchestrator_started` / `orchestrator_phase` / `orchestrator_dispatching` / `orchestrator_dispatch` / `orchestrator_completed` / `orchestrator_error` — orchestrator lifecycle
 - `permission_request` — tool approval needed (id, toolName, input)
 
 All streamed messages include `sessionId` so the client can route background session messages correctly.
@@ -761,7 +825,58 @@ Agent behavior:
 - Reuses existing permission system via `makeCanUseTool`
 - WebSocket messages: `agent_started`, `agent_progress`, `agent_completed`, `agent_error`, `agent_aborted`
 
-### 40. Local Todo List
+### 40. Agent Chains (Sequential Pipelines)
+Sequential multi-agent pipelines that pass context between steps:
+- **Pipeline builder** — modal form with numbered agent steps, reorderable with up/down controls
+- **Context passing modes** — `summary` (recommended), `full` (entire output), or `none`
+- **Shared context** — each agent's output is stored in the `agent_context` SQLite table, keyed by `runId`
+- **Live progress** — pipeline visualization shows numbered steps with running/completed/error status
+- **Config** — defined in `~/.codedeck/config/agent-chains.json`
+- **2 defaults** — "Bug Hunt + Review" (Bug Hunter → PR Reviewer), "Test + Refactor" (Test Writer → Refactoring Agent)
+- **Slash commands** — auto-registered as `/chain-{id}`
+- **WebSocket messages** — `agent_chain_started`, `agent_chain_step`, `agent_chain_completed`
+
+### 41. Agent DAGs (Dependency Graphs)
+Visual dependency graph editor for running agents in parallel or sequentially:
+- **SVG canvas editor** — drag agents from a palette onto the canvas, draw connections between output/input ports
+- **Topological execution** — nodes grouped by level; same-level nodes run in parallel (max 3 concurrent), dependent nodes wait
+- **Click-to-delete edges** — hover turns edges red, click to remove; wide invisible hit area for easy targeting
+- **Auto Layout** — button to automatically arrange nodes in a clean left-to-right layout
+- **Explainer section** — "What is a DAG?" with numbered steps explaining the visual editor
+- **Config** — defined in `~/.codedeck/config/agent-dags.json` with node positions and edge definitions
+- **1 default** — "Full Review Pipeline" (Bug Hunter + Test Writer in parallel → PR Reviewer)
+- **Slash commands** — auto-registered as `/dag-{id}`
+- **WebSocket messages** — `dag_started`, `dag_level`, `dag_node`, `dag_completed`, `dag_error`
+
+### 42. Orchestrator (Auto-Decompose)
+Describe a task in plain language and the orchestrator auto-decomposes it:
+- **Orchestrate modal** — "How it Works" explainer with 4 numbered steps, textarea for task description
+- **3-phase execution** — Planning (analyzes task + available agents) → Dispatching (runs agents) → Synthesis (combines results)
+- **Agent dispatch** — parses `agent-dispatch` code blocks from planner output, delegates to matching agents
+- **Shared context** — dispatched agents share context via `agent_context` table
+- **Slash command** — `/orchestrate`
+- **WebSocket messages** — `orchestrator_started`, `orchestrator_phase`, `orchestrator_dispatching`, `orchestrator_dispatch`, `orchestrator_completed`, `orchestrator_error`
+
+### 43. Agent Monitor Dashboard
+Real-time metrics and cost analysis across all agent runs:
+- **Summary cards** — total runs, total cost, average duration, success rate, average turns, total tokens
+- **Run type breakdown** — bar chart showing single/chain/DAG/orchestrator run distribution
+- **Agent leaderboard** — table ranking agents by runs, success rate, cost, and average duration
+- **Daily activity** — sparkline chart of runs per day
+- **Recent runs** — list of latest agent executions with status, type, duration, and cost
+- **Empty state** — helpful message when no runs have been recorded yet
+- **Slash command** — `/monitor`
+- **API** — `GET /api/stats/agent-metrics`
+
+### 44. Agent Sidebar
+Dedicated left sidebar panel for all agent-related features:
+- **Collapsible sidebar** — 280px width, opens/closes via "Agents" button below the input bar
+- **Sections** — Orchestrate card, Agent Monitor card, Chains, DAGs, Agents — each with add/edit/delete controls
+- **Mutual exclusion** — opening Agents sidebar closes Workflows panel and vice versa
+- **Enhanced forms** — all CRUD modals use sectioned layouts (af-section with cyan labels, af-grid-2 for 2-column fields)
+- **Mobile overlay** — sidebar overlays as absolute panel on screens < 768px
+
+### 45. Local Todo List
 A persistent todo list in the bottom half of the Tasks tab, stored in SQLite:
 - **Split layout** — Tasks tab is split vertically: Linear issues on top, Todo list on bottom
 - **Draggable divider** — 6px drag handle between sections to adjust the split ratio; ratio persisted to `localStorage`
@@ -775,7 +890,7 @@ A persistent todo list in the bottom half of the Tasks tab, stored in SQLite:
 - **List counts** — header title dynamically shows count for the current view
 - **Persistent** — todos stored in SQLite `todos` table, brags in `brags` table, survive server restarts
 
-### 41. VS Code-Style Status Bar
+### 46. VS Code-Style Status Bar
 A 24px footer bar at the bottom of the page showing key information at a glance:
 - **Connection status** — green/red dot with "connected"/"disconnected" label
 - **Git branch** — current branch name with git icon, click to open Git panel
@@ -788,7 +903,7 @@ A 24px footer bar at the bottom of the page showing key information at a glance:
 - **Cost** — total session cost, click to open cost dashboard
 - All reactive syncing uses MutationObservers to avoid duplicating logic
 
-### 42. Plugin Marketplace
+### 47. Plugin Marketplace
 A built-in marketplace UI for managing tab-sdk plugins:
 - **Auto-discovery** — server scans built-in (`public/js/plugins/`) and user (`~/.codedeck/plugins/`) directories, merges results with `source: "builtin"` or `source: "user"` field
 - **Marketplace panel** — accessible from the "+" button in the right panel tab bar
@@ -797,7 +912,7 @@ A built-in marketplace UI for managing tab-sdk plugins:
 - **Built-in plugins**: Tasks (Linear + Todo), Repos, Events, CLAUDE.md Editor, Sudoku, Tic-Tac-Toe
 - **Hot reload** — enable a plugin and it loads immediately without page refresh; disable removes the tab
 
-### 43. Mobile Responsive Layout
+### 48. Mobile Responsive Layout
 Full mobile and tablet responsiveness with two breakpoints (CSS-first approach):
 
 **Tablet (≤1024px):**
@@ -813,7 +928,7 @@ Full mobile and tablet responsiveness with two breakpoints (CSS-first approach):
 - Touch targets minimum 44px on all interactive elements (Apple HIG)
 - iOS safe area padding on status bar
 
-### 44. Easter Egg
+### 49. Easter Egg
 Click the Whaly mascot 5 times rapidly on the empty chat screen — Whaly wiggles and pops up a comic-book-style speech bubble with a sassy greeting. Try it!
 
 ---
@@ -863,6 +978,14 @@ Click the Whaly mascot 5 times rapidly on the empty chat screen — Whaly wiggle
 | /agent-test-writer   | Run test writer agent           |
 | /agent-refactoring   | Run refactoring agent           |
 
+### Multi-Agent
+| Command              | Description                     |
+| -------------------- | ------------------------------- |
+| /orchestrate         | Open orchestrator modal — describe a task to auto-decompose and delegate |
+| /monitor             | Open agent monitor dashboard with run metrics and cost analysis |
+| /chain-{id}          | Run a specific agent chain (auto-registered per chain) |
+| /dag-{id}            | Run a specific agent DAG (auto-registered per DAG) |
+
 ### Prompts (16 auto-registered)
 | Command            | Description                    |
 | ------------------ | ------------------------------ |
@@ -908,6 +1031,8 @@ On first run, CodeDeck creates `~/.codedeck/` and copies default config files th
 │   ├── prompts.json     16 prompt templates
 │   ├── workflows.json   4 multi-step workflows
 │   ├── agents.json      4 autonomous agent definitions
+│   ├── agent-chains.json 2 agent chains (sequential pipelines)
+│   ├── agent-dags.json  1 agent DAG (dependency graph)
 │   ├── bot-prompt.json  Assistant bot system prompt
 │   └── telegram-config.json  Telegram notification settings
 ├── plugins/             User-installed tab-sdk plugins

@@ -1,0 +1,16 @@
+[
+  {
+    "id": "bug-then-review",
+    "title": "Bug Hunt + Review",
+    "description": "Find bugs, then review the fixes",
+    "agents": ["bug-hunter", "review-pr"],
+    "contextPassing": "summary"
+  },
+  {
+    "id": "test-then-refactor",
+    "title": "Test + Refactor",
+    "description": "Write tests, then refactor with confidence",
+    "agents": ["test-writer", "refactor"],
+    "contextPassing": "summary"
+  }
+]

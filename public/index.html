@@ -261,6 +261,18 @@
           <div id="home-analytics-content" class="analytics-content"></div>
         </div>
       </div>
+      <!-- Agent Sidebar (left of chat) -->
+      <aside id="agent-sidebar" class="agent-sidebar hidden">
+        <div class="agent-sidebar-header">
+          <div class="agent-sidebar-title-row">
+            <svg class="agent-sidebar-logo" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+            <span class="agent-sidebar-title">Agents</span>
+          </div>
+          <button id="agent-sidebar-close" class="agent-sidebar-close" title="Close">&times;</button>
+        </div>
+        <div id="agent-panel" class="agent-sidebar-body"></div>
+      </aside>
+
       <div class="chat-area-main hidden">
         <div id="messages" class="messages"></div>
 
@@ -338,7 +350,6 @@
         </div>
         <div id="toolbox-panel" class="toolbox-panel hidden"></div>
         <div id="workflow-panel" class="toolbox-panel hidden"></div>
-        <div id="agent-panel" class="toolbox-panel hidden"></div>
       </div>
 
       <aside id="tips-feed-panel" class="tips-feed-panel hidden">
@@ -414,6 +425,205 @@
         <!-- Plugin tabs are injected here by tab-sdk.js -->
       </div>
     </aside>
+  </div>
+
+  <!-- Orchestrate Modal -->
+  <div id="orch-modal" class="modal-overlay hidden">
+    <div class="modal agent-form-modal">
+      <div class="modal-header">
+        <h3>Orchestrate</h3>
+        <button id="orch-modal-close" class="modal-close">&times;</button>
+      </div>
+      <div class="af-section">
+        <div class="af-section-label">How it works</div>
+        <div class="orch-explainer">
+          <div class="orch-explainer-steps">
+            <div class="orch-step"><span class="orch-step-num">1</span><span>Describe your task in plain language</span></div>
+            <div class="orch-step"><span class="orch-step-num">2</span><span>The orchestrator analyzes and decomposes it into sub-tasks</span></div>
+            <div class="orch-step"><span class="orch-step-num">3</span><span>Each sub-task is delegated to the best-fit agent automatically</span></div>
+            <div class="orch-step"><span class="orch-step-num">4</span><span>Results are synthesized into a unified response</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="af-section">
+        <div class="af-section-label">Task</div>
+        <div class="af-field">
+          <label for="orch-task-input">What do you need done?</label>
+          <textarea id="orch-task-input" rows="5" placeholder="e.g. Review the current changes for bugs and security issues, then write tests for any uncovered code paths, and finally refactor any code smells you find."></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="orch-modal-cancel" class="modal-btn-cancel">Cancel</button>
+        <button type="button" id="orch-modal-run" class="modal-btn-save">Run Orchestrator</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent Monitor Modal -->
+  <div id="agent-monitor-modal" class="modal-overlay hidden">
+    <div class="modal agent-monitor-modal">
+      <div class="modal-header">
+        <h3>Agent Monitor</h3>
+        <button id="agent-monitor-close" class="modal-close">&times;</button>
+      </div>
+      <div id="agent-monitor-content"></div>
+    </div>
+  </div>
+
+  <!-- DAG Editor Modal -->
+  <div id="dag-modal" class="modal-overlay hidden">
+    <div class="modal dag-modal-wide">
+      <div class="modal-header">
+        <h3 id="dag-modal-title">New DAG</h3>
+        <button id="dag-modal-close" class="modal-close">&times;</button>
+      </div>
+      <div class="dag-explainer af-section">
+        <div class="af-section-label">What is a DAG?</div>
+        <div class="orch-explainer">
+          <p class="dag-explainer-text">A <strong>DAG</strong> (Directed Acyclic Graph) lets you run agents in parallel when they have no dependencies, and sequentially when one depends on another's output.</p>
+          <div class="orch-explainer-steps">
+            <div class="orch-step"><span class="orch-step-num">1</span><span><strong>Drag agents</strong> from the palette onto the canvas</span></div>
+            <div class="orch-step"><span class="orch-step-num">2</span><span><strong>Connect outputs → inputs</strong> by dragging between ports to define dependencies</span></div>
+            <div class="orch-step"><span class="orch-step-num">3</span><span><strong>Click an edge</strong> to remove a connection</span></div>
+            <div class="orch-step"><span class="orch-step-num">4</span><span>Agents on the same level <strong>run in parallel</strong>, dependent agents wait</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="dag-editor-toolbar af-section">
+        <div class="af-section-label">Details</div>
+        <div class="af-grid-2">
+          <div class="af-field">
+            <label for="dag-form-title">Title</label>
+            <input id="dag-form-title" type="text" placeholder="e.g. Full Review Pipeline" required>
+          </div>
+          <div class="af-field">
+            <label for="dag-form-desc">Description</label>
+            <input id="dag-form-desc" type="text" placeholder="Short description">
+          </div>
+        </div>
+      </div>
+      <div class="dag-editor-body">
+        <div class="dag-node-palette" id="dag-node-palette"></div>
+        <div class="dag-canvas-wrap">
+          <svg id="dag-canvas" class="dag-canvas"></svg>
+        </div>
+      </div>
+      <input id="dag-form-edit-id" type="hidden">
+      <div class="modal-actions">
+        <button type="button" id="dag-modal-cancel" class="modal-btn-cancel">Cancel</button>
+        <button type="button" id="dag-auto-layout" class="modal-btn-cancel">Auto Layout</button>
+        <button type="button" id="dag-modal-save" class="modal-btn-save">Save DAG</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent Chain Modal -->
+  <div id="chain-modal" class="modal-overlay hidden">
+    <div class="modal agent-form-modal">
+      <div class="modal-header">
+        <h3 id="chain-modal-title">New Chain</h3>
+        <button id="chain-modal-close" class="modal-close">&times;</button>
+      </div>
+      <form id="chain-form">
+        <div class="af-section">
+          <div class="af-section-label">Details</div>
+          <div class="af-field">
+            <label for="chain-form-title">Title</label>
+            <input id="chain-form-title" type="text" placeholder="e.g. Full Code Review Pipeline" required>
+          </div>
+          <div class="af-field">
+            <label for="chain-form-desc">Description</label>
+            <input id="chain-form-desc" type="text" placeholder="Short description of the chain">
+          </div>
+        </div>
+        <div class="af-section">
+          <div class="af-section-label">Pipeline</div>
+          <div id="chain-agent-list" class="chain-agent-list"></div>
+          <button type="button" id="chain-add-agent-btn" class="chain-add-agent-btn">+ Add Agent Step</button>
+        </div>
+        <div class="af-section">
+          <div class="af-section-label">Settings</div>
+          <div class="af-field">
+            <label for="chain-form-context">Context Passing</label>
+            <select id="chain-form-context">
+              <option value="summary">Summary (recommended)</option>
+              <option value="full">Full output</option>
+              <option value="none">None</option>
+            </select>
+          </div>
+        </div>
+        <input id="chain-form-edit-id" type="hidden">
+        <div class="modal-actions">
+          <button type="button" id="chain-modal-cancel" class="modal-btn-cancel">Cancel</button>
+          <button type="submit" class="modal-btn-save">Save Chain</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Agent CRUD Modal -->
+  <div id="agent-modal" class="modal-overlay hidden">
+    <div class="modal agent-form-modal">
+      <div class="modal-header">
+        <h3 id="agent-modal-title">New Agent</h3>
+        <button id="agent-modal-close" class="modal-close">&times;</button>
+      </div>
+      <form id="agent-form">
+        <div class="af-section">
+          <div class="af-section-label">Identity</div>
+          <div class="af-grid-2">
+            <div class="af-field">
+              <label for="agent-form-title">Title</label>
+              <input id="agent-form-title" type="text" placeholder="e.g. Code Documenter" required>
+            </div>
+            <div class="af-field">
+              <label for="agent-form-icon">Icon</label>
+              <select id="agent-form-icon">
+                <option value="search">Search</option>
+                <option value="bug">Bug</option>
+                <option value="check">Check</option>
+                <option value="tool" selected>Tool</option>
+              </select>
+            </div>
+          </div>
+          <div class="af-field">
+            <label for="agent-form-desc">Description</label>
+            <input id="agent-form-desc" type="text" placeholder="Short description of what this agent does" required>
+          </div>
+        </div>
+        <div class="af-section">
+          <div class="af-section-label">Behavior</div>
+          <div class="af-field">
+            <label for="agent-form-goal">Goal</label>
+            <textarea id="agent-form-goal" rows="4" placeholder="Describe the agent's goal in detail. Be specific about what files to look at, what to check, and what output to produce..." required></textarea>
+          </div>
+        </div>
+        <div class="af-section">
+          <div class="af-section-label">Constraints</div>
+          <div class="af-grid-2">
+            <div class="af-field">
+              <label for="agent-form-max-turns">Max Turns</label>
+              <div class="af-input-with-hint">
+                <input id="agent-form-max-turns" type="number" min="1" max="200" value="50">
+                <span class="af-hint">1 - 200</span>
+              </div>
+            </div>
+            <div class="af-field">
+              <label for="agent-form-timeout">Timeout (seconds)</label>
+              <div class="af-input-with-hint">
+                <input id="agent-form-timeout" type="number" min="30" max="3600" value="300">
+                <span class="af-hint">30 - 3600</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <input id="agent-form-edit-id" type="hidden">
+        <div class="modal-actions">
+          <button type="button" id="agent-modal-cancel" class="modal-btn-cancel">Cancel</button>
+          <button type="submit" class="modal-btn-save">Save Agent</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- Add Prompt Modal -->

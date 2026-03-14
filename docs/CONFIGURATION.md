@@ -14,6 +14,8 @@ CodeDeck separates **package defaults** (read-only, ships with npm) from **user 
 │   ├── prompts.json                  Prompt templates (16 defaults)
 │   ├── workflows.json                Multi-step workflows (4 defaults)
 │   ├── agents.json                   Autonomous agent definitions (4 defaults)
+│   ├── agent-chains.json             Agent chains — sequential pipelines (2 defaults)
+│   ├── agent-dags.json               Agent DAGs — dependency graphs (1 default)
 │   ├── bot-prompt.json               Assistant bot system prompt
 │   └── telegram-config.json          Telegram notification settings
 ├── plugins/                          User-installed tab-sdk plugins
@@ -30,6 +32,8 @@ CodeDeck separates **package defaults** (read-only, ships with npm) from **user 
 ├── prompts.json                      16 built-in prompt templates
 ├── workflows.json                    4 built-in workflows
 ├── agents.json                       4 built-in agents
+├── agent-chains.json                 2 built-in chains
+├── agent-dags.json                   1 built-in DAG
 ├── bot-prompt.json                   Default bot system prompt
 └── telegram-config.json              { enabled: false, botToken: "", chatId: "" }
 ```
@@ -302,6 +306,41 @@ Steps execute sequentially with context passing. Auto-registered as `/review-pr`
 ]
 ```
 Agents run as a single SDK `query()` call with high maxTurns. Auto-registered as `/agent-pr-reviewer`.
+
+### agent-chains.json — Agent Chains (Sequential Pipelines)
+```json
+[
+  {
+    "id": "bug-hunt-review",
+    "title": "Bug Hunt + Review",
+    "description": "Find bugs, then review the fixes",
+    "agents": ["bug-hunter", "pr-reviewer"],
+    "contextPassing": "summary"
+  }
+]
+```
+Chains run agents sequentially, passing shared context between steps. `contextPassing` can be `"summary"` (recommended), `"full"`, or `"none"`. Auto-registered as `/chain-bug-hunt-review`.
+
+### agent-dags.json — Agent DAGs (Dependency Graphs)
+```json
+[
+  {
+    "id": "full-review-pipeline",
+    "title": "Full Review Pipeline",
+    "description": "Find bugs and write tests in parallel, then review everything",
+    "nodes": [
+      { "id": "n1", "agentId": "bug-hunter", "x": 80, "y": 60 },
+      { "id": "n2", "agentId": "test-writer", "x": 80, "y": 160 },
+      { "id": "n3", "agentId": "pr-reviewer", "x": 320, "y": 110 }
+    ],
+    "edges": [
+      { "from": "n1", "to": "n3" },
+      { "from": "n2", "to": "n3" }
+    ]
+  }
+]
+```
+DAGs run agents in topological order — nodes with no dependencies run in parallel (max 3 concurrent), dependent nodes wait. Edited via a visual SVG canvas with drag-to-add and connection drawing. Auto-registered as `/dag-full-review-pipeline`.
 
 ### repos.json — Repository Groups
 ```json

@@ -12,6 +12,7 @@ import { loadProjects } from './projects.js';
 import { loadPrompts } from './prompts.js';
 import { loadWorkflows } from './workflows.js';
 import { loadAgents, handleAgentMessage } from './agents.js';
+import './agent-monitor.js';
 import { connectWebSocket } from '../core/ws.js';
 import { updateAttachmentBadge, getImageAttachments, clearImageAttachments } from './attachments.js';
 import { applyTheme } from '../ui/theme.js';
@@ -366,6 +367,21 @@ function handleServerMessage(msg) {
     case "agent_completed":
     case "agent_error":
     case "agent_aborted":
+    case "agent_chain_started":
+    case "agent_chain_step":
+    case "agent_chain_completed":
+    case "orchestrator_started":
+    case "orchestrator_phase":
+    case "orchestrator_dispatching":
+    case "orchestrator_dispatch":
+    case "orchestrator_dispatch_skip":
+    case "orchestrator_error":
+    case "orchestrator_completed":
+    case "dag_started":
+    case "dag_level":
+    case "dag_node":
+    case "dag_completed":
+    case "dag_error":
       handleAgentMessage(msg, pane);
       break;
 

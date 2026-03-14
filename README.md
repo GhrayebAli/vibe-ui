@@ -23,6 +23,10 @@ On first run, CodeDeck creates `~/.codedeck/` with your config, database, and pl
 | **Real-Time Chat** | WebSocket streaming with session persistence, parallel mode (2x2 grid), background sessions |
 | **Workflows** | 4 pre-built multi-step workflows (PR Review, Onboard Repo, Migration Plan, Code Health) |
 | **Autonomous Agents** | 4 agents (PR Reviewer, Bug Hunter, Test Writer, Refactoring) with live progress tracking |
+| **Agent Chains** | Sequential multi-agent pipelines with context passing between steps |
+| **Agent DAGs** | Visual dependency graph editor — run agents in parallel or sequentially based on connections |
+| **Orchestrator** | Describe a task in plain language — auto-decomposes and delegates to specialist agents |
+| **Agent Monitor** | Dashboard with run metrics, cost aggregation, success rates, and per-agent leaderboard |
 | **MCP Manager** | CRUD for global + per-project MCP servers with scope selector |
 | **Cost & Analytics** | Per-session cost tracking, daily charts, error pattern analysis, tool usage stats |
 | **File Explorer** | Lazy-loaded tree, file preview with syntax highlighting, search, drag-to-chat |
@@ -76,6 +80,7 @@ browser ──── WebSocket ──── server.js ──── Claude Code S
 /files /git /repos /events /mcp /tips                Panels
 /review-pr /onboard-repo /migration-plan /code-health Workflows
 /agent-pr-reviewer /agent-bug-hunter /agent-test-writer Agents
+/orchestrate /monitor /chain-* /dag-*                   Multi-Agent
 /code-review /find-bugs /write-tests /refactor ...   Prompts (16)
 /run <cmd>                                           Shell execution
 ```
@@ -93,6 +98,8 @@ All user data lives in `~/.codedeck/` (override with `CODEDECK_HOME`):
 │   ├── prompts.json     Prompt templates
 │   ├── workflows.json   Workflows
 │   ├── agents.json      Autonomous agents
+│   ├── agent-chains.json Agent chains (sequential pipelines)
+│   ├── agent-dags.json  Agent DAGs (dependency graphs)
 │   ├── repos.json       Repository groups
 │   ├── bot-prompt.json  Assistant bot prompt
 │   └── telegram-config.json

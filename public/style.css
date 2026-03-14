@@ -29,6 +29,8 @@
 
 @import url("css/panels/assistant-bot.css");
 @import url("css/features/agents.css");
+@import url("css/features/agent-monitor.css");
+@import url("css/features/agent-sidebar.css");
 @import url("css/ui/status-bar.css");
 @import url("css/panels/dev-docs.css");
 @import url("css/features/telegram.css");

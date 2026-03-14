@@ -1,0 +1,398 @@
+/* ── Agent Sidebar ─────────────────────────────────────── */
+/* Left sidebar panel for agents, chains, DAGs              */
+
+.agent-sidebar {
+  position: relative;
+  width: 280px;
+  min-width: 220px;
+  max-width: 50vw;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.25s var(--ease-out-expo), opacity 0.2s;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.agent-sidebar.hidden {
+  width: 0 !important;
+  min-width: 0;
+  border-right: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Header */
+.agent-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 38px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: linear-gradient(180deg, rgba(86, 212, 221, 0.03) 0%, transparent 100%);
+}
+
+.agent-sidebar-title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.agent-sidebar-logo {
+  color: var(--cyan);
+  opacity: 0.8;
+}
+
+.agent-sidebar-title {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--cyan);
+}
+
+.agent-sidebar-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  transition: all 0.15s;
+}
+
+.agent-sidebar-close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text);
+}
+
+/* Body — override the old toolbox-panel grid with a vertical stack */
+.agent-sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Override toolbox-card styling inside sidebar */
+.agent-sidebar-body .toolbox-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-smooth);
+  width: 100%;
+}
+
+.agent-sidebar-body .toolbox-card:hover {
+  border-color: var(--border);
+  background: var(--bg-elevated);
+  transform: translateX(2px);
+}
+
+.agent-sidebar-body .toolbox-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.agent-sidebar-body .toolbox-card-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Section headers */
+.agent-sidebar-body .agent-section-header {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  padding: 10px 4px 4px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin: 2px 0;
+}
+
+/* Add cards */
+.agent-sidebar-body .toolbox-card-add {
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  width: 100%;
+}
+
+.agent-sidebar-body .toolbox-card-add:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+/* Orch card accent */
+.agent-sidebar-body .orch-card {
+  border-left: 2px solid var(--user, #7b9bf5);
+}
+
+/* Monitor card accent */
+.agent-sidebar-body .monitor-card {
+  border-left: 2px solid var(--success);
+}
+
+/* Chain card in sidebar */
+.agent-sidebar-body .chain-card {
+  border-left: 2px solid var(--accent);
+}
+
+.agent-sidebar-body .chain-steps-preview {
+  margin-top: 4px;
+}
+
+.agent-sidebar-body .chain-step-tag {
+  font-size: 9px;
+  padding: 1px 4px;
+}
+
+/* DAG card in sidebar */
+.agent-sidebar-body .dag-card {
+  border-left: 2px solid var(--warning, #e5c07b);
+}
+
+.agent-sidebar-body .dag-nodes-preview {
+  margin-top: 4px;
+}
+
+/* Agent card hover actions in sidebar */
+.agent-sidebar-body .agent-card-actions {
+  top: 4px;
+  right: 4px;
+}
+
+/* ── Enhanced Form Styling ─────────────────────────────── */
+
+.agent-form-modal {
+  width: 520px;
+}
+
+/* Form sections */
+.af-section {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.af-section-label {
+  font-family: var(--font-display);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--cyan);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.af-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.af-field {
+  margin-bottom: 8px;
+}
+
+.af-field:last-child {
+  margin-bottom: 0;
+}
+
+.af-field label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 5px;
+  font-family: var(--font-display);
+}
+
+.af-field input,
+.af-field textarea,
+.af-field select {
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: all 0.2s var(--ease-smooth);
+  caret-color: var(--cyan);
+}
+
+.af-field textarea {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.af-field input:focus,
+.af-field textarea:focus,
+.af-field select:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 8px rgba(86, 212, 221, 0.12), 0 0 0 1px rgba(86, 212, 221, 0.08);
+}
+
+.af-field select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233a4250' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 28px;
+}
+
+.af-input-with-hint {
+  position: relative;
+}
+
+.af-hint {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+/* Chain form — agent list inside af-section */
+.af-section .chain-agent-list {
+  margin-bottom: 8px;
+}
+
+.af-section .chain-add-agent-btn {
+  margin-bottom: 0;
+}
+
+/* Light theme */
+html[data-theme="light"] .agent-sidebar {
+  background: var(--bg-secondary);
+}
+
+html[data-theme="light"] .agent-sidebar-header {
+  background: linear-gradient(180deg, rgba(42, 138, 154, 0.04) 0%, transparent 100%);
+}
+
+html[data-theme="light"] .agent-sidebar-logo,
+html[data-theme="light"] .agent-sidebar-title {
+  color: #2a8a9a;
+}
+
+html[data-theme="light"] .af-section-label {
+  color: #2a8a9a;
+}
+
+/* ── Orchestrate Modal ────────────────────────────────── */
+
+.orch-explainer {
+  padding: 4px 0;
+}
+
+.orch-explainer-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.orch-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.orch-step-num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(86, 212, 221, 0.1);
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  border: 1px solid rgba(86, 212, 221, 0.2);
+}
+
+.dag-explainer-text {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+
+.dag-explainer-text strong {
+  color: var(--text);
+}
+
+html[data-theme="light"] .orch-step-num {
+  background: rgba(42, 138, 154, 0.08);
+  color: #2a8a9a;
+  border-color: rgba(42, 138, 154, 0.15);
+}
+
+/* Mobile: overlay sidebar */
+@media (max-width: 768px) {
+  .agent-sidebar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 280px;
+    z-index: 50;
+    box-shadow: var(--shadow-lg);
+  }
+}

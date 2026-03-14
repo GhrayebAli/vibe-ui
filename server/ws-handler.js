@@ -29,6 +29,8 @@ import { sendPushNotification } from "./push-sender.js";
 import { sendTelegramNotification } from "./telegram-sender.js";
 import { generateSessionSummary } from "./summarizer.js";
 import { runAgent } from "./agent-loop.js";
+import { runOrchestrator } from "./orchestrator.js";
+import { runDag } from "./dag-executor.js";
 
 // Tools that are read-only and safe to auto-approve in "confirmDangerous" mode
 const READ_ONLY_TOOLS = new Set([
@@ -428,6 +430,148 @@ export function setupWebSocket(wss, sessionIds) {
           pendingApprovals,
           makeCanUseTool,
           userContext,
+          activeQueries,
+          runType: 'single',
+        }).catch(() => {}); // errors already handled inside runAgent
+        return;
+      }
+
+      // Agent chain handler — sequential multi-agent execution with context passing
+      if (msg.type === "agent_chain") {
+        const { chain, agents: agentDefs, cwd, sessionId: clientSid, projectName, permissionMode: chainPermMode, model: chainModel } = msg;
+        if (!chain || !agentDefs?.length) return;
+
+        const runId = crypto.randomUUID();
+
+        function chainSend(payload) {
+          if (ws.readyState !== 1) return;
+          ws.send(JSON.stringify(payload));
+        }
+
+        chainSend({
+          type: "agent_chain_started",
+          chainId: chain.id,
+          runId,
+          title: chain.title,
+          agents: agentDefs.map(a => ({ id: a.id, title: a.title })),
+          totalSteps: agentDefs.length,
+        });
+
+        let chainResumeId = clientSid ? sessionIds.get(clientSid) : undefined;
+        let resolvedSid = clientSid;
+
+        for (let i = 0; i < agentDefs.length; i++) {
+          const agentDef = agentDefs[i];
+          if (ws.readyState !== 1) break;
+
+          chainSend({
+            type: "agent_chain_step",
+            chainId: chain.id,
+            stepIndex: i,
+            agentId: agentDef.id,
+            agentTitle: agentDef.title,
+            status: "running",
+          });
+
+          try {
+            const result = await runAgent({
+              ws,
+              agentDef,
+              cwd,
+              sessionId: resolvedSid,
+              projectName: projectName || `Chain: ${chain.title}`,
+              permissionMode: chainPermMode,
+              model: chainModel,
+              sessionIds,
+              pendingApprovals,
+              makeCanUseTool,
+              activeQueries,
+              chainResumeId,
+              runId,
+              runType: 'chain',
+              parentRunId: chain.id,
+            });
+
+            if (result?.resolvedSid) resolvedSid = result.resolvedSid;
+            if (result?.claudeSessionId) chainResumeId = result.claudeSessionId;
+
+            chainSend({
+              type: "agent_chain_step",
+              chainId: chain.id,
+              stepIndex: i,
+              agentId: agentDef.id,
+              agentTitle: agentDef.title,
+              status: "completed",
+            });
+          } catch (err) {
+            chainSend({
+              type: "agent_chain_step",
+              chainId: chain.id,
+              stepIndex: i,
+              agentId: agentDef.id,
+              agentTitle: agentDef.title,
+              status: "error",
+              error: err.message,
+            });
+            break;
+          }
+        }
+
+        chainSend({ type: "agent_chain_completed", chainId: chain.id, runId });
+        sendPushNotification("CodeDeck", `Chain "${chain.title}" completed`, `chain-${resolvedSid}`);
+        sendTelegramNotification("Chain Completed", chain.title, `chain-${resolvedSid}`);
+        return;
+      }
+
+      // DAG handler — runs agents in dependency order with parallelism
+      if (msg.type === "agent_dag") {
+        const { dag, agents: agentDefs, cwd, sessionId: clientSid, projectName, permissionMode: dagPermMode, model: dagModel } = msg;
+        if (!dag || !agentDefs?.length) return;
+
+        runDag({
+          ws,
+          dag,
+          agents: agentDefs,
+          cwd,
+          sessionId: clientSid,
+          projectName,
+          permissionMode: dagPermMode,
+          model: dagModel,
+          sessionIds,
+          pendingApprovals,
+          makeCanUseTool,
+          activeQueries,
+        });
+        return;
+      }
+
+      // Orchestrator handler — meta-agent that decomposes tasks and delegates
+      if (msg.type === "orchestrate") {
+        const { task, cwd, sessionId: clientSid, projectName, permissionMode: orchPermMode, model: orchModel } = msg;
+        if (!task) return;
+
+        const { readFile } = await import("fs/promises");
+        const { configPath } = await import("./paths.js");
+        let agents;
+        try {
+          agents = JSON.parse(await readFile(configPath("agents.json"), "utf-8"));
+        } catch {
+          ws.send(JSON.stringify({ type: "error", error: "Failed to load agents" }));
+          return;
+        }
+
+        runOrchestrator({
+          ws,
+          task,
+          agents,
+          cwd,
+          sessionId: clientSid,
+          projectName,
+          permissionMode: orchPermMode,
+          model: orchModel,
+          sessionIds,
+          pendingApprovals,
+          makeCanUseTool,
           activeQueries,
         });
         return;
