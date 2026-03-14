@@ -9,10 +9,21 @@ A browser-based UI for Claude Code — chat, run workflows, manage MCP servers, 
 ## Quick Start
 
 ```bash
+# One-command launch (no install needed)
+npx claudeck
+
+# Or install globally
+npm install -g claudeck
+claudeck
+
+# Or clone and run from source
+git clone https://github.com/hamedafarag/claudeck.git
+cd claudeck
 npm install
 npm start
-# Open http://localhost:9009
 ```
+
+Open **http://localhost:9009** in your browser.
 
 Requires Node.js 18+ and a valid Claude Code CLI authentication (`claude auth login`). Installable as a PWA from Chrome's address bar.
 
@@ -1237,6 +1248,10 @@ Claudeck/
 │   ├── bot-prompt.json    Assistant bot system prompt
 │   └── telegram-config.json Telegram bot config + notification preferences
 ├── package.json           6 runtime dependencies
+├── cli.js                 CLI entry point (npx/global install)
+├── .github/
+│   └── workflows/
+│       └── publish.yml    GitHub Actions — auto-publish to npm on release
 └── public/
     ├── index.html         HTML structure + modals + SW registration
     ├── manifest.json      PWA Web App Manifest

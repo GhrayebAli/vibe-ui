@@ -4,6 +4,8 @@ Audit of Claudeck for Windows and Linux compatibility before NPX publishing.
 
 **Status: ALL ISSUES RESOLVED**
 
+NPX publishing is live — `npx claudeck` works cross-platform. Automated via GitHub Actions (`.github/workflows/publish.yml`).
+
 ---
 
 ## Fixed Issues

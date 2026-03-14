@@ -1,94 +1,171 @@
-# Claudeck
+<p align="center">
+  <img src="public/icons/whaly.png" alt="Whaly — the Claudeck mascot" width="160" />
+</p>
 
-A browser-based UI for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — chat, run workflows, manage MCP servers, track costs, and orchestrate autonomous agents from a local web interface.
+<h1 align="center">Claudeck</h1>
 
-Cross-platform (macOS, Linux, Windows). Installable as a PWA. Zero bundler, vanilla JS.
+<p align="center">
+  A browser-based UI for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> — chat, workflows, agents, cost tracking, and more.
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/claudeck"><img src="https://img.shields.io/npm/v/claudeck?color=cb3837&label=npm" alt="npm version" /></a>
+  <a href="https://github.com/hamedafarag/claudeck/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/claudeck?color=blue" alt="license" /></a>
+  <img src="https://img.shields.io/node/v/claudeck?color=339933" alt="node version" />
+  <img src="https://img.shields.io/badge/dependencies-6-brightgreen" alt="dependencies" />
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="platform" />
+</p>
+
+---
 
 ## Quick Start
 
 ```bash
-npm install
-npm start
-# Open http://localhost:9009
+# One-command launch (no install needed)
+npx claudeck
+
+# Or install globally
+npm install -g claudeck
+claudeck
 ```
 
-Requires **Node.js 18+** and Claude Code CLI authentication (`claude auth login`).
+Open **http://localhost:9009** in your browser.
+
+> Requires **Node.js 18+** and Claude Code CLI authentication (`claude auth login`).
 
 On first run, Claudeck creates `~/.claudeck/` with your config, database, and plugins directory — safe for NPX upgrades.
 
+---
+
+## Why Claudeck?
+
+- **Zero-framework** — Vanilla JS, 6 npm dependencies, no build step
+- **Full agent orchestration** — Chains, DAGs, orchestrator, and monitoring dashboard
+- **Cost visibility** — Per-session tracking, daily charts, token breakdowns
+- **Works everywhere** — PWA, mobile responsive, Telegram AFK approval
+- **Extensible** — Full-stack plugin system with auto-discovery
+
+---
+
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **Real-Time Chat** | WebSocket streaming with session persistence, parallel mode (2x2 grid), background sessions |
-| **Workflows** | Multi-step workflows with full CRUD — create, edit, delete from the UI. 4 pre-built (PR Review, Onboard Repo, Migration Plan, Code Health) |
-| **Autonomous Agents** | 4 agents (PR Reviewer, Bug Hunter, Test Writer, Refactoring) with live progress tracking |
-| **Agent Chains** | Sequential multi-agent pipelines with context passing between steps |
-| **Agent DAGs** | Visual dependency graph editor — run agents in parallel or sequentially based on connections |
-| **Orchestrator** | Describe a task in plain language — auto-decomposes and delegates to specialist agents |
-| **Agent Monitor** | Dashboard with run metrics, cost aggregation, success rates, and per-agent leaderboard |
-| **MCP Manager** | CRUD for global + per-project MCP servers with scope selector |
-| **Cost & Analytics** | Per-session cost tracking, daily charts, error pattern analysis, tool usage stats |
-| **File Explorer** | Lazy-loaded tree, file preview with syntax highlighting, search, drag-to-chat |
-| **Git Panel** | Branch switching, staging, commit, log — all in-app |
-| **Voice Input** | Speech-to-text via Web Speech API (Chrome/Safari) |
-| **Permission System** | Bypass, Confirm Writes, or Confirm All — approve/deny tool calls with "always allow" option. AFK mode via Telegram inline buttons |
-| **Plugin System** | Full-stack plugin architecture — `plugins/<name>/` with optional server-side routes, auto-discovered at runtime |
-| **PWA** | Install as a standalone app, push notifications (even with browser closed), offline fallback |
-| **Prompt Templates** | 16 built-in prompts with `{{variable}}` placeholder support |
-| **Project Commands** | Auto-discovers `.claude/commands/` and `.claude/skills/` from your project |
-| **Linear Integration** | View and create issues directly from the sidebar |
-| **Telegram Integration** | Two-way Telegram bot: rich notifications with metrics, AFK approve/deny tool calls via inline keyboard buttons, per-event notification preferences |
-| **Todo & Brags** | Local task list with priority, archive, and brag tracking |
-| **Repos Manager** | Organize repositories in nested groups with GitHub URL linking |
-| **Welcome & Guided Tour** | First-visit welcome screen with Whaly mascot, 18-step interactive tour powered by Driver.js |
-| **Dark/Light Theme** | Terminal aesthetic with CRT scanlines (dark) or warm off-white (light) |
-| **Mobile Responsive** | Full tablet/mobile layout with sidebar overlay, bottom-sheet modals, 44px touch targets |
+### Chat & Sessions
 
-## Tech Stack
+- Real-time WebSocket streaming with session persistence
+- **Parallel mode** — 2x2 grid of 4 independent conversations
+- Background sessions that keep running when you switch away
+- Session search, pinning, auto-generated titles
+- Voice input via Web Speech API (Chrome/Safari)
+
+### Autonomous Agents
+
+- 4 built-in agents: PR Reviewer, Bug Hunter, Test Writer, Refactoring
+- **Agent Chains** — Sequential pipelines with context passing
+- **Agent DAGs** — Visual dependency graph editor with parallel execution
+- **Orchestrator** — Describe a task, it auto-delegates to specialist agents
+- **Agent Monitor** — Metrics, cost aggregation, success rates, leaderboard
+
+### Workflows
+
+- Multi-step workflows with full CRUD
+- 4 pre-built: Review PR, Onboard Repo, Migration Plan, Code Health
+- Each step carries context forward
+
+### Code & Files
+
+- **File Explorer** — Lazy tree, syntax-highlighted preview, drag-to-chat
+- **Git Panel** — Branch switching, staging, commit, log
+- **Repos Manager** — Organize repos in nested groups with GitHub links
+- Code diff viewer with LCS-based line highlighting
+
+### Cost & Analytics
+
+- Per-session cost tracking with daily timeline charts
+- Input/output token breakdown, streaming token counter
+- Error pattern analysis (9 categories), tool usage stats
+
+### Integrations
+
+- **MCP Manager** — Add/edit/remove MCP servers (global + per-project)
+- **Linear** — View and create issues from the sidebar
+- **Telegram** — Rich notifications + AFK approve/deny via inline keyboard
+- **Push Notifications** — Web-push with audio chime, works when browser is closed
+
+### Prompt & Command System
+
+- 16 built-in prompt templates with `{{variable}}` placeholders
+- Auto-discovers `.claude/commands/` and `.claude/skills/` from your project
+- 40+ slash commands for every feature
+
+### Permissions
+
+| Mode | Behavior |
+|------|----------|
+| **Bypass** | Auto-approve everything |
+| **Confirm Writes** | Auto-approve reads, prompt for writes |
+| **Confirm All** | Prompt for every tool call |
+| **Plan Mode** | No execution, planning only |
+
+### UI & Experience
+
+- Dark theme (terminal CRT aesthetic) and light theme
+- Installable as a PWA with offline fallback
+- Mobile responsive with tablet/mobile breakpoints
+- Welcome screen with Whaly mascot and 18-step guided tour
+- Full-stack plugin system with marketplace UI
+
+---
+
+## Architecture
+
+```
+browser ──── WebSocket ──── server.js ──── Claude Code SDK
+                               |
+                          server/routes/         ~/.claudeck/
+                          server/agent-loop.js     ├── config/     (JSON configs)
+                          server/orchestrator.js   ├── plugins/    (user plugins)
+                          server/dag-executor.js   ├── data.db     (SQLite)
+                          plugins/                 └── .env        (VAPID keys)
+```
 
 | Layer | Technology |
 |-------|------------|
 | Runtime | Node.js 18+ (ESM) |
 | Backend | Express 4, WebSocket (ws 8), web-push 3 |
 | AI SDK | @anthropic-ai/claude-code |
-| Database | SQLite via better-sqlite3, WAL mode |
+| Database | SQLite via better-sqlite3 (WAL mode) |
 | Frontend | Vanilla JS ES modules, CSS custom properties |
-| Rendering | highlight.js (syntax), Mermaid (diagrams) — CDN |
-| Onboarding | Driver.js 1.3.6 (guided tour) — CDN |
+| Rendering | highlight.js, Mermaid (diagrams) — CDN |
 
-## Architecture
-
-```
-browser ──── WebSocket ──── server.js ──── Claude Code SDK
-                               │
-                          server/paths.js ──── ~/.claudeck/
-                               │                  ├── config/     (JSON configs)
-                          server/routes/           ├── plugins/    (user plugins)
-                          plugins/                 ├── data.db     (SQLite)
-                          (full-stack plugins)
-                                                   └── .env        (keys)
-```
-
-- 40+ frontend ES modules (`core/`, `ui/`, `features/`, `panels/`, `plugins/`)
-- Reactive store + event bus for cross-module communication
-- Session resumption via stored Claude session IDs
-- Background sessions continue server-side when switching away
+---
 
 ## Slash Commands
 
 ```
-/clear /new /parallel /export /theme /shortcuts     Application
-/costs /analytics                                    Dashboards
-/files /git /repos /events /mcp /tips                Panels
-/review-pr /onboard-repo /migration-plan /code-health Workflows
+/clear /new /parallel /export /theme /shortcuts       App
+/costs /analytics                                      Dashboards
+/files /git /repos /events /mcp /tips                  Panels
+/review-pr /onboard-repo /migration-plan /code-health  Workflows
 /agent-pr-reviewer /agent-bug-hunter /agent-test-writer Agents
 /orchestrate /monitor /chain-* /dag-*                   Multi-Agent
-/code-review /find-bugs /write-tests /refactor ...   Prompts (16)
-/run <cmd>                                           Shell execution
+/code-review /find-bugs /write-tests /refactor ...     Prompts (16)
+/run <cmd>                                             Shell
 ```
 
-Project commands from `.claude/commands/` and `.claude/skills/` are auto-registered on project switch.
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+K` | Session search |
+| `Cmd+N` | New session |
+| `Cmd+B` | Toggle right panel |
+| `Cmd+/` | Show all shortcuts |
+| `Cmd+Shift+E/G/R/V/T` | Files / Git / Repos / Events / Tips |
+| `Cmd+1`-`4` | Focus parallel pane |
+
+---
 
 ## Configuration
 
@@ -96,45 +173,61 @@ All user data lives in `~/.claudeck/` (override with `CLAUDECK_HOME`):
 
 ```
 ~/.claudeck/
-├── config/              JSON config files (copied from defaults on first run)
-│   ├── folders.json     Projects
-│   ├── prompts.json     Prompt templates
-│   ├── workflows.json   Workflows
-│   ├── agents.json      Autonomous agents
-│   ├── agent-chains.json Agent chains (sequential pipelines)
-│   ├── agent-dags.json  Agent DAGs (dependency graphs)
-│   ├── repos.json       Repository groups
-│   ├── bot-prompt.json  Assistant bot prompt
-│   └── telegram-config.json  Telegram bot config + notification preferences
-├── plugins/             User-installed tab-sdk plugins
-├── data.db              SQLite database
-└── .env                 VAPID keys, port config
+├── config/
+│   ├── folders.json          Projects
+│   ├── prompts.json          Prompt templates
+│   ├── workflows.json        Workflows
+│   ├── agents.json           Agent definitions
+│   ├── agent-chains.json     Sequential pipelines
+│   ├── agent-dags.json       Dependency graphs
+│   ├── repos.json            Repository groups
+│   ├── bot-prompt.json       Assistant bot prompt
+│   └── telegram-config.json  Telegram config
+├── plugins/                  User-installed plugins
+├── data.db                   SQLite database
+└── .env                      VAPID keys, port config
 ```
 
-Defaults are copied once on first run — user edits are never overwritten on upgrade.
+Defaults are copied on first run. User edits are never overwritten on upgrade.
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full configuration guide.
+See [CONFIGURATION.md](docs/CONFIGURATION.md) for the full guide.
 
-## Keyboard Shortcuts
+---
 
-| Shortcut | Action |
-|----------|--------|
-| `Cmd+K` | Focus session search |
-| `Cmd+N` | New session |
-| `Cmd+B` | Toggle right panel |
-| `Cmd+/` | Show all shortcuts |
-| `Cmd+Shift+E/G/R/V/T` | Files / Git / Repos / Events / Tips |
-| `Cmd+1`–`4` | Focus parallel pane |
+## Plugins
+
+Claudeck includes 6 built-in plugins and supports user plugins via `~/.claudeck/plugins/`:
+
+| Plugin | Description |
+|--------|-------------|
+| **Tasks** | Todo list with priority, archive, and brag tracking |
+| **Linear** | Linear issue tracking with team management |
+| **Repos** | Repository management with tree view |
+| **Claude Editor** | Edit CLAUDE.md project instructions in-app |
+| **Event Stream** | Real-time WebSocket event viewer |
+| **Games** | Tic-tac-toe and Sudoku |
+
+Create your own: add a `plugins/<name>/` directory with `client.js` and optionally `server.js`, `client.css`, `config.json`. See [CONFIGURATION.md](docs/CONFIGURATION.md#plugins) for details.
+
+---
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [DOCUMENTATION.md](docs/DOCUMENTATION.md) | Full feature documentation, API reference, database schema |
+| [DOCUMENTATION.md](docs/DOCUMENTATION.md) | Full feature docs, API reference, database schema |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | User data directory, config files, plugin system |
-| [CROSS-PLATFORM-AUDIT.md](docs/CROSS-PLATFORM-AUDIT.md) | Windows/Linux compatibility fixes |
+| [CROSS-PLATFORM-AUDIT.md](docs/CROSS-PLATFORM-AUDIT.md) | Windows/Linux compatibility |
 | [COMPETITIVE-ANALYSIS.md](docs/COMPETITIVE-ANALYSIS.md) | Feature comparison with similar tools |
+
+---
 
 ## License
 
-MIT
+[MIT](LICENSE)
+
+---
+
+<p align="center">
+  <sub>Built with Whaly by <a href="https://github.com/hamedafarag">Hamed Farag</a></sub>
+</p>

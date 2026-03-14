@@ -314,6 +314,7 @@ The Claude Code web UI ecosystem has grown significantly. Key developments:
 | 32 | NPX publishing | Done | `npx claudeck` or `npm install -g claudeck`, CLI entry via `cli.js` |
 | 33 | Linear plugin | Done | Full-stack plugin for Linear issue tracking with team management and GraphQL API |
 | 34 | Full-stack plugin system | Done | Plugins can have `server.js` with Express routes, auto-mounted at `/api/plugins/<name>/*` |
+| 35 | CI/CD pipeline | Done | GitHub Actions workflow — auto-publish to npm with provenance on GitHub Release |
 
 ### Tier 1 — High Impact (address next)
 

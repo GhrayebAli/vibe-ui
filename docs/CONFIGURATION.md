@@ -231,6 +231,27 @@ rm -rf ~/.claudeck
 
 ---
 
+## CI/CD — Publishing to npm
+
+Claudeck uses a GitHub Actions workflow to publish to npm automatically when a GitHub Release is created.
+
+**Workflow file**: `.github/workflows/publish.yml`
+
+**How it works**:
+1. Create a GitHub Release (e.g., `v1.0.1`)
+2. The workflow triggers, runs `npm ci`, and publishes with `--provenance`
+3. The package appears on [npmjs.com/package/claudeck](https://www.npmjs.com/package/claudeck) with a verified provenance badge
+
+**Setup** (one-time):
+1. Generate a **Granular Access Token** on [npmjs.com](https://www.npmjs.com) > Access Tokens
+2. Add it as `NPM_TOKEN` in GitHub repo Settings > Secrets > Actions
+3. To publish: bump `version` in `package.json`, commit, then create a release:
+   ```bash
+   gh release create v1.0.1 --title "v1.0.1" --notes "Release notes here"
+   ```
+
+---
+
 ## MCP Server Configuration
 
 MCP servers are stored in Claude CLI's own settings files, not in `~/.claudeck/`:
