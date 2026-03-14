@@ -62,6 +62,13 @@
   height: 36px;
   padding: 0 6px;
   gap: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.right-panel-tab-bar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
 }
 
 .right-panel-tab {

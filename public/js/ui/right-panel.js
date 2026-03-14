@@ -68,7 +68,9 @@ function restoreTab(tabName) {
 function applyTab(tabName) {
   // Update tab buttons
   $.rightPanel.querySelectorAll(".right-panel-tab").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.tab === tabName);
+    const isActive = btn.dataset.tab === tabName;
+    btn.classList.toggle("active", isActive);
+    if (isActive) btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   });
 
   // Update panes

@@ -297,6 +297,9 @@ function mountTab(tab) {
 
     localStorage.setItem('claudeck-right-panel-tab', tab.id);
     emit('rightPanel:tabChanged', tab.id);
+
+    // Scroll active tab into view
+    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   });
 }
 
