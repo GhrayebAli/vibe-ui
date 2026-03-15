@@ -28,9 +28,10 @@ function findClaudeBinary() {
   if (process.platform === "win32") {
     candidates.push(join(home, "AppData", "Local", "Programs", "claude", "claude.exe"));
     candidates.push(join(home, ".claude", "local", "claude.exe"));
-    // npm global installs on Windows use .cmd shims
+    // npm global installs on Windows — both .cmd shim and plain executable
     const appData = process.env.APPDATA || join(home, "AppData", "Roaming");
     candidates.push(join(appData, "npm", "claude.cmd"));
+    candidates.push(join(appData, "npm", "claude"));
   }
   for (const p of candidates) {
     if (existsSync(p)) return p;
@@ -45,14 +46,18 @@ router.get("/account", async (req, res) => {
   }
   try {
     const data = await new Promise((resolve, reject) => {
-      const opts = { timeout: 10000 };
-      const cb = (err, stdout) => {
+      const opts = { timeout: 10000, env: { ...process.env, FORCE_COLOR: "0" } };
+      const cb = (err, stdout, stderr) => {
         if (err) return reject(err);
-        try { resolve(JSON.parse(stdout)); } catch (e) { reject(e); }
+        const out = (stdout || "").trim();
+        try { resolve(JSON.parse(out)); } catch {
+          // claude auth status may not return JSON — extract what we can
+          resolve({ email: null, subscriptionType: null, raw: out });
+        }
       };
-      // On Windows, use exec so .cmd shims on PATH resolve correctly
+      // On Windows, use exec with shell so .cmd shims and PATH resolve correctly
       if (process.platform === "win32") {
-        exec("claude auth status", opts, cb);
+        exec(`"${claudeBin}" auth status`, { ...opts, shell: true }, cb);
       } else {
         execFile(claudeBin, ["auth", "status"], opts, cb);
       }
