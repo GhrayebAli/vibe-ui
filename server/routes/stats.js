@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { execFile } from "child_process";
+import { execFile, exec } from "child_process";
 import { join } from "path";
 import { existsSync } from "fs";
 import { homedir } from "os";
@@ -28,6 +28,9 @@ function findClaudeBinary() {
   if (process.platform === "win32") {
     candidates.push(join(home, "AppData", "Local", "Programs", "claude", "claude.exe"));
     candidates.push(join(home, ".claude", "local", "claude.exe"));
+    // npm global installs on Windows use .cmd shims
+    const appData = process.env.APPDATA || join(home, "AppData", "Roaming");
+    candidates.push(join(appData, "npm", "claude.cmd"));
   }
   for (const p of candidates) {
     if (existsSync(p)) return p;
@@ -43,12 +46,16 @@ router.get("/account", async (req, res) => {
   try {
     const data = await new Promise((resolve, reject) => {
       const opts = { timeout: 10000 };
-      // On Windows, use shell to resolve claude from PATH
-      if (process.platform === "win32") opts.shell = true;
-      execFile(claudeBin, ["auth", "status"], opts, (err, stdout) => {
+      const cb = (err, stdout) => {
         if (err) return reject(err);
         try { resolve(JSON.parse(stdout)); } catch (e) { reject(e); }
-      });
+      };
+      // On Windows, use exec so .cmd shims on PATH resolve correctly
+      if (process.platform === "win32") {
+        exec("claude auth status", opts, cb);
+      } else {
+        execFile(claudeBin, ["auth", "status"], opts, cb);
+      }
     });
     cachedAccountInfo = {
       email: data.email || null,
