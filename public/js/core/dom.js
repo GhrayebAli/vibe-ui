@@ -259,6 +259,7 @@ export const $ = {
 
   // Add project modal
   openVscodeBtn: document.getElementById("open-vscode-btn"),
+  removeProjectBtn: document.getElementById("remove-project-btn"),
   addProjectBtn: document.getElementById("add-project-btn"),
   addProjectModal: document.getElementById("add-project-modal"),
   addProjectClose: document.getElementById("add-project-close"),

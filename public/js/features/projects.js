@@ -278,6 +278,36 @@ $.openVscodeBtn.addEventListener("click", async () => {
   } catch { /* ignore */ }
 });
 
+// Remove project
+$.removeProjectBtn.addEventListener("click", async () => {
+  const path = $.projectSelect.value;
+  if (!path) return;
+  const name = $.projectSelect.options[$.projectSelect.selectedIndex].textContent;
+  if (!confirm(`Remove "${name}" from your projects?\n\nThis only removes it from Claudeck — your files won't be deleted.`)) return;
+  try {
+    await api.deleteProject(path);
+    // Remove from dropdown
+    const opt = [...$.projectSelect.options].find(o => o.value === path);
+    if (opt) opt.remove();
+    // Remove from state
+    const projects = getState("projectsData");
+    const idx = projects.findIndex(p => p.path === path);
+    if (idx !== -1) projects.splice(idx, 1);
+    // Reset selection
+    $.projectSelect.value = "";
+    localStorage.removeItem("claudeck-cwd");
+    updateSystemPromptIndicator();
+    updateHeaderProjectName();
+    updateSessionControls();
+    loadProjectCommands();
+    $.messagesDiv.innerHTML = "";
+    showWhalyPlaceholder();
+    loadSessions();
+  } catch (err) {
+    alert("Failed to remove project: " + err.message);
+  }
+});
+
 // Add project button & modal event listeners
 $.addProjectBtn.addEventListener("click", openAddProjectModal);
 $.addProjectClose.addEventListener("click", closeAddProjectModal);
