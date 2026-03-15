@@ -12,6 +12,9 @@ A browser-based UI for Claude Code — chat, run workflows, manage MCP servers, 
 # One-command launch (no install needed)
 npx claudeck
 
+# Custom port (saved to ~/.claudeck/.env for future runs)
+npx claudeck --port 3000
+
 # Or install globally
 npm install -g claudeck
 claudeck
@@ -23,7 +26,7 @@ npm install
 npm start
 ```
 
-Open **http://localhost:9009** in your browser.
+On first run, Claudeck prompts you to choose a port (default: `9009`). The port is saved to `~/.claudeck/.env` and reused automatically on future launches.
 
 Requires Node.js 18+ and a valid Claude Code CLI authentication (`claude auth login`). Installable as a PWA from Chrome's address bar.
 

@@ -24,16 +24,19 @@
 # One-command launch (no install needed)
 npx claudeck
 
+# Custom port
+npx claudeck --port 3000
+
 # Or install globally
 npm install -g claudeck
 claudeck
 ```
 
-Open **http://localhost:9009** in your browser.
+On first run, Claudeck will ask you to choose a port (default: `9009`), then open your browser to the URL shown in the terminal. The port is saved to `~/.claudeck/.env` for future runs.
 
 > Requires **Node.js 18+** and Claude Code CLI authentication (`claude auth login`).
 
-On first run, Claudeck creates `~/.claudeck/` with your config, database, and plugins directory — safe for NPX upgrades.
+User data lives in `~/.claudeck/` (config, database, plugins) — safe for NPX upgrades.
 
 ---
 

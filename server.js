@@ -164,7 +164,21 @@ const PORT = process.env.PORT || 9009;
 // Mount full-stack plugin routes, then start server
 mountPluginRoutes(app, fullStackPluginsDir).then(() => {
   server.listen(PORT, () => {
-    console.log(`Claudeck running at http://localhost:${PORT}`);
+    const url = `http://localhost:${PORT}`;
+    console.log(`
+\x1b[36m   _____ _                 _           _
+  / ____| |               | |         | |
+ | |    | | __ _ _   _  __| | ___  ___| | __
+ | |    | |/ _\` | | | |/ _\` |/ _ \\/ __| |/ /
+ | |____| | (_| | |_| | (_| |  __/ (__|   <
+  \\_____|_|\\__,_|\\__,_|\\__,_|\\___|\\___|_|\\_\\\x1b[0m
+
+\x1b[2m  Browser UI for Claude Code\x1b[0m
+
+  \x1b[1m\x1b[32m➜\x1b[0m  \x1b[1mReady:\x1b[0m   ${url}
+  \x1b[2m➜  Port:\x1b[0m    ${PORT}
+  \x1b[2m➜  Data:\x1b[0m    ~/.claudeck/
+`);
   });
 });
 

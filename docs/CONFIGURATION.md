@@ -194,6 +194,15 @@ VAPID_PUBLIC_KEY=                # Auto-generated on first run
 VAPID_PRIVATE_KEY=               # Auto-generated on first run
 ```
 
+### Port configuration
+
+On first launch, the CLI prompts you to choose a port (default: `9009`). Your choice is saved to `~/.claudeck/.env` and reused on future runs.
+
+To change the port later:
+```bash
+npx claudeck --port 3000    # Updates ~/.claudeck/.env and starts on port 3000
+```
+
 VAPID keys are generated automatically if missing — no manual setup needed for push notifications.
 
 ---
