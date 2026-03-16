@@ -17,6 +17,16 @@ const sbBgSessions = document.getElementById("sb-bg-sessions");
 const sbBgSep = document.getElementById("sb-bg-sep");
 const sbBgCount = document.getElementById("sb-bg-count");
 
+// ── Version ──
+const sbVersion = document.getElementById("sb-version");
+(async () => {
+  try {
+    const res = await fetch("/api/version");
+    const { version } = await res.json();
+    if (sbVersion) sbVersion.textContent = `v${version}`;
+  } catch { /* ignore */ }
+})();
+
 // ── Connection status ──
 on("ws:connected", () => {
   sbDot.className = "sb-dot connected";
@@ -65,8 +75,8 @@ async function fetchBranch() {
     return;
   }
   try {
-    const data = await api.execCommand("git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '--'", cwd);
-    const branch = (data.stdout || data.output || "--").trim();
+    const data = await api.execCommand("git rev-parse --abbrev-ref HEAD", cwd);
+    const branch = (data.stdout || data.output || "").trim();
     sbBranchName.textContent = branch || "--";
   } catch {
     sbBranchName.textContent = "--";

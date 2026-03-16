@@ -105,6 +105,11 @@ app.use("/api/tips", tipsRouter);
 app.use("/api/bot", botRouter);
 app.use("/api/telegram", telegramRouter);
 
+// Version endpoint
+import { readFileSync } from "fs";
+const pkgVersion = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8")).version;
+app.get("/api/version", (_req, res) => res.json({ version: pkgVersion }));
+
 // Serve full-stack plugin client assets
 const fullStackPluginsDir = join(__dirname, "plugins");
 app.use("/plugins", express.static(fullStackPluginsDir));
