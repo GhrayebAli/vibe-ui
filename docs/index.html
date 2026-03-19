@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claudeck — The Browser UI for Claude Code</title>
+<meta name="description" content="Chat, agents, workflows, cost tracking — all from your browser. Zero framework, 6 dependencies, no build step.">
+<link rel="icon" href="images/whaly.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=optional" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   TOKENS
+   ═══════════════════════════════════════════ */
+:root {
+  --bg:          #050508;
+  --bg-sec:      #0a0b0f;
+  --bg-card:     #0e0f14;
+  --bg-elevated: #141620;
+  --border:      #1a1c26;
+  --border-glow: rgba(51,209,122,.12);
+  --accent:      #33d17a;
+  --accent-dim:  rgba(51,209,122,.08);
+  --accent-mid:  rgba(51,209,122,.15);
+  --accent-solid:#2ec27e;
+  --purple:      #c69ff5;
+  --purple-dim:  rgba(198,159,245,.08);
+  --cyan:        #56d4dd;
+  --cyan-dim:    rgba(86,212,221,.08);
+  --user:        #7b9bf5;
+  --user-dim:    rgba(123,155,245,.08);
+  --amber:       #f0b429;
+  --text:        #c8d3de;
+  --text-sec:    #6b7a8d;
+  --text-dim:    #3a4250;
+  --error:       #ed333b;
+
+  --ff-display: "Chakra Petch", "Rajdhani", sans-serif;
+  --ff-body:    "Outfit", "DM Sans", sans-serif;
+  --ff-mono:    "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+
+  --ease-out:   cubic-bezier(.16,1,.3,1);
+  --ease-spring:cubic-bezier(.34,1.56,.64,1);
+
+  --section-pad: clamp(80px, 12vw, 140px) clamp(20px, 5vw, 80px);
+  --max-w: 1200px;
+}
+
+/* ═══════════════════════════════════════════
+   RESET
+   ═══════════════════════════════════════════ */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { background: var(--bg); }
+body {
+  font-family: var(--ff-body);
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+img { max-width: 100%; display: block; }
+
+/* ═══════════════════════════════════════════
+   NOISE OVERLAY
+   ═══════════════════════════════════════════ */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: .025;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ═══════════════════════════════════════════
+   SCANLINES (subtle)
+   ═══════════════════════════════════════════ */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,.03) 2px,
+    rgba(0,0,0,.03) 4px
+  );
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* ═══════════════════════════════════════════
+   NAV
+   ═══════════════════════════════════════════ */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 0 clamp(20px, 4vw, 60px);
+  height: 64px;
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(5,5,8,.7);
+  backdrop-filter: blur(20px) saturate(1.2);
+  border-bottom: 1px solid var(--border);
+  transition: background .3s;
+}
+.nav-logo {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--ff-display);
+  font-weight: 600; font-size: 20px;
+  color: var(--text);
+  letter-spacing: .5px;
+}
+.nav-logo img { width: 32px; height: auto; image-rendering: pixelated; }
+.nav-links { display: flex; align-items: center; gap: 32px; }
+.nav-links a {
+  font-family: var(--ff-body);
+  font-size: 14px; font-weight: 500;
+  color: var(--text-sec);
+  transition: color .2s;
+}
+.nav-links a:hover { color: var(--text); }
+.nav-cta {
+  font-family: var(--ff-mono) !important;
+  font-size: 13px !important;
+  padding: 8px 20px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--accent) !important;
+  transition: all .25s var(--ease-out);
+}
+.nav-cta:hover {
+  background: var(--accent);
+  color: var(--bg) !important;
+  box-shadow: 0 0 24px rgba(51,209,122,.3);
+}
+.nav-hamburger {
+  display: none;
+  background: none; border: none; cursor: pointer;
+  width: 32px; height: 32px;
+  flex-direction: column; justify-content: center; gap: 5px; align-items: center;
+}
+.nav-hamburger span {
+  display: block; width: 20px; height: 2px;
+  background: var(--text-sec); border-radius: 2px;
+  transition: all .3s;
+}
+
+/* ═══════════════════════════════════════════
+   HERO
+   ═══════════════════════════════════════════ */
+.hero {
+  position: relative;
+  min-height: 100vh; min-height: 100dvh;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center;
+  padding: 80px clamp(20px, 5vw, 80px) 40px;
+  overflow: hidden;
+}
+
+/* Dot grid background */
+.hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(51,209,122,.12) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, black 20%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, black 20%, transparent 70%);
+  animation: gridPulse 8s ease-in-out infinite;
+}
+
+/* Radial glow behind Whaly */
+.hero::after {
+  content: '';
+  position: absolute;
+  top: 22%; left: 50%; translate: -50% 0;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(51,209,122,.08) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: glowBreathe 6s ease-in-out infinite;
+}
+
+.hero-content {
+  position: relative; z-index: 2;
+  max-width: 780px;
+}
+
+.hero-mascot {
+  width: clamp(140px, 22vw, 200px);
+  margin: 0 auto 32px;
+  image-rendering: pixelated;
+  animation: mascotFloat 4s ease-in-out infinite;
+  filter: drop-shadow(0 20px 40px rgba(51,209,122,.15)) drop-shadow(0 0 80px rgba(51,209,122,.08));
+  cursor: pointer;
+  transition: transform .3s var(--ease-spring);
+}
+.hero-mascot:hover { transform: scale(1.08) rotate(-3deg); }
+
+.hero h1 {
+  font-family: var(--ff-display);
+  font-size: clamp(52px, 8vw, 96px);
+  font-weight: 700;
+  letter-spacing: -1px;
+  line-height: 1;
+  margin-bottom: 16px;
+  color: #fff;
+}
+.hero h1 .glow {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--cyan) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 30px rgba(51,209,122,.3));
+}
+
+.hero-tagline {
+  font-family: var(--ff-display);
+  font-size: clamp(18px, 2.8vw, 28px);
+  font-weight: 300;
+  color: var(--text-sec);
+  letter-spacing: .5px;
+  margin-bottom: 8px;
+}
+.hero-sub {
+  font-size: clamp(14px, 1.8vw, 17px);
+  color: var(--text-dim);
+  margin-bottom: 40px;
+  max-width: 520px;
+  margin-left: auto; margin-right: auto;
+}
+
+.hero-actions {
+  display: flex; align-items: center; justify-content: center;
+  gap: 16px; flex-wrap: wrap;
+}
+
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--ff-mono);
+  font-size: 15px; font-weight: 500;
+  padding: 14px 32px;
+  background: var(--accent);
+  color: var(--bg);
+  border: none; border-radius: 8px;
+  cursor: pointer;
+  transition: all .25s var(--ease-out);
+  text-decoration: none;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(51,209,122,.35), 0 0 0 1px rgba(51,209,122,.2);
+  color: var(--bg);
+}
+
+.btn-secondary {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--ff-body);
+  font-size: 15px; font-weight: 500;
+  padding: 14px 28px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .25s var(--ease-out);
+  text-decoration: none;
+}
+.btn-secondary:hover {
+  border-color: var(--text-sec);
+  background: rgba(255,255,255,.03);
+  transform: translateY(-2px);
+  color: var(--text);
+}
+.btn-secondary svg { width: 18px; height: 18px; fill: currentColor; }
+
+.hero-terminal {
+  margin-top: 48px;
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 12px 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--ff-mono);
+  font-size: 14px;
+  color: var(--text-sec);
+}
+.hero-terminal .prompt { color: var(--accent); }
+.hero-terminal .cmd { color: var(--text); }
+.hero-terminal .copy-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-dim); padding: 4px;
+  transition: color .2s;
+  display: flex; align-items: center;
+}
+.hero-terminal .copy-btn:hover { color: var(--accent); }
+.hero-terminal .copy-btn svg { width: 16px; height: 16px; }
+
+/* ═══════════════════════════════════════════
+   STATS STRIP
+   ═══════════════════════════════════════════ */
+.stats-strip {
+  padding: 28px clamp(20px, 5vw, 80px);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sec);
+}
+.stats-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  gap: clamp(20px, 4vw, 48px);
+  flex-wrap: wrap;
+}
+.stat-item {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  color: var(--text-sec);
+  white-space: nowrap;
+}
+.stat-item .stat-value {
+  color: var(--text);
+  font-weight: 600;
+}
+.stat-item .stat-dot {
+  width: 4px; height: 4px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--accent);
+}
+.stat-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px;
+  background: var(--accent-dim);
+  border: 1px solid var(--border-glow);
+  border-radius: 20px;
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 500;
+}
+.stat-badge svg { width: 14px; height: 14px; fill: var(--accent); }
+
+.stat-stars {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px;
+  background: var(--purple-dim);
+  border: 1px solid rgba(198,159,245,.15);
+  border-radius: 20px;
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  color: var(--purple);
+  font-weight: 500;
+  text-decoration: none;
+  transition: all .2s;
+}
+.stat-stars:hover {
+  background: rgba(198,159,245,.15);
+  color: var(--purple);
+}
+.stat-stars svg { width: 14px; height: 14px; fill: var(--purple); }
+
+.stat-platforms {
+  display: flex; gap: 6px;
+}
+.stat-platforms span {
+  padding: 3px 10px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+/* ═══════════════════════════════════════════
+   SECTIONS (shared)
+   ═══════════════════════════════════════════ */
+.section {
+  padding: var(--section-pad);
+  max-width: var(--max-w);
+  margin: 0 auto;
+}
+.section-alt { background: var(--bg-sec); }
+.section-alt .section { padding-left: clamp(20px, 5vw, 80px); padding-right: clamp(20px, 5vw, 80px); }
+.section-full {
+  padding: var(--section-pad);
+}
+.section-full .section-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+}
+
+.section-header {
+  margin-bottom: clamp(40px, 6vw, 72px);
+}
+.section-label {
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--accent);
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.section-label::before {
+  content: '';
+  width: 20px; height: 1px;
+  background: var(--accent);
+}
+.section-title {
+  font-family: var(--ff-display);
+  font-size: clamp(32px, 5vw, 52px);
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.1;
+  margin-bottom: 16px;
+}
+.section-desc {
+  font-size: clamp(15px, 1.8vw, 18px);
+  color: var(--text-sec);
+  max-width: 560px;
+  line-height: 1.7;
+}
+
+/* ═══════════════════════════════════════════
+   BENTO GRID
+   ═══════════════════════════════════════════ */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: auto;
+  gap: 16px;
+}
+.bento-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: clamp(24px, 3vw, 36px);
+  position: relative;
+  overflow: hidden;
+  transition: all .4s var(--ease-out);
+}
+.bento-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0;
+  width: 3px; height: 0;
+  background: var(--accent);
+  border-radius: 0 0 2px 0;
+  transition: height .4s var(--ease-out);
+}
+.bento-card:hover {
+  border-color: rgba(51,209,122,.2);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(0,0,0,.4), 0 0 0 1px rgba(51,209,122,.06);
+}
+.bento-card:hover::before { height: 100%; }
+
+/* Hero card spans full width */
+.bento-card.span-2x2 { grid-column: 1 / -1; }
+/* Agents card spans 2 of 3 columns */
+.bento-card.span-2x1 { grid-column: span 2; }
+
+.bento-icon {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  margin-bottom: 20px;
+}
+.bento-icon.green  { background: var(--accent-dim); }
+.bento-icon.purple { background: var(--purple-dim); }
+.bento-icon.cyan   { background: var(--cyan-dim); }
+.bento-icon.blue   { background: var(--user-dim); }
+.bento-icon.amber  { background: rgba(240,180,41,.08); }
+
+.bento-card h3 {
+  font-family: var(--ff-display);
+  font-size: clamp(18px, 2vw, 22px);
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 8px;
+}
+.bento-card p {
+  font-size: 14px;
+  color: var(--text-sec);
+  line-height: 1.6;
+}
+.bento-card .bento-tags {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 16px;
+}
+.bento-tag {
+  padding: 3px 10px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* Hero card mini terminal */
+.bento-terminal {
+  margin-top: 20px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.bento-terminal-bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,.02);
+  border-bottom: 1px solid var(--border);
+}
+.bento-terminal-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+.bento-terminal-dot.r { background: #ed333b; }
+.bento-terminal-dot.y { background: #f0b429; }
+.bento-terminal-dot.g { background: #33d17a; }
+.bento-terminal-body {
+  padding: 16px;
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--text-sec);
+}
+.bento-terminal-body .t-prompt { color: var(--accent); }
+.bento-terminal-body .t-cmd { color: var(--text); }
+.bento-terminal-body .t-out { color: var(--text-dim); }
+.bento-terminal-body .t-accent { color: var(--accent); }
+
+/* ═══════════════════════════════════════════
+   AGENT FLOW
+   ═══════════════════════════════════════════ */
+.agent-flow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  position: relative;
+  margin-top: 20px;
+}
+.agent-flow::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 8%; right: 8%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--cyan), var(--purple), var(--user));
+  opacity: .3;
+  z-index: 0;
+}
+.flow-node {
+  position: relative; z-index: 1;
+  text-align: center;
+  padding: 0 12px;
+}
+.flow-dot {
+  width: 56px; height: 56px;
+  border-radius: 14px;
+  margin: 0 auto 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  border: 2px solid var(--border);
+  background: var(--bg-card);
+  transition: all .3s var(--ease-out);
+}
+.flow-node:nth-child(1) .flow-dot { border-color: rgba(51,209,122,.3); }
+.flow-node:nth-child(2) .flow-dot { border-color: rgba(86,212,221,.3); }
+.flow-node:nth-child(3) .flow-dot { border-color: rgba(198,159,245,.3); }
+.flow-node:nth-child(4) .flow-dot { border-color: rgba(123,155,245,.3); }
+
+.flow-node:hover .flow-dot {
+  transform: translateY(-4px) scale(1.08);
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+}
+
+.flow-node h4 {
+  font-family: var(--ff-display);
+  font-size: 15px; font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.flow-node p {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.flow-arrow {
+  display: none; /* Handled by the gradient line */
+}
+
+/* ═══════════════════════════════════════════
+   TERMINAL DEMO
+   ═══════════════════════════════════════════ */
+.terminal-demo {
+  max-width: 680px;
+  margin: 0 auto;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 80px rgba(0,0,0,.5), 0 0 0 1px rgba(51,209,122,.04);
+}
+.terminal-titlebar {
+  display: flex; align-items: center;
+  padding: 12px 16px;
+  background: #0e0f14;
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
+}
+.terminal-titlebar .dots { display: flex; gap: 6px; }
+.terminal-titlebar .dot {
+  width: 10px; height: 10px; border-radius: 50%;
+}
+.terminal-titlebar .dot.r { background: #ed333b; }
+.terminal-titlebar .dot.y { background: #f0b429; }
+.terminal-titlebar .dot.g { background: #33d17a; }
+.terminal-titlebar .title {
+  flex: 1; text-align: center;
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.terminal-body {
+  background: var(--bg);
+  padding: clamp(20px, 4vw, 32px);
+  font-family: var(--ff-mono);
+  font-size: clamp(12px, 1.4vw, 14px);
+  line-height: 2;
+  min-height: 260px;
+}
+.terminal-line {
+  opacity: 0;
+  transform: translateY(4px);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.terminal-line.visible {
+  opacity: 1;
+  transform: none;
+  transition: all .4s var(--ease-out);
+}
+.terminal-line .prompt { color: var(--accent); }
+.terminal-line .path { color: var(--cyan); }
+.terminal-line .cmd { color: #fff; }
+.terminal-line .out { color: var(--text-dim); }
+.terminal-line .url { color: var(--accent); text-decoration: underline; }
+.terminal-line .success { color: var(--accent); }
+.terminal-line .version { color: var(--purple); }
+.terminal-cursor {
+  display: inline-block;
+  width: 8px; height: 16px;
+  background: var(--accent);
+  animation: cursorBlink 1s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+}
+
+/* ═══════════════════════════════════════════
+   FEATURE GRID
+   ═══════════════════════════════════════════ */
+.feature-categories {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+/* Let the last card (if odd count) center itself */
+.feature-categories > :last-child:nth-child(3n - 1) {
+  grid-column: 2;
+}
+.feature-cat {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  transition: all .3s var(--ease-out);
+}
+.feature-cat:hover {
+  border-color: rgba(51,209,122,.12);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,.3);
+}
+.feature-cat-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.feature-cat-icon {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+.feature-cat-name {
+  font-family: var(--ff-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  flex: 1;
+}
+.feature-cat-count {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 2px 8px;
+  background: rgba(255,255,255,.03);
+  border-radius: 10px;
+}
+.feature-list {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.feature-item {
+  font-size: 13px;
+  color: var(--text-sec);
+  padding: 4px 0;
+  display: flex; align-items: baseline; gap: 8px;
+}
+.feature-item::before {
+  content: '>';
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════
+   PLUGIN SECTION
+   ═══════════════════════════════════════════ */
+.plugin-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(32px, 5vw, 64px);
+  align-items: center;
+}
+.plugin-points {
+  display: flex; flex-direction: column; gap: 20px;
+}
+.plugin-point {
+  display: flex; gap: 14px; align-items: flex-start;
+}
+.plugin-point-num {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  background: var(--accent-dim);
+  border: 1px solid var(--border-glow);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.plugin-point h4 {
+  font-family: var(--ff-display);
+  font-size: 15px; font-weight: 600;
+  color: #fff; margin-bottom: 2px;
+}
+.plugin-point p { font-size: 13px; color: var(--text-sec); }
+
+.plugin-code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.plugin-code-header {
+  padding: 10px 16px;
+  background: rgba(255,255,255,.02);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+.plugin-code-body {
+  padding: 20px;
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--text-sec);
+  overflow-x: auto;
+}
+.plugin-code-body .kw { color: var(--purple); }
+.plugin-code-body .fn { color: var(--cyan); }
+.plugin-code-body .str { color: var(--accent); }
+.plugin-code-body .cmt { color: var(--text-dim); font-style: italic; }
+.plugin-code-body .prop { color: var(--user); }
+.plugin-code-body .punc { color: var(--text-dim); }
+
+.plugin-grid {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin-top: 28px;
+}
+.plugin-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--text-sec);
+  transition: all .2s;
+}
+.plugin-chip:hover {
+  border-color: var(--text-dim);
+  color: var(--text);
+}
+.plugin-chip span { font-size: 15px; }
+
+/* ═══════════════════════════════════════════
+   ARCHITECTURE
+   ═══════════════════════════════════════════ */
+.arch-flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 40px;
+  flex-wrap: wrap;
+}
+.arch-node {
+  padding: 14px 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--ff-mono);
+  font-size: 14px;
+  color: var(--text);
+  text-align: center;
+  white-space: nowrap;
+  transition: all .3s;
+}
+.arch-node:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 16px rgba(51,209,122,.1);
+}
+.arch-arrow {
+  font-family: var(--ff-mono);
+  font-size: 18px;
+  color: var(--text-dim);
+  padding: 0 12px;
+}
+.arch-badges {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  justify-content: center;
+}
+.arch-badge {
+  padding: 8px 18px;
+  background: rgba(255,255,255,.02);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  color: var(--text-sec);
+  display: flex; align-items: center; gap: 6px;
+}
+.arch-badge .arch-badge-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+/* ═══════════════════════════════════════════
+   QUICK START
+   ═══════════════════════════════════════════ */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.step {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px 28px;
+  position: relative;
+  transition: all .3s var(--ease-out);
+}
+.step:hover {
+  border-color: rgba(51,209,122,.2);
+  transform: translateY(-4px);
+}
+.step-num {
+  font-family: var(--ff-display);
+  font-size: 48px;
+  font-weight: 700;
+  color: rgba(51,209,122,.1);
+  line-height: 1;
+  margin-bottom: 16px;
+}
+.step h3 {
+  font-family: var(--ff-display);
+  font-size: 18px; font-weight: 600;
+  color: #fff; margin-bottom: 8px;
+}
+.step p {
+  font-size: 14px;
+  color: var(--text-sec);
+  line-height: 1.6;
+}
+.step code {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 6px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════
+   FINAL CTA
+   ═══════════════════════════════════════════ */
+.cta-section {
+  text-align: center;
+  padding: clamp(60px, 8vw, 100px) clamp(20px, 5vw, 80px);
+  position: relative;
+  overflow: hidden;
+}
+.cta-section::before {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 50%; translate: -50% 50%;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(51,209,122,.05) 0%, transparent 65%);
+  pointer-events: none;
+}
+.cta-mascot {
+  width: 80px; margin: 0 auto 24px;
+  image-rendering: pixelated;
+  animation: mascotFloat 4s ease-in-out infinite;
+  filter: drop-shadow(0 8px 24px rgba(51,209,122,.12));
+}
+.cta-section h2 {
+  font-family: var(--ff-display);
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 12px;
+}
+.cta-section p {
+  font-size: 17px;
+  color: var(--text-sec);
+  margin-bottom: 32px;
+}
+
+/* ═══════════════════════════════════════════
+   FOOTER
+   ═══════════════════════════════════════════ */
+.footer {
+  border-top: 1px solid var(--border);
+  padding: 32px clamp(20px, 5vw, 80px);
+  text-align: center;
+}
+.footer-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 16px;
+}
+.footer-brand {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--ff-display);
+  font-size: 14px; color: var(--text-dim);
+}
+.footer-brand img {
+  width: 20px; image-rendering: pixelated;
+}
+.footer-links {
+  display: flex; gap: 24px;
+}
+.footer-links a {
+  font-size: 13px;
+  color: var(--text-dim);
+  transition: color .2s;
+}
+.footer-links a:hover { color: var(--text); }
+.footer-copy {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* ═══════════════════════════════════════════
+   SCROLL REVEAL
+   ═══════════════════════════════════════════ */
+.reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity .7s var(--ease-out), transform .7s var(--ease-out);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: none;
+}
+.reveal-delay-1 { transition-delay: .1s; }
+.reveal-delay-2 { transition-delay: .2s; }
+.reveal-delay-3 { transition-delay: .3s; }
+.reveal-delay-4 { transition-delay: .4s; }
+.reveal-delay-5 { transition-delay: .5s; }
+.reveal-delay-6 { transition-delay: .6s; }
+
+/* ═══════════════════════════════════════════
+   KEYFRAMES
+   ═══════════════════════════════════════════ */
+@keyframes mascotFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+@keyframes gridPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .6; }
+}
+@keyframes glowBreathe {
+  0%, 100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  50% { opacity: .6; transform: translate(-50%, 0) scale(1.1); }
+}
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+@keyframes fadeInHero {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+
+.hero-content > * {
+  animation: fadeInHero .8s var(--ease-out) both;
+}
+.hero-mascot { animation-delay: 0s; animation-name: fadeInHero, mascotFloat; animation-duration: .8s, 4s; animation-timing-function: var(--ease-out), ease-in-out; animation-iteration-count: 1, infinite; animation-fill-mode: both, none; animation-delay: 0s, .8s; }
+.hero h1 { animation-delay: .1s; }
+.hero-tagline { animation-delay: .2s; }
+.hero-sub { animation-delay: .3s; }
+.hero-actions { animation-delay: .4s; }
+.hero-terminal { animation-delay: .55s; }
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  .bento { grid-template-columns: repeat(2, 1fr); }
+  .bento-card.span-2x2 { grid-column: 1 / -1; }
+  .bento-card.span-2x1 { grid-column: span 2; }
+  .feature-categories { grid-template-columns: repeat(2, 1fr); }
+  .feature-categories > :last-child:nth-child(3n - 1) { grid-column: auto; }
+  .plugin-split { grid-template-columns: 1fr; }
+  .agent-flow { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+  .agent-flow::before { display: none; }
+}
+
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .nav-hamburger { display: flex; }
+  .nav-links.open {
+    display: flex;
+    flex-direction: column;
+    position: fixed; top: 64px; left: 0; right: 0;
+    background: rgba(5,5,8,.95);
+    backdrop-filter: blur(20px);
+    padding: 24px;
+    gap: 20px;
+    border-bottom: 1px solid var(--border);
+    z-index: 99;
+  }
+  .bento { grid-template-columns: 1fr; }
+  .bento-card.span-2x2,
+  .bento-card.span-2x1 { grid-column: 1; }
+  .steps { grid-template-columns: 1fr; }
+  .feature-categories { grid-template-columns: 1fr; }
+  .feature-categories > :last-child:nth-child(3n - 1) { grid-column: auto; }
+  .arch-flow { flex-direction: column; gap: 8px; }
+  .arch-arrow { transform: rotate(90deg); }
+  .stat-platforms { display: none; }
+  .agent-flow { grid-template-columns: 1fr 1fr; }
+  .footer-inner { flex-direction: column; text-align: center; }
+}
+
+@media (max-width: 480px) {
+  .hero { padding: 80px 16px 32px; }
+  .hero-mascot { width: 140px; margin-bottom: 24px; }
+  .hero h1 { font-size: 40px; }
+  .hero-sub { margin-bottom: 28px; }
+  .hero-actions { flex-direction: column; width: 100%; }
+  .hero-actions .btn-primary,
+  .hero-actions .btn-secondary { width: 100%; justify-content: center; }
+  .stats-inner { flex-direction: column; gap: 12px; }
+  .agent-flow { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════ NAV ═══════ -->
+<nav class="nav">
+  <a href="#" class="nav-logo">
+    <img src="images/whaly.png" alt="Whaly" width="32" height="22">
+    Claudeck
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="#features">Features</a>
+    <a href="#agents">Agents</a>
+    <a href="#plugins">Plugins</a>
+    <a href="https://github.com/hamedafarag/claudeck" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://www.npmjs.com/package/claudeck" target="_blank" rel="noopener" class="nav-cta">npx claudeck</a>
+  </div>
+  <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<!-- ═══════ HERO ═══════ -->
+<section class="hero">
+  <div class="hero-content">
+    <img src="images/whaly.png" alt="Whaly — Claudeck mascot" class="hero-mascot" id="heroWhaly" width="200" height="138">
+    <h1><span class="glow">Claudeck</span></h1>
+    <p class="hero-tagline">The browser UI for Claude Code</p>
+    <p class="hero-sub">Chat, agents, workflows, cost tracking — all from your browser. Zero framework. No build step.</p>
+    <div class="hero-actions">
+      <a href="https://www.npmjs.com/package/claudeck" target="_blank" rel="noopener" class="btn-primary">
+        Get Started
+      </a>
+      <a href="https://github.com/hamedafarag/claudeck" target="_blank" rel="noopener" class="btn-secondary">
+        <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub <span id="heroStars"></span>
+      </a>
+    </div>
+    <div class="hero-terminal">
+      <span class="prompt">$</span>
+      <span class="cmd">npx claudeck</span>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('npx claudeck').then(()=>{this.querySelector('svg').style.color='var(--accent)';setTimeout(()=>this.querySelector('svg').style.color='',1200)})" aria-label="Copy command">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ STATS STRIP ═══════ -->
+<div class="stats-strip">
+  <div class="stats-inner">
+    <a href="https://github.com/hamedafarag/claudeck/stargazers" target="_blank" rel="noopener" class="stat-stars" id="statStars">
+      <svg viewBox="0 0 16 16"><path d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.72-4.194L.818 6.374a.75.75 0 01.416-1.28l4.21-.611L7.327.668A.75.75 0 018 .25z"/></svg>
+      <span id="starCount">--</span> stars
+    </a>
+    <span class="stat-badge">
+      <svg viewBox="0 0 16 16"><path d="M1 2.5A2.5 2.5 0 013.5 0h8.44a.75.75 0 01.53.22l3.56 3.56a.75.75 0 01.22.53V14a1 1 0 01-1 1H3.5A2.5 2.5 0 011 12.5v-10z"/></svg>
+      v<span id="npmVersion">--</span>
+    </span>
+    <div class="stat-item">
+      <span class="stat-dot"></span>
+      <span class="stat-value">0</span> frameworks
+    </div>
+    <div class="stat-item">
+      <span class="stat-dot"></span>
+      <span class="stat-value">6</span> dependencies
+    </div>
+    <div class="stat-item">
+      <span class="stat-dot"></span>
+      <span class="stat-value">0</span> build steps
+    </div>
+    <div class="stat-platforms">
+      <span>macOS</span>
+      <span>Linux</span>
+      <span>Windows</span>
+      <span>PWA</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ FEATURES BENTO ═══════ -->
+<div id="features">
+<section class="section">
+  <div class="section-header reveal">
+    <div class="section-label">Features</div>
+    <h2 class="section-title">Everything you need.<br>Nothing you don't.</h2>
+    <p class="section-desc">A complete development environment built on vanilla JS. No framework baggage, no build complexity.</p>
+  </div>
+
+  <div class="bento">
+    <div class="bento-card span-2x2 reveal reveal-delay-1">
+      <div class="bento-icon green">&#9671;</div>
+      <h3>Real-time Chat</h3>
+      <p>WebSocket streaming with session persistence. Parallel 2&times;2 mode for running 4 conversations at once. Background sessions that keep running when you switch away.</p>
+      <div class="bento-terminal">
+        <div class="bento-terminal-bar">
+          <span class="bento-terminal-dot r"></span>
+          <span class="bento-terminal-dot y"></span>
+          <span class="bento-terminal-dot g"></span>
+        </div>
+        <div class="bento-terminal-body">
+          <div><span class="t-prompt">&gt;</span> <span class="t-cmd">review the auth middleware</span></div>
+          <div><span class="t-out">&#x25B8; Reading src/middleware/auth.js</span></div>
+          <div><span class="t-out">&#x25B8; Analyzing 3 security patterns...</span></div>
+          <div><span class="t-accent">&#10003; Found 2 improvements</span></div>
+        </div>
+      </div>
+      <div class="bento-tags">
+        <span class="bento-tag">streaming</span>
+        <span class="bento-tag">parallel mode</span>
+        <span class="bento-tag">background sessions</span>
+        <span class="bento-tag">voice input</span>
+      </div>
+    </div>
+
+    <div class="bento-card reveal reveal-delay-2">
+      <div class="bento-icon amber">&#36;</div>
+      <h3>Cost Visibility</h3>
+      <p>Per-session cost tracking, daily timeline charts, input/output token breakdowns, and error pattern analysis.</p>
+      <div class="bento-tags">
+        <span class="bento-tag">per-session</span>
+        <span class="bento-tag">30-day charts</span>
+      </div>
+    </div>
+
+    <div class="bento-card reveal reveal-delay-3">
+      <div class="bento-icon cyan">&#128194;</div>
+      <h3>Files &amp; Git</h3>
+      <p>Lazy-loaded file explorer with syntax preview. Git panel with branch switching, staging, commit, and log.</p>
+      <div class="bento-tags">
+        <span class="bento-tag">tree view</span>
+        <span class="bento-tag">git panel</span>
+      </div>
+    </div>
+
+    <div class="bento-card reveal reveal-delay-4">
+      <div class="bento-icon purple">&#9881;</div>
+      <h3>Autonomous Agents</h3>
+      <p>4 built-in agents with chains, DAGs, and an orchestrator that auto-decomposes complex tasks.</p>
+      <div class="bento-tags">
+        <span class="bento-tag">single agents</span>
+        <span class="bento-tag">chains</span>
+        <span class="bento-tag">DAGs</span>
+        <span class="bento-tag">orchestrator</span>
+      </div>
+    </div>
+
+    <div class="bento-card reveal reveal-delay-5">
+      <div class="bento-icon cyan">&#129504;</div>
+      <h3>Persistent Memory</h3>
+      <p>Claude remembers across sessions. Auto-captures conventions, decisions, and warnings with FTS5 search.</p>
+      <div class="bento-tags">
+        <span class="bento-tag">cross-session</span>
+        <span class="bento-tag">auto-capture</span>
+        <span class="bento-tag">FTS5 search</span>
+        <span class="bento-tag">AI optimize</span>
+      </div>
+    </div>
+
+    <div class="bento-card reveal reveal-delay-5">
+      <div class="bento-icon blue">&#128268;</div>
+      <h3>Plugin System</h3>
+      <p>Full-stack Tab SDK with hot reload. Marketplace UI for enabling, disabling, and reordering plugins.</p>
+      <div class="bento-tags">
+        <span class="bento-tag">tab SDK</span>
+        <span class="bento-tag">marketplace</span>
+      </div>
+    </div>
+
+    <div class="bento-card reveal reveal-delay-6">
+      <div class="bento-icon green">&#127760;</div>
+      <h3>Works Everywhere</h3>
+      <p>Installable as a PWA. Mobile responsive. Telegram bot for AFK tool approval from your phone.</p>
+      <div class="bento-tags">
+        <span class="bento-tag">PWA</span>
+        <span class="bento-tag">mobile</span>
+        <span class="bento-tag">Telegram</span>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- ═══════ AGENT ORCHESTRATION ═══════ -->
+<div class="section-alt" id="agents">
+<section class="section">
+  <div class="section-header reveal">
+    <div class="section-label">Agent Orchestration</div>
+    <h2 class="section-title">From single agent<br>to full orchestra.</h2>
+    <p class="section-desc">Four levels of agent autonomy. Start simple, scale to complex multi-agent workflows with visual dependency graphs.</p>
+  </div>
+
+  <div class="agent-flow reveal">
+    <div class="flow-node reveal-delay-1">
+      <div class="flow-dot">&#9673;</div>
+      <h4>Single Agent</h4>
+      <p>Give it a goal.<br>It runs autonomously.</p>
+    </div>
+    <div class="flow-node reveal-delay-2">
+      <div class="flow-dot">&#8594;</div>
+      <h4>Chain</h4>
+      <p>Sequential pipeline.<br>Context flows forward.</p>
+    </div>
+    <div class="flow-node reveal-delay-3">
+      <div class="flow-dot">&#9672;</div>
+      <h4>DAG</h4>
+      <p>Visual dependency graph.<br>Parallel execution.</p>
+    </div>
+    <div class="flow-node reveal-delay-4">
+      <div class="flow-dot">&#9733;</div>
+      <h4>Orchestrator</h4>
+      <p>Describe a task.<br>It auto-delegates.</p>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- ═══════ TERMINAL DEMO ═══════ -->
+<section class="section" style="text-align:center;">
+  <div class="section-header reveal" style="text-align:left;">
+    <div class="section-label">Quick Start</div>
+    <h2 class="section-title">One command. That's it.</h2>
+    <p class="section-desc">No config files. No environment variables. No build process. Just run it.</p>
+  </div>
+
+  <div class="terminal-demo reveal reveal-delay-1" id="terminalDemo">
+    <div class="terminal-titlebar">
+      <div class="dots">
+        <span class="dot r"></span>
+        <span class="dot y"></span>
+        <span class="dot g"></span>
+      </div>
+      <span class="title">Terminal</span>
+      <span style="width:40px;"></span>
+    </div>
+    <div class="terminal-body" id="terminalBody">
+      <div class="terminal-line" data-delay="200">
+        <span class="prompt">~</span> <span class="path">&#10095;</span> <span class="cmd">npx claudeck</span>
+      </div>
+      <div class="terminal-line" data-delay="800">
+        <span class="out">Need to install the following packages:</span>
+      </div>
+      <div class="terminal-line" data-delay="1100">
+        <span class="out">&nbsp;&nbsp;claudeck@<span class="version">1.0.7</span></span>
+      </div>
+      <div class="terminal-line" data-delay="1500">
+        <span class="out">Ok to proceed? (y) </span><span class="cmd">y</span>
+      </div>
+      <div class="terminal-line" data-delay="2200"><span class="out">&nbsp;</span></div>
+      <div class="terminal-line" data-delay="2500">
+        <span class="success">&#10003; Claudeck running on port 9009</span>
+      </div>
+      <div class="terminal-line" data-delay="2900">
+        <span class="success">&#10003; Open </span><span class="url">http://localhost:9009</span>
+      </div>
+      <div class="terminal-line" data-delay="3400"><span class="out">&nbsp;</span></div>
+      <div class="terminal-line" data-delay="3600">
+        <span class="prompt">~</span> <span class="path">&#10095;</span> <span class="terminal-cursor"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ ALL FEATURES ═══════ -->
+<div class="section-alt" id="allfeatures">
+<section class="section">
+  <div class="section-header reveal">
+    <div class="section-label">56 Features</div>
+    <h2 class="section-title">Batteries included.</h2>
+    <p class="section-desc">Everything a developer needs, organized by what you're doing.</p>
+  </div>
+
+  <div class="feature-categories">
+    <div class="feature-cat reveal reveal-delay-1">
+      <div class="feature-cat-header">
+        <div class="feature-cat-icon green" style="background:var(--accent-dim);font-size:13px;">&#9671;</div>
+        <span class="feature-cat-name">Chat &amp; Sessions</span>
+        <span class="feature-cat-count">10</span>
+      </div>
+      <div class="feature-list">
+        <div class="feature-item">WebSocket streaming with reconnect</div>
+        <div class="feature-item">Parallel mode (2&times;2 grid)</div>
+        <div class="feature-item">Background sessions</div>
+        <div class="feature-item">Session search, pin, rename</div>
+        <div class="feature-item">Voice input (Web Speech API)</div>
+        <div class="feature-item">Image &amp; file attachments</div>
+        <div class="feature-item">AI-generated session summaries</div>
+        <div class="feature-item">Code diff viewer (LCS-based)</div>
+        <div class="feature-item">Mermaid diagram rendering</div>
+        <div class="feature-item">Export to Markdown / HTML</div>
+      </div>
+    </div>
+
+    <div class="feature-cat reveal reveal-delay-2">
+      <div class="feature-cat-header">
+        <div class="feature-cat-icon" style="background:var(--purple-dim);font-size:13px;">&#9881;</div>
+        <span class="feature-cat-name">Agents &amp; Orchestration</span>
+        <span class="feature-cat-count">8</span>
+      </div>
+      <div class="feature-list">
+        <div class="feature-item">4 built-in agents</div>
+        <div class="feature-item">Sequential chains with context</div>
+        <div class="feature-item">Visual DAG editor</div>
+        <div class="feature-item">Auto-decompose orchestrator</div>
+        <div class="feature-item">Agent monitor dashboard</div>
+        <div class="feature-item">4 multi-step workflows</div>
+        <div class="feature-item">Custom agent definitions</div>
+        <div class="feature-item">Shared context (SQLite-backed)</div>
+      </div>
+    </div>
+
+    <div class="feature-cat reveal reveal-delay-3">
+      <div class="feature-cat-header">
+        <div class="feature-cat-icon" style="background:var(--cyan-dim);font-size:13px;">&#128194;</div>
+        <span class="feature-cat-name">Code &amp; Files</span>
+        <span class="feature-cat-count">8</span>
+      </div>
+      <div class="feature-list">
+        <div class="feature-item">Lazy-loaded file explorer</div>
+        <div class="feature-item">Syntax-highlighted preview</div>
+        <div class="feature-item">Git branch, stage, commit, log</div>
+        <div class="feature-item">Repos manager with groups</div>
+        <div class="feature-item">Drag-to-chat file attachment</div>
+        <div class="feature-item">MCP server management</div>
+        <div class="feature-item">Project commands &amp; skills</div>
+        <div class="feature-item">Per-project system prompts</div>
+      </div>
+    </div>
+
+    <div class="feature-cat reveal reveal-delay-4">
+      <div class="feature-cat-header">
+        <div class="feature-cat-icon" style="background:rgba(240,180,41,.08);font-size:13px;">&#36;</div>
+        <span class="feature-cat-name">Analytics &amp; Cost</span>
+        <span class="feature-cat-count">7</span>
+      </div>
+      <div class="feature-list">
+        <div class="feature-item">Per-session cost tracking</div>
+        <div class="feature-item">Daily timeline charts (30-day)</div>
+        <div class="feature-item">Token breakdown (in/out/cache)</div>
+        <div class="feature-item">Error pattern analysis (9 categories)</div>
+        <div class="feature-item">Tool usage stats</div>
+        <div class="feature-item">Context gauge (token usage bar)</div>
+        <div class="feature-item">Streaming token counter</div>
+      </div>
+    </div>
+
+    <div class="feature-cat reveal reveal-delay-5">
+      <div class="feature-cat-header">
+        <div class="feature-cat-icon" style="background:var(--user-dim);font-size:13px;">&#128268;</div>
+        <span class="feature-cat-name">Integrations</span>
+        <span class="feature-cat-count">6</span>
+      </div>
+      <div class="feature-list">
+        <div class="feature-item">Telegram (two-way AFK approval)</div>
+        <div class="feature-item">Linear issue tracking</div>
+        <div class="feature-item">Push notifications (web-push)</div>
+        <div class="feature-item">16 prompt templates</div>
+        <div class="feature-item">40+ slash commands</div>
+        <div class="feature-item">Notification sound chime</div>
+      </div>
+    </div>
+
+    <div class="feature-cat reveal reveal-delay-6">
+      <div class="feature-cat-header">
+        <div class="feature-cat-icon" style="background:var(--cyan-dim);font-size:13px;">&#129504;</div>
+        <span class="feature-cat-name">Persistent Memory</span>
+        <span class="feature-cat-count">7</span>
+      </div>
+      <div class="feature-list">
+        <div class="feature-item">Cross-session memory persistence</div>
+        <div class="feature-item">Auto-capture from assistant output</div>
+        <div class="feature-item">4 categories: convention, decision, discovery, warning</div>
+        <div class="feature-item">FTS5 full-text search</div>
+        <div class="feature-item">AI-powered memory optimization</div>
+        <div class="feature-item">Relevance decay &amp; maintenance</div>
+        <div class="feature-item">/remember command for manual saves</div>
+      </div>
+    </div>
+
+    <div class="feature-cat reveal reveal-delay-6">
+      <div class="feature-cat-header">
+        <div class="feature-cat-icon green" style="background:var(--accent-dim);font-size:13px;">&#10024;</div>
+        <span class="feature-cat-name">UI &amp; Experience</span>
+        <span class="feature-cat-count">10</span>
+      </div>
+      <div class="feature-list">
+        <div class="feature-item">Dark + light theme</div>
+        <div class="feature-item">Installable as PWA</div>
+        <div class="feature-item">Mobile responsive</div>
+        <div class="feature-item">Plugin marketplace</div>
+        <div class="feature-item">Welcome screen + guided tour</div>
+        <div class="feature-item">Keyboard shortcuts</div>
+        <div class="feature-item">VS Code-style status bar</div>
+        <div class="feature-item">Tab SDK for extensions</div>
+        <div class="feature-item">4 permission modes</div>
+        <div class="feature-item">Floating assistant bot</div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- ═══════ PLUGINS ═══════ -->
+<section class="section" id="plugins">
+  <div class="section-header reveal">
+    <div class="section-label">Extensible</div>
+    <h2 class="section-title">Build your own.<br>No fork needed.</h2>
+    <p class="section-desc">Drop files in <code style="font-family:var(--ff-mono);color:var(--accent);background:var(--accent-dim);padding:2px 8px;border-radius:4px;">~/.claudeck/plugins/</code> and you're live. Hot reload included.</p>
+  </div>
+
+  <div class="plugin-split">
+    <div class="plugin-points reveal">
+      <div class="plugin-point">
+        <div class="plugin-point-num">1</div>
+        <div>
+          <h4>Register a tab</h4>
+          <p>One function call creates your tab button, panel, and lifecycle hooks.</p>
+        </div>
+      </div>
+      <div class="plugin-point">
+        <div class="plugin-point-num">2</div>
+        <div>
+          <h4>Add server routes</h4>
+          <p>Optional <code style="font-family:var(--ff-mono);color:var(--accent);font-size:12px;">server.js</code> auto-mounts at <code style="font-family:var(--ff-mono);color:var(--accent);font-size:12px;">/api/plugins/&lt;name&gt;/</code>. Plugins get access to the event bus, reactive store, and all REST APIs via the Tab SDK context.</p>
+        </div>
+      </div>
+      <div class="plugin-point">
+        <div class="plugin-point-num">3</div>
+        <div>
+          <h4>Let Claude scaffold it</h4>
+          <p>Install the <a href="https://github.com/hamedafarag/claudeck-skills/" target="_blank" rel="noopener">Claudeck skills</a> via <a href="https://skills.sh/" target="_blank" rel="noopener">skills.sh</a>:</p>
+          <code style="display:inline-block;margin-top:8px;padding:6px 14px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-family:var(--ff-mono);font-size:13px;color:var(--accent);">npx skills.sh install hamedafarag/claudeck-skills</code>
+          <p style="margin-top:8px;">Then ask Claude to create a plugin:</p>
+          <code style="display:inline-block;margin-top:4px;padding:6px 14px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-family:var(--ff-mono);font-size:13px;color:var(--accent);">/claudeck-plugin-create &lt;plugin-name&gt; &lt;short description of what the plugin does&gt;</code>
+          <p style="margin-top:6px;font-size:12px;color:var(--text-dim);">Claude generates client.js, server.js, and CSS for you automatically.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="plugin-code reveal reveal-delay-2">
+      <div class="plugin-code-header">client.js</div>
+      <div class="plugin-code-body"><span class="kw">export default function</span> <span class="fn">register</span><span class="punc">(</span><span class="prop">registerTab</span><span class="punc">) {</span>
+  <span class="fn">registerTab</span><span class="punc">({</span>
+    <span class="prop">id</span><span class="punc">:</span>    <span class="str">'my-widget'</span><span class="punc">,</span>
+    <span class="prop">title</span><span class="punc">:</span> <span class="str">'My Widget'</span><span class="punc">,</span>
+    <span class="prop">icon</span><span class="punc">:</span>  <span class="str">'&#9733;'</span><span class="punc">,</span>
+    <span class="fn">init</span><span class="punc">(</span><span class="prop">ctx</span><span class="punc">) {</span>
+      <span class="cmt">// ctx gives you event bus, store,</span>
+      <span class="cmt">// API module, badge helpers</span>
+      <span class="prop">ctx</span><span class="punc">.</span><span class="prop">container</span><span class="punc">.</span><span class="prop">innerHTML</span> <span class="punc">=</span>
+        <span class="str">'&lt;h2&gt;Hello from my plugin!&lt;/h2&gt;'</span><span class="punc">;</span>
+    <span class="punc">}</span>
+  <span class="punc">});</span>
+<span class="punc">}</span></div>
+    </div>
+  </div>
+
+  <div class="plugin-grid reveal reveal-delay-3">
+    <div class="plugin-chip"><span>&#128203;</span> Tasks</div>
+    <div class="plugin-chip"><span>&#128279;</span> Linear</div>
+    <div class="plugin-chip"><span>&#128193;</span> Repos</div>
+    <div class="plugin-chip"><span>&#9998;</span> Claude Editor</div>
+    <div class="plugin-chip"><span>&#9889;</span> Event Stream</div>
+    <div class="plugin-chip"><span>&#127918;</span> Sudoku</div>
+    <div class="plugin-chip"><span>&#10006;</span> Tic-Tac-Toe</div>
+  </div>
+</section>
+
+<!-- ═══════ ARCHITECTURE ═══════ -->
+<div class="section-alt">
+<section class="section" style="text-align:center;">
+  <div class="section-header reveal" style="text-align:left;">
+    <div class="section-label">Architecture</div>
+    <h2 class="section-title">Radically simple.</h2>
+    <p class="section-desc">No React. No Webpack. No build step. Just ES modules, Express, and SQLite.</p>
+  </div>
+
+  <div class="arch-flow reveal reveal-delay-1">
+    <div class="arch-node">Browser</div>
+    <span class="arch-arrow">&#8594;</span>
+    <div class="arch-node">WebSocket</div>
+    <span class="arch-arrow">&#8594;</span>
+    <div class="arch-node">Express</div>
+    <span class="arch-arrow">&#8594;</span>
+    <div class="arch-node">Claude Code SDK</div>
+  </div>
+
+  <div class="arch-badges reveal reveal-delay-2">
+    <div class="arch-badge"><span class="arch-badge-dot"></span>Node.js 18+</div>
+    <div class="arch-badge"><span class="arch-badge-dot"></span>Vanilla JS</div>
+    <div class="arch-badge"><span class="arch-badge-dot"></span>Express 4</div>
+    <div class="arch-badge"><span class="arch-badge-dot"></span>SQLite (WAL)</div>
+    <div class="arch-badge"><span class="arch-badge-dot"></span>WebSocket (ws 8)</div>
+    <div class="arch-badge"><span class="arch-badge-dot"></span>6 dependencies</div>
+  </div>
+</section>
+</div>
+
+<!-- ═══════ STEPS ═══════ -->
+<section class="section">
+  <div class="section-header reveal">
+    <div class="section-label">Get Started</div>
+    <h2 class="section-title">Three steps. Two minutes.</h2>
+  </div>
+
+  <div class="steps">
+    <div class="step reveal reveal-delay-1">
+      <div class="step-num">01</div>
+      <h3>Run one command</h3>
+      <p>No install needed. NPX handles everything.</p>
+      <code>npx claudeck</code>
+    </div>
+    <div class="step reveal reveal-delay-2">
+      <div class="step-num">02</div>
+      <h3>Pick a port</h3>
+      <p>Default 9009. Saved to <code style="background:none;border:none;padding:0;color:var(--accent);margin:0;">~/.claudeck/.env</code> for next time.</p>
+    </div>
+    <div class="step reveal reveal-delay-3">
+      <div class="step-num">03</div>
+      <h3>Start building</h3>
+      <p>Chat, agents, workflows, cost tracking — all ready to go.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ FINAL CTA ═══════ -->
+<div class="cta-section">
+  <img src="images/whaly.png" alt="Whaly" class="cta-mascot" width="80" height="55">
+  <h2>Ready to try Claudeck?</h2>
+  <p>One command. Zero config. MIT licensed.</p>
+  <div class="hero-actions" style="margin-bottom:0;">
+    <a href="https://www.npmjs.com/package/claudeck" target="_blank" rel="noopener" class="btn-primary">
+      npx claudeck
+    </a>
+    <a href="https://github.com/hamedafarag/claudeck" target="_blank" rel="noopener" class="btn-secondary">
+      <svg viewBox="0 0 16 16" style="width:18px;height:18px;fill:currentColor;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      View on GitHub
+    </a>
+  </div>
+</div>
+
+<!-- ═══════ FOOTER ═══════ -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <img src="images/whaly.png" alt="" width="20" height="14">
+      Built with Whaly
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/hamedafarag/claudeck" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://www.npmjs.com/package/claudeck" target="_blank" rel="noopener">npm</a>
+      <a href="https://github.com/hamedafarag/claudeck/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+      <a href="https://github.com/hamedafarag/claudeck/blob/main/docs/DOCUMENTATION.md" target="_blank" rel="noopener">Docs</a>
+    </div>
+    <div class="footer-copy">
+      By <a href="https://github.com/hamedafarag" target="_blank" rel="noopener">Hamed Farag</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ═══════════════════════════════════════════
+   GITHUB STARS + NPM VERSION
+   ═══════════════════════════════════════════ */
+async function fetchGitHubStats() {
+  try {
+    const res = await fetch('https://api.github.com/repos/hamedafarag/claudeck');
+    if (!res.ok) return;
+    const data = await res.json();
+    const stars = data.stargazers_count;
+    document.getElementById('starCount').textContent = stars.toLocaleString();
+    const heroStars = document.getElementById('heroStars');
+    if (heroStars) heroStars.textContent = `(${stars.toLocaleString()})`;
+  } catch {}
+}
+
+async function fetchNpmVersion() {
+  try {
+    const res = await fetch('https://registry.npmjs.org/claudeck/latest');
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById('npmVersion').textContent = data.version;
+  } catch {}
+}
+
+fetchGitHubStats();
+fetchNpmVersion();
+
+/* ═══════════════════════════════════════════
+   SCROLL REVEAL
+   ═══════════════════════════════════════════ */
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      revealObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+/* ═══════════════════════════════════════════
+   TERMINAL DEMO ANIMATION
+   ═══════════════════════════════════════════ */
+let terminalPlayed = false;
+const terminalObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting && !terminalPlayed) {
+      terminalPlayed = true;
+      const lines = document.querySelectorAll('#terminalBody .terminal-line');
+      lines.forEach(line => {
+        const delay = parseInt(line.dataset.delay) || 0;
+        setTimeout(() => line.classList.add('visible'), delay);
+      });
+    }
+  });
+}, { threshold: 0.3 });
+
+const termDemo = document.getElementById('terminalDemo');
+if (termDemo) terminalObserver.observe(termDemo);
+
+/* ═══════════════════════════════════════════
+   MOBILE NAV
+   ═══════════════════════════════════════════ */
+const hamburger = document.getElementById('hamburger');
+const navLinks = document.getElementById('navLinks');
+hamburger.addEventListener('click', () => {
+  navLinks.classList.toggle('open');
+});
+navLinks.querySelectorAll('a').forEach(link => {
+  link.addEventListener('click', (e) => {
+    navLinks.classList.remove('open');
+    const href = link.getAttribute('href');
+    if (href && href.startsWith('#')) {
+      e.preventDefault();
+      const target = document.querySelector(href);
+      if (target) target.scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+});
+
+/* ═══════════════════════════════════════════
+   WHALY EASTER EGG (wiggle on click)
+   ═══════════════════════════════════════════ */
+const heroWhaly = document.getElementById('heroWhaly');
+if (heroWhaly) {
+  heroWhaly.addEventListener('click', () => {
+    heroWhaly.style.animation = 'none';
+    heroWhaly.offsetHeight; // reflow
+    heroWhaly.style.transform = 'rotate(-10deg) scale(1.1)';
+    setTimeout(() => {
+      heroWhaly.style.transform = 'rotate(8deg) scale(1.05)';
+      setTimeout(() => {
+        heroWhaly.style.transform = '';
+        heroWhaly.style.animation = '';
+      }, 150);
+    }, 150);
+  });
+}
+
+/* ═══════════════════════════════════════════
+   NAV SCROLL STATE
+   ═══════════════════════════════════════════ */
+let ticking = false;
+window.addEventListener('scroll', () => {
+  if (!ticking) {
+    requestAnimationFrame(() => {
+      const nav = document.querySelector('.nav');
+      if (window.scrollY > 100) {
+        nav.style.background = 'rgba(5,5,8,.92)';
+        nav.style.borderBottomColor = 'var(--border)';
+      } else {
+        nav.style.background = 'rgba(5,5,8,.7)';
+      }
+      ticking = false;
+    });
+    ticking = true;
+  }
+});
+</script>
+</body>
+</html>
