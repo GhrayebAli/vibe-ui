@@ -196,7 +196,6 @@
     0 0 20px rgba(var(--accent-rgb, 99, 102, 241), 0.08);
   z-index: 1000;
   cursor: default;
-  overflow: hidden;
 }
 
 /* Gradient banner at top */
@@ -204,23 +203,20 @@
   content: "";
   display: block;
   height: 3px;
+  border-radius: 10px 10px 0 0;
   background: linear-gradient(90deg, #ff6b9d, var(--accent), #06b6d4, #a78bfa);
   background-size: 200% 100%;
   animation: gradientShift 3s linear infinite;
 }
 
-/* Arrow */
+/* Invisible bridge to keep popup open when moving mouse from icon to popup */
 .sb-credits-popup::after {
   content: "";
   position: absolute;
-  bottom: -5px;
-  right: 12px;
-  transform: rotate(45deg);
-  width: 8px;
-  height: 8px;
-  background: var(--bg-deep);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  bottom: -12px;
+  left: 0;
+  right: 0;
+  height: 12px;
 }
 
 @keyframes gradientShift {
@@ -306,6 +302,41 @@
   background-clip: text;
   font-weight: 700;
   font-size: 13px;
+}
+
+/* ── Ko-fi Link ──────────────────────────────────────── */
+.sb-credits-kofi {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 94, 91, 0.06);
+  color: #ff5e5b;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+  border-radius: 0 0 12px 12px;
+}
+
+.sb-credits-kofi:hover {
+  background: rgba(255, 94, 91, 0.15);
+  color: #ff7b79;
+}
+
+.sb-credits-kofi svg {
+  flex-shrink: 0;
+}
+
+html[data-theme="light"] .sb-credits-kofi {
+  background: rgba(255, 94, 91, 0.08);
+}
+
+html[data-theme="light"] .sb-credits-kofi:hover {
+  background: rgba(255, 94, 91, 0.16);
 }
 
 /* ── Cost Hint Popup ──────────────────────────────────── */
@@ -423,6 +454,5 @@ html[data-theme="light"] .sb-credits-popup {
 }
 
 html[data-theme="light"] .sb-credits-popup::after {
-  background: var(--bg-tertiary);
-  border-color: rgba(0, 0, 0, 0.1);
+  background: transparent;
 }
