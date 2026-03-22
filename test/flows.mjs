@@ -98,7 +98,7 @@ async function run() {
   await screenshot(page, "welcome-or-history");
 
   step("Check health indicators");
-  const healthDots = await page.$$eval(".h-dot", dots => dots.map(d => ({ class: d.className, visible: d.offsetWidth > 0 })));
+  const healthDots = await page.$$eval(".top-bar .h-dot", dots => dots.map(d => ({ class: d.className, visible: d.offsetWidth > 0 })));
   see(`${healthDots.length} health dots, ${healthDots.filter(d => d.class.includes("ok")).length} green`);
   check(healthDots.length === 3, "3 health dots present", `Expected 3 health dots, got ${healthDots.length}`);
   const allGreen = healthDots.every(d => d.class.includes("ok"));
