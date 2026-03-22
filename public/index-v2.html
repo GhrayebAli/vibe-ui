@@ -55,6 +55,8 @@
       </div>
     </div>
 
+    <!-- Chat + Overlays container -->
+    <div style="flex:1;position:relative;overflow:hidden">
     <!-- Chat Area -->
     <div class="chat-area" id="chat">
       <div class="welcome" id="welcome">
@@ -64,7 +66,7 @@
       <div class="starters" id="starters"></div>
     </div>
 
-    <!-- Overlays (slide over chat) -->
+    <!-- Overlays (slide over chat only) -->
     <div class="overlay" id="overlay-history">
       <div class="overlay-header"><h3>Version History</h3><button class="overlay-close">&times;</button></div>
       <div id="history-list"></div>
@@ -88,6 +90,7 @@
         </div>
       </div>
     </div>
+    </div><!-- end chat + overlays container -->
 
     <!-- Prompt Queue -->
     <div class="queue" id="queue"></div>
