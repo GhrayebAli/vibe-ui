@@ -299,28 +299,39 @@ app.get("/api/checkpoints", (_req, res) => {
 });
 
 // Inspect element at coordinates — for visual edit mode
+// Cached Playwright browser for element inspection — avoids 10s startup per click
+let inspectBrowser = null;
+let inspectPage = null;
+let inspectLastPath = null;
+
+async function getInspectPage(targetPath) {
+  if (!inspectBrowser) {
+    let chromium;
+    try { ({ chromium } = await import("playwright")); }
+    catch { ({ chromium } = await import("/workspaces/washmen-mvp-workspace/node_modules/playwright/index.mjs")); }
+    inspectBrowser = await chromium.launch();
+    inspectPage = await inspectBrowser.newPage({ viewport: { width: 1280, height: 720 } });
+    // Login once
+    await inspectPage.goto("http://localhost:3000", { waitUntil: "domcontentloaded", timeout: 15000 });
+    await inspectPage.evaluate(() => { localStorage.setItem("auth_token", "mock-jwt-token-usr-001"); });
+    console.log("[inspect] Browser cached and logged in");
+  }
+  // Navigate only if path changed
+  if (targetPath !== inspectLastPath) {
+    await inspectPage.goto("http://localhost:3000" + (targetPath || "/"), { waitUntil: "networkidle", timeout: 10000 }).catch(() => {});
+    await inspectPage.waitForTimeout(500);
+    inspectLastPath = targetPath;
+  }
+  return inspectPage;
+}
+
 app.post("/api/inspect-element", async (req, res) => {
   const { x, y, currentUrl } = req.body;
   if (x == null || y == null) return res.status(400).json({ error: "Missing x,y" });
 
   try {
-    let chromium;
-    try { ({ chromium } = await import("playwright")); }
-    catch { ({ chromium } = await import("/workspaces/washmen-mvp-workspace/node_modules/playwright/index.mjs")); }
-
-    const browser = await chromium.launch();
-    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-
-    // Navigate to the app and auto-login with mock token
-    await page.goto("http://localhost:3000", { waitUntil: "domcontentloaded", timeout: 15000 });
-    await page.evaluate(() => {
-      localStorage.setItem("auth_token", "mock-jwt-token-usr-001");
-    });
-
-    // Navigate to the same page the user is viewing
-    const targetPath = currentUrl ? new URL(currentUrl.startsWith("http") ? currentUrl : "http://localhost:3000" + currentUrl).pathname : "/";
-    await page.goto("http://localhost:3000" + targetPath, { waitUntil: "networkidle", timeout: 15000 });
-    await page.waitForTimeout(1500);
+    const targetPath = currentUrl ? (currentUrl.startsWith("http") ? new URL(currentUrl).pathname : (currentUrl.startsWith("/") ? currentUrl : "/" + currentUrl)) : "/";
+    const page = await getInspectPage(targetPath);
 
     // Scale coordinates from preview iframe size to actual page size
     // The preview iframe might be a different size than 1280x720
@@ -394,9 +405,8 @@ app.post("/api/inspect-element", async (req, res) => {
       };
     }, { cx: x, cy: y });
 
-    // Take a screenshot with a red dot at the click position
+    // Take a screenshot
     const screenshot = await page.screenshot({ type: "png" });
-    await browser.close();
 
     if (!info) return res.json({ found: false });
 

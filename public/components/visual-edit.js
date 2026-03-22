@@ -341,21 +341,30 @@ async function showSimpleEditPanel(clickX, clickY) {
   editPanel.querySelector('.ep-save').onclick = () => {
     const custom = editPanel.querySelector('#ep-custom').value.trim();
     if (custom && onSendPrompt) {
-      // Build a precise, scoped prompt using the element info
+      // Build a precise, scoped prompt so the agent targets the exact element
       let prompt = '';
-      if (elementInfo?.element?.component) {
-        const [compName, file, line] = elementInfo.element.component.split(':');
-        prompt = `In the file ${file}${line ? ' around line ' + line : ''}, in the ${compName} component`;
-        if (elementText) prompt += `, specifically the element containing "${elementText}"`;
-        prompt += `: ${custom}`;
-      } else if (elementInfo?.element?.selector) {
-        prompt = `In the frontend app, for the element matching "${elementInfo.element.selector}"`;
-        if (elementText) prompt += ` (containing "${elementText}")`;
-        prompt += `: ${custom}`;
+      const el = elementInfo?.element;
+      if (el?.component) {
+        const [compName, file, line] = el.component.split(':');
+        prompt = `VISUAL EDIT REQUEST — target a specific element, do NOT change the whole app theme or global styles.\n`;
+        prompt += `File: ${file}${line ? ', around line ' + line : ''}\n`;
+        prompt += `Component: ${compName}\n`;
+        if (el.tag) prompt += `Element: <${el.tag}>${el.classes ? ' class="' + el.classes + '"' : ''}\n`;
+        if (elementText) prompt += `Text content: "${elementText}"\n`;
+        if (el.selector) prompt += `CSS path: ${el.selector}\n`;
+        if (el.currentStyles) prompt += `Current styles: color=${el.currentStyles.color}, bg=${el.currentStyles.backgroundColor}, fontSize=${el.currentStyles.fontSize}\n`;
+        prompt += `\nChange requested: ${custom}\n`;
+        prompt += `\nIMPORTANT: Only modify this specific element in ${file}. Do NOT change global theme, MUI theme, or App-level styles. Target the specific component/element described above.`;
+      } else if (el?.selector) {
+        prompt = `VISUAL EDIT REQUEST — target a specific element:\n`;
+        prompt += `CSS path: ${el.selector}\n`;
+        if (el.tag) prompt += `Element: <${el.tag}>\n`;
+        if (elementText) prompt += `Text: "${elementText}"\n`;
+        if (el.outerHTML) prompt += `HTML: ${el.outerHTML.slice(0, 150)}\n`;
+        prompt += `\nChange: ${custom}\nOnly change this specific element, not global styles.`;
       } else {
-        prompt = `In the frontend app: ${custom}`;
+        prompt = `VISUAL EDIT REQUEST: In the frontend app currently showing at route "${document.getElementById('preview-url')?.value || '/'}", ${custom}. Only change the specific element described, not the whole app theme.`;
       }
-      prompt += `. Only change this specific element, not the whole app.`;
       onSendPrompt(prompt);
       deactivate();
     }
