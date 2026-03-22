@@ -311,14 +311,17 @@ async function getInspectPage(targetPath) {
     catch { ({ chromium } = await import("/workspaces/washmen-mvp-workspace/node_modules/playwright/index.mjs")); }
     inspectBrowser = await chromium.launch();
     inspectPage = await inspectBrowser.newPage({ viewport: { width: 1280, height: 720 } });
-    // Login once
+    // Login: navigate, set token, then reload so React reads the token on mount
     await inspectPage.goto("http://localhost:3000", { waitUntil: "domcontentloaded", timeout: 15000 });
     await inspectPage.evaluate(() => { localStorage.setItem("auth_token", "mock-jwt-token-usr-001"); });
+    await inspectPage.reload({ waitUntil: "networkidle", timeout: 15000 });
+    await inspectPage.waitForTimeout(1000);
     console.log("[inspect] Browser cached and logged in");
+    inspectLastPath = "/";
   }
-  // Navigate only if path changed
-  if (targetPath !== inspectLastPath) {
-    await inspectPage.goto("http://localhost:3000" + (targetPath || "/"), { waitUntil: "networkidle", timeout: 10000 }).catch(() => {});
+  // Navigate if path changed
+  if (targetPath && targetPath !== inspectLastPath) {
+    await inspectPage.goto("http://localhost:3000" + targetPath, { waitUntil: "networkidle", timeout: 10000 }).catch(() => {});
     await inspectPage.waitForTimeout(500);
     inspectLastPath = targetPath;
   }
