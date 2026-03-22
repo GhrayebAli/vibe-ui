@@ -167,21 +167,23 @@ app.get("/api/console", (req, res) => {
 
       for (const line of newLines) {
         const trimmed = line.trim();
-        if (!trimmed) continue;
+        if (!trimmed || trimmed.length < 5) continue;
 
-        // Skip Sails boilerplate/decoration lines
-        if (trimmed.match(/^[-=~_.·•|\\/<>,'`]+$/) || trimmed.startsWith("debug: ---") || trimmed === "debug:") continue;
-        if (trimmed.includes("Sails              <|") || trimmed.includes("__---___")) continue;
-        if (trimmed.includes("Read more at https://sailsjs.com")) continue;
+        // Skip Sails boilerplate — ASCII art, decoration, help text
+        if (trimmed.match(/^[\s\-=~_.·•|\\/<>,'`^]+$/) || trimmed.match(/^\s*(info|debug|error):\s*$/)) continue;
+        if (trimmed.match(/Sails\s|__---___|\.-.\.-.|-'.-==|`--'---/) ) continue;
+        if (trimmed.includes("sailsjs.com") || trimmed.includes("CTRL") || trimmed.includes("Troubleshooting")) continue;
+        if (trimmed.includes("Hold tight") || trimmed.includes("Auto-migrat") || trimmed.includes("session secret")) continue;
+        if (trimmed.match(/^\s*(v1\.\d|\/\|\\|,'|`--|Environment|Port\s|Local\s)/)) continue;
 
         const lower = trimmed.toLowerCase();
 
-        // Real errors — not just lines containing the word "error"
-        if (lower.startsWith("error:") || lower.includes("throw ") || lower.includes("uncaught") || lower.includes("eaddrinuse") || lower.includes("enoent") || lower.includes("fatal")) {
+        // Meaningful messages only
+        if (lower.includes("eaddrinuse") || lower.includes("enoent") || lower.includes("uncaught") || lower.includes("throw ") || lower.includes("fatal") || lower.includes("crash")) {
           entries.push({ level: "error", message: `[${name}] ${trimmed}` });
-        } else if (lower.includes("warning:") || lower.startsWith("warn:") || lower.includes("deprecat")) {
+        } else if (lower.includes("deprecat") || lower.includes("warning:")) {
           entries.push({ level: "warn", message: `[${name}] ${trimmed}` });
-        } else if (lower.startsWith("info:") || lower.includes("server lifted") || lower.includes("running on") || lower.includes("listening")) {
+        } else if (lower.includes("server lifted") || lower.includes("running on") || lower.includes("listening") || lower.includes("hook") || lower.includes("seed data") || lower.includes("migration complete")) {
           entries.push({ level: "info", message: `[${name}] ${trimmed}` });
         }
       }
