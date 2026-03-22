@@ -300,7 +300,7 @@ app.get("/api/checkpoints", (_req, res) => {
 
 // Inspect element at coordinates — for visual edit mode
 app.post("/api/inspect-element", async (req, res) => {
-  const { x, y } = req.body;
+  const { x, y, currentUrl } = req.body;
   if (x == null || y == null) return res.status(400).json({ error: "Missing x,y" });
 
   try {
@@ -310,8 +310,17 @@ app.post("/api/inspect-element", async (req, res) => {
 
     const browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-    await page.goto("http://localhost:3000", { waitUntil: "networkidle", timeout: 15000 });
-    await page.waitForTimeout(1000);
+
+    // Navigate to the app and auto-login with mock token
+    await page.goto("http://localhost:3000", { waitUntil: "domcontentloaded", timeout: 15000 });
+    await page.evaluate(() => {
+      localStorage.setItem("auth_token", "mock-jwt-token-usr-001");
+    });
+
+    // Navigate to the same page the user is viewing
+    const targetPath = currentUrl ? new URL(currentUrl.startsWith("http") ? currentUrl : "http://localhost:3000" + currentUrl).pathname : "/";
+    await page.goto("http://localhost:3000" + targetPath, { waitUntil: "networkidle", timeout: 15000 });
+    await page.waitForTimeout(1500);
 
     // Scale coordinates from preview iframe size to actual page size
     // The preview iframe might be a different size than 1280x720

@@ -33,6 +33,8 @@ export function deactivate() {
   if (editPanel) { editPanel.remove(); editPanel = null; }
   selectedElement = null;
   document.getElementById('visual-edit-btn')?.classList.remove('active');
+  document.getElementById('visual-edit-btn')?.classList.remove('ve-active');
+  document.removeEventListener('keydown', handleEsc);
 }
 
 function activate() {
@@ -53,6 +55,16 @@ function activate() {
   // we use the overlay to capture mouse events and proxy them
   overlay.addEventListener('mousemove', handleMouseMove);
   overlay.addEventListener('click', handleClick);
+
+  // ESC to deactivate
+  document.addEventListener('keydown', handleEsc);
+}
+
+function handleEsc(e) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    deactivate();
+  }
 }
 
 function handleMouseMove(e) {
@@ -269,10 +281,13 @@ async function showSimpleEditPanel(clickX, clickY) {
     const pageX = Math.round(clickX * scaleX);
     const pageY = Math.round(clickY * scaleY);
 
+    // Get the current URL from the preview URL bar so the server navigates to the same page
+    const currentUrl = document.getElementById('preview-url')?.value || '/';
+
     const resp = await fetch('/api/inspect-element', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ x: pageX, y: pageY }),
+      body: JSON.stringify({ x: pageX, y: pageY, currentUrl }),
     });
     const data = await resp.json();
     if (data.found) elementInfo = data;
