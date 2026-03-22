@@ -326,8 +326,9 @@ async function getInspectPage(targetPath) {
 }
 
 app.post("/api/inspect-element", async (req, res) => {
-  const { x, y, currentUrl } = req.body;
-  if (x == null || y == null) return res.status(400).json({ error: "Missing x,y" });
+  const { x, y, pctX, pctY, currentUrl } = req.body;
+  // Accept either absolute x,y or percentage pctX,pctY
+  if (x == null && pctX == null) return res.status(400).json({ error: "Missing coordinates" });
 
   try {
     const targetPath = currentUrl ? (currentUrl.startsWith("http") ? new URL(currentUrl).pathname : (currentUrl.startsWith("/") ? currentUrl : "/" + currentUrl)) : "/";
@@ -335,6 +336,12 @@ app.post("/api/inspect-element", async (req, res) => {
 
     // Scale coordinates from preview iframe size to actual page size
     // The preview iframe might be a different size than 1280x720
+    // Convert percentage to actual viewport pixels
+    const viewportSize = page.viewportSize();
+    const actualX = pctX != null ? Math.round(pctX * viewportSize.width) : x;
+    const actualY = pctY != null ? Math.round(pctY * viewportSize.height) : y;
+    console.log(`[inspect] coordinates: pct=(${pctX},${pctY}) actual=(${actualX},${actualY}) viewport=${viewportSize.width}x${viewportSize.height}`);
+
     const info = await page.evaluate(({ cx, cy }) => {
       const el = document.elementFromPoint(cx, cy);
       if (!el) return null;
@@ -403,7 +410,7 @@ app.post("/api/inspect-element", async (req, res) => {
         currentStyles,
         outerHTML: el.outerHTML.slice(0, 200),
       };
-    }, { cx: x, cy: y });
+    }, { cx: actualX, cy: actualY });
 
     // Take a screenshot
     const screenshot = await page.screenshot({ type: "png" });

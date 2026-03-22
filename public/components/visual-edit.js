@@ -272,18 +272,15 @@ async function showSimpleEditPanel(clickX, clickY) {
   // Call server to inspect the element using Playwright (same-origin access)
   let elementInfo = null;
   try {
-    // The iframe renders at 1280x720 in Playwright.
-    // clickX/Y are relative to the iframe element's bounding rect (from handleClick).
-    // Scale from iframe's display size to Playwright's 1280x720 viewport.
+    // Send percentage-based coordinates so the server can map to any viewport size.
+    // clickX/Y are relative to the iframe element.
     const iframe = document.getElementById('preview-frame');
     const iframeW = iframe.offsetWidth;
     const iframeH = iframe.offsetHeight;
-    const scaleX = 1280 / iframeW;
-    const scaleY = 720 / iframeH;
-    const pageX = Math.round(clickX * scaleX);
-    const pageY = Math.round(clickY * scaleY);
+    const pctX = clickX / iframeW;
+    const pctY = clickY / iframeH;
 
-    console.log(`[visual-edit] click=(${clickX},${clickY}) iframe=(${iframeW}x${iframeH}) scaled=(${pageX},${pageY})`);
+    console.log(`[visual-edit] click=(${clickX},${clickY}) iframe=(${iframeW}x${iframeH}) pct=(${pctX.toFixed(3)},${pctY.toFixed(3)})`);
 
     // Get the current URL from the preview URL bar
     const currentUrl = document.getElementById('preview-url')?.value || '/';
@@ -291,7 +288,7 @@ async function showSimpleEditPanel(clickX, clickY) {
     const resp = await fetch('/api/inspect-element', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ x: pageX, y: pageY, currentUrl }),
+      body: JSON.stringify({ pctX, pctY, currentUrl }),
     });
     const data = await resp.json();
     if (data.found) elementInfo = data;
