@@ -1,7 +1,8 @@
 import dotenv from "dotenv";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
+import { execSync } from "child_process";
 dotenv.config();
 
 import express from "express";
@@ -19,8 +20,10 @@ const wss = new WebSocketServer({ server, path: "/ws" });
 
 app.use(express.json());
 
-// Serve washmen.html as the default page
-app.get("/", (_req, res) => res.sendFile(join(__dirname, "public", "washmen.html")));
+// Serve new Lovable-style UI as default
+app.get("/", (_req, res) => res.sendFile(join(__dirname, "public", "index-v2.html")));
+// Keep old UI accessible
+app.get("/v1", (_req, res) => res.sendFile(join(__dirname, "public", "washmen.html")));
 app.use(express.static(join(__dirname, "public")));
 
 // Session mappings
@@ -106,6 +109,71 @@ app.get("/api/sessions/:id/messages", (req, res) => {
   const db = getDb();
   const messages = db.prepare("SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC").all(req.params.id);
   res.json(messages);
+});
+
+// Branch check
+app.get("/api/branch", (_req, res) => {
+  try {
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    const branch = execSync(`git -C "${workspaceDir}/mock-ops-frontend" rev-parse --abbrev-ref HEAD`, { stdio: "pipe" }).toString().trim();
+    res.json({ branch });
+  } catch {
+    res.json({ branch: "unknown" });
+  }
+});
+
+// Notes API
+app.get("/api/notes", (_req, res) => {
+  try {
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    const content = readFileSync(join(workspaceDir, "MVP_NOTES.md"), "utf8");
+    res.json({ content });
+  } catch {
+    res.json({ content: "" });
+  }
+});
+
+app.post("/api/notes", (req, res) => {
+  try {
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    writeFileSync(join(workspaceDir, "MVP_NOTES.md"), req.body.content || "");
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Checkpoints API
+app.get("/api/checkpoints", (_req, res) => {
+  try {
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    const tags = execSync(`git -C "${workspaceDir}/mock-ops-frontend" tag -l "checkpoint/*" --sort=-version:refname --format="%(refname:short)|%(creatordate:unix)|%(subject)"`, { stdio: "pipe" }).toString().trim();
+    const checkpoints = tags.split("\n").filter(Boolean).map((line, i) => {
+      const [name, ts, label] = line.split("|");
+      return { id: name, label: label || name, timestamp: parseInt(ts), current: i === 0 };
+    });
+    res.json({ checkpoints });
+  } catch {
+    res.json({ checkpoints: [] });
+  }
+});
+
+// Restart service
+app.post("/api/restart-service", (req, res) => {
+  try {
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    const svc = req.body.service;
+    if (svc === "frontend") {
+      execSync(`cd "${workspaceDir}/mock-ops-frontend" && npx vite --host &`, { stdio: "pipe", timeout: 5000 });
+    } else if (svc === "api-gateway") {
+      execSync(`cd "${workspaceDir}/mock-api-gateway" && node app.js &`, { stdio: "pipe", timeout: 5000 });
+    } else if (svc === "core-service") {
+      execSync(`cd "${workspaceDir}/mock-core-service" && node app.js &`, { stdio: "pipe", timeout: 5000 });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // WebSocket handling

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Washmen Ops</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="shell">
+
+  <!-- Icon Strip -->
+  <div class="icon-strip">
+    <button class="strip-btn" data-overlay="history" title="History">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    </button>
+    <button class="strip-btn" data-overlay="files" title="Files">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+    </button>
+    <button class="strip-btn" data-overlay="status" title="Status">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+    </button>
+    <button class="strip-btn" data-overlay="notes" title="MVP Notes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8m8 4H8"/></svg>
+    </button>
+    <div class="strip-divider"></div>
+  </div>
+
+  <!-- Left Panel -->
+  <div class="left-panel" id="left-panel" style="width:35%">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <input class="project-name" id="project-name" value="Washmen Ops" spellcheck="false">
+        <div class="health-dots">
+          <span class="h-dot" id="h-fe" title="Frontend"></span>
+          <span class="h-dot" id="h-gw" title="Gateway"></span>
+          <span class="h-dot" id="h-core" title="Core"></span>
+        </div>
+      </div>
+      <div class="top-bar-right">
+        <div class="mode-toggle" id="mode-toggle">
+          <button class="mode-btn" data-mode="plan">Plan</button>
+          <button class="mode-btn active" data-mode="build">Build</button>
+        </div>
+        <select class="model-select" id="model-select">
+          <option value="sonnet">Sonnet</option>
+          <option value="opus">Opus</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Chat Area -->
+    <div class="chat-area" id="chat">
+      <div class="welcome" id="welcome">
+        <h2>What are you building?</h2>
+        <p>Describe a feature and I'll build it across the frontend, API gateway, and core service.</p>
+      </div>
+      <div class="starters" id="starters"></div>
+    </div>
+
+    <!-- Overlays (slide over chat) -->
+    <div class="overlay" id="overlay-history">
+      <div class="overlay-header"><h3>Version History</h3><button class="overlay-close">&times;</button></div>
+      <div id="history-list"></div>
+    </div>
+    <div class="overlay" id="overlay-files">
+      <div class="overlay-header"><h3>Files</h3><button class="overlay-close">&times;</button></div>
+      <div id="file-tree"><!-- file tree populated by JS --></div>
+    </div>
+    <div class="overlay" id="overlay-status">
+      <div class="overlay-header"><h3>Service Status</h3><button class="overlay-close">&times;</button></div>
+      <div id="status-list"></div>
+    </div>
+    <div class="overlay" id="overlay-notes">
+      <div class="overlay-header"><h3>MVP Notes</h3><button class="overlay-close">&times;</button></div>
+      <div class="notes-area" id="notes-area">
+        <textarea id="notes-editor" placeholder="MVP notes will appear here..."></textarea>
+        <div class="notes-actions">
+          <button class="notes-btn-gen" id="notes-gen">Generate</button>
+          <button class="notes-btn-save" id="notes-save">Save</button>
+          <button class="notes-btn-copy" id="notes-copy">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Prompt Queue -->
+    <div class="queue" id="queue"></div>
+
+    <!-- Input Dock -->
+    <div class="input-dock" id="input-dock">
+      <div class="input-row">
+        <textarea id="input" placeholder="Describe what you want to build..." rows="1"></textarea>
+        <button class="send-btn" id="send-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>
+        </button>
+      </div>
+      <div class="input-meta">
+        <button class="edit-toggle" id="edit-toggle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Select &amp; Edit
+        </button>
+        <span class="input-hint">Enter to send &middot; Shift+Enter new line</span>
+      </div>
+    </div>
+
+    <!-- Branch Lock (shown when on main) -->
+    <div class="branch-lock" id="branch-lock" style="display:none">
+      <span class="lock-icon">&#128274;</span>
+      <input id="branch-input" placeholder="Type a feature name to create a branch...">
+    </div>
+
+    <!-- Budget Bar -->
+    <div class="budget-bar">
+      <span class="budget-label">API spend</span>
+      <div class="budget-track"><div class="budget-fill" id="budget-fill"></div></div>
+      <span class="budget-amount" id="budget-amount">$0 / $20</span>
+    </div>
+  </div>
+
+  <!-- Resize Handle -->
+  <div class="resize-handle" id="resize-handle"></div>
+
+  <!-- Right Panel -->
+  <div class="right-panel">
+    <!-- Tabs -->
+    <div class="panel-tabs">
+      <button class="panel-tab active" data-tab="preview">Preview</button>
+      <button class="panel-tab" data-tab="code">Code</button>
+      <button class="panel-tab" data-tab="console">Console</button>
+    </div>
+
+    <!-- Preview Tab -->
+    <div class="tab-content active" id="tab-preview">
+      <div class="preview-bar">
+        <button class="pbar-btn" id="preview-back" title="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5m7-7l-7 7 7 7"/></svg>
+        </button>
+        <button class="pbar-btn" id="preview-refresh" title="Refresh">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+        </button>
+        <div class="preview-url">
+          <span class="dot-green"></span>
+          <input id="preview-url" value="" spellcheck="false">
+        </div>
+        <div class="device-btns">
+          <button class="pbar-btn active" data-device="desktop" title="Desktop">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg>
+          </button>
+          <button class="pbar-btn" data-device="mobile" title="Mobile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="preview-wrap" id="preview-wrap">
+        <div class="preview-loading" id="preview-loading">
+          <div class="ld"></div>
+          <div class="status-lines" id="startup-status">Starting services...</div>
+        </div>
+        <iframe id="preview-frame" src="about:blank"></iframe>
+      </div>
+    </div>
+
+    <!-- Code Tab -->
+    <div class="tab-content" id="tab-code">
+      <div class="code-path" id="code-path">No file selected</div>
+      <div class="code-view">
+        <pre class="code-content" id="code-content"></pre>
+      </div>
+    </div>
+
+    <!-- Console Tab -->
+    <div class="tab-content" id="tab-console" style="position:relative">
+      <button class="console-clear" id="console-clear">Clear</button>
+      <div class="console-view" id="console-view"></div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
