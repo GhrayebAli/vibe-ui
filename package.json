@@ -10,6 +10,7 @@
   },
   "scripts": {
     "start": "node server-washmen.js",
+    "dev": "nodemon --watch server-washmen.js --watch server/ --watch public/ -e js,mjs,html,css server-washmen.js",
     "start:original": "node server.js"
   },
   "dependencies": {
@@ -18,5 +19,8 @@
     "dotenv": "^17.3.1",
     "express": "^4",
     "ws": "^8"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }

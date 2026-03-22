@@ -96,7 +96,7 @@ input, textarea { font-family: var(--font); }
 .msg-system { text-align: center; color: var(--text-muted); font-size: 12px; font-style: italic; padding: 4px 0; }
 .msg-error { border: 1px solid var(--red); border-radius: var(--radius-lg); padding: 12px; background: var(--red-soft); margin-bottom: 12px; }
 .msg-error .err-text { color: var(--red); font-size: 13px; margin-bottom: 8px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; }
-.msg-error .fix-btn { background: var(--red); color: #fff; border: none; border-radius: var(--radius-sm); padding: 5px 14px; font-size: 12px; font-weight: 500; }
+.msg-error .fix-btn { background: var(--red); color: #fff; border: none; border-radius: var(--radius-pill); padding: 5px 14px; font-size: 12px; font-weight: 500; }
 .msg-error .fix-btn:hover { filter: brightness(1.1); }
 
 /* Plan mode actions */
@@ -114,7 +114,7 @@ pre:hover .code-copy { opacity: 1; }
 .code-copy.copied { color: var(--green); }
 
 /* Activity feed */
-.activity-feed { margin: 8px 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.activity-feed { margin: 8px 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .activity-current { display: flex; align-items: center; gap: 6px; padding: 8px 10px; background: var(--surface); font-size: 12px; color: var(--text-dim); cursor: pointer; }
 .activity-current:hover { background: var(--surface2); }
 .activity-spinner { width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
@@ -127,7 +127,7 @@ pre:hover .code-copy { opacity: 1; }
 .activity-entry:last-child { border-bottom: none; }
 
 /* File diff summary */
-.diff-summary { margin: 8px 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.diff-summary { margin: 8px 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .diff-header { display: flex; align-items: center; gap: 6px; padding: 8px 10px; background: var(--surface); font-size: 12px; color: var(--text-dim); cursor: pointer; }
 .diff-header:hover { background: var(--surface2); }
 .diff-header .chevron { font-size: 10px; transition: transform var(--transition); }
@@ -275,7 +275,7 @@ pre:hover .code-copy { opacity: 1; }
 .console-clear { position: absolute; top: 8px; right: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted); font-size: 11px; padding: 2px 8px; cursor: pointer; }
 
 /* Inline screenshot */
-.msg-screenshot { margin: 8px 0; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+.msg-screenshot { margin: 8px 0; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); }
 .msg-screenshot img { width: 100%; height: 200px; object-fit: cover; display: block; }
 .msg-screenshot .screenshot-caption { padding: 6px 10px; font-size: 11px; color: var(--text-dim); background: var(--surface); }
 
@@ -310,8 +310,8 @@ pre:hover .code-copy { opacity: 1; }
 .ep-num { width: 50px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 6px; color: var(--text); font-size: 12px; text-align: center; }
 .ep-row { display: flex; gap: 8px; }
 .ep-actions { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--border); }
-.ep-save { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm); padding: 6px 16px; font-size: 12px; font-weight: 500; cursor: pointer; }
-.ep-cancel { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 16px; font-size: 12px; cursor: pointer; }
+.ep-save { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-pill); padding: 6px 16px; font-size: 12px; font-weight: 500; cursor: pointer; }
+.ep-cancel { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 6px 16px; font-size: 12px; cursor: pointer; }
 
 /* Visual edit button active state */
 .pbar-btn.ve-active { background: var(--accent); color: #fff; }
@@ -351,10 +351,10 @@ pre:hover .code-copy { opacity: 1; }
 
 /* Notes overlay */
 .notes-area { padding: 14px; }
-.notes-area textarea { width: 100%; min-height: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; color: var(--text); font-family: var(--mono); font-size: 12.5px; resize: vertical; line-height: 1.5; }
+.notes-area textarea { width: 100%; min-height: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px; color: var(--text); font-family: var(--mono); font-size: 12.5px; resize: vertical; line-height: 1.5; }
 .notes-area textarea:focus { outline: none; border-color: var(--accent); }
 .notes-actions { display: flex; gap: 8px; margin-top: 10px; }
-.notes-actions button { padding: 6px 14px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500; border: none; cursor: pointer; }
+.notes-actions button { padding: 6px 14px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 500; border: none; cursor: pointer; }
 .notes-btn-gen { background: var(--accent); color: #fff; }
 .notes-btn-save { background: var(--green); color: #fff; }
 .notes-btn-copy { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
