@@ -134,17 +134,11 @@ function handleClick(e) {
   }
 
   if (!element) {
-    // Cross-origin or no element found — show prompt-only edit panel
     showSimpleEditPanel(x, y);
     return;
   }
 
-
-    // Show edit panel
-    showEditPanel(element, compName, filePath, lineNum);
-  } catch {
-    // Cross-origin
-  }
+  showEditPanel(element, compName, filePath, lineNum);
 }
 
 function findComponentAttr(element) {
