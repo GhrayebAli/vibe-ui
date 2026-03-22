@@ -238,23 +238,55 @@ export function handleWashmenWs(ws, sessionIds) {
       }
     }
 
-    // Onboarding: first message creates branches
-    if (isFirstMessage && !msg.skipOnboarding) {
+    // Onboarding: first message — check branch and create if needed
+    if (isFirstMessage) {
       isFirstMessage = false;
+      const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
 
-      // Check if we're already on an mvp/* branch
-      try {
-        const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
-        const branch = execSync(`git -C "${workspaceDir}/mock-ops-frontend" rev-parse --abbrev-ref HEAD`, { stdio: "pipe" }).toString().trim();
-        if (branch.startsWith("mvp/")) {
-          // Already on an mvp branch — session resume
-          ws.send(JSON.stringify({
-            type: "assistant",
-            text: `Welcome back! You're on branch \`${branch}\`. Let me check where you left off...`,
-            sessionId,
-          }));
+      // Find the first available repo to check branch
+      let currentBranch = "master";
+      for (const repo of ["real-ops-frontend", "mock-ops-frontend", "real-api-gateway", "mock-api-gateway", "mock-core-service"]) {
+        try {
+          currentBranch = execSync(`git -C "${workspaceDir}/${repo}" rev-parse --abbrev-ref HEAD`, { stdio: "pipe" }).toString().trim();
+          break;
+        } catch {}
+      }
+
+      if (currentBranch.startsWith("mvp/")) {
+        // Already on an mvp branch — session resume, proceed with the prompt
+        console.log(`[onboard] Resuming on branch ${currentBranch}`);
+      } else {
+        // On main/master — create mvp branch from the user's first prompt
+        // Derive branch name from the feature description
+        const branchSlug = text
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, '')
+          .trim()
+          .split(/\s+/)
+          .slice(0, 5)
+          .join('-');
+        const branchName = `mvp/${branchSlug || 'feature-' + Date.now().toString(36)}`;
+
+        console.log(`[onboard] Creating branch ${branchName} from: "${text.slice(0, 50)}"`);
+
+        const repos = ["real-ops-frontend", "real-api-gateway", "mock-ops-frontend", "mock-api-gateway", "mock-core-service"];
+        for (const repo of repos) {
+          try {
+            execSync(`git -C "${workspaceDir}/${repo}" checkout -b "${branchName}" 2>/dev/null || git -C "${workspaceDir}/${repo}" checkout "${branchName}" 2>/dev/null`, { stdio: "pipe" });
+          } catch {}
         }
-      } catch {}
+
+        ws.send(JSON.stringify({
+          type: "branch_created",
+          branch: branchName,
+        }));
+
+        ws.send(JSON.stringify({
+          type: "system",
+          text: `Branch \`${branchName}\` created. Let's build this!`,
+          sessionId,
+        }));
+      }
     }
 
     // Save user message

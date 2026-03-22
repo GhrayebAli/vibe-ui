@@ -10,8 +10,7 @@ import { initVisualEdit, toggleVisualEdit, deactivate as deactivateVisualEdit } 
 const $ = id => document.getElementById(id);
 const chat = $('chat'), input = $('input'), sendBtn = $('send-btn');
 const welcome = $('welcome'), starters = $('starters');
-const queue = $('queue'), branchLock = $('branch-lock'), branchInput = $('branch-input');
-const inputDock = $('input-dock');
+const queue = $('queue');
 
 /* ═══ State ═══ */
 let ws, sid = null, streaming = false, model = 'sonnet', mode = 'build';
@@ -36,7 +35,6 @@ function connect() {
 
   ws.onopen = () => {
     console.log('[ws] connected');
-    checkBranch();
     checkHealth();
     loadStarters();
     loadSessions();
@@ -148,10 +146,9 @@ function handleMessage(msg) {
       break;
 
     case 'branch_created':
-      addSystemMsg('Branch created: ' + msg.branch);
       currentBranch = msg.branch;
-      branchLock.style.display = 'none';
-      inputDock.style.display = '';
+      const badge = $('branch-badge');
+      if (badge) { badge.textContent = msg.branch; badge.style.display = ''; }
       break;
   }
 }
@@ -420,37 +417,20 @@ function formatTimeAgo(ts) {
   return Math.floor(seconds / 86400) + 'd ago';
 }
 
-/* ═══ Branch Check ═══ */
-async function checkBranch() {
+/* ═══ Branch Badge ═══ */
+// Just show the branch name if on an mvp/* branch — no locking
+(async () => {
   try {
     const resp = await fetch('/api/branch');
     const data = await resp.json();
     currentBranch = data.branch || 'main';
-
-    // Show branch badge
     const badge = $('branch-badge');
-    if (badge && currentBranch !== 'main' && currentBranch !== 'master' && currentBranch !== 'unknown') {
+    if (badge && currentBranch.startsWith('mvp/')) {
       badge.textContent = currentBranch;
       badge.style.display = '';
     }
-
-    if (currentBranch === 'main' || currentBranch === 'master') {
-      branchLock.style.display = 'flex';
-      inputDock.style.display = 'none';
-    }
-  } catch {
-    // Branch API might not exist yet — show input
-  }
-}
-
-branchInput.onkeydown = e => {
-  if (e.key === 'Enter') {
-    const name = branchInput.value.trim().replace(/\s+/g, '-').toLowerCase();
-    if (!name) return;
-    ws.send(JSON.stringify({ type: 'create_branch', name }));
-    branchInput.value = '';
-  }
-};
+  } catch {}
+})();
 
 /* ═══ Input Events ═══ */
 sendBtn.onclick = send;
