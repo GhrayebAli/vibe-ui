@@ -20,9 +20,6 @@
     <button class="strip-btn" data-overlay="history" title="History">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
     </button>
-    <button class="strip-btn" data-overlay="files" title="Files">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-    </button>
     <button class="strip-btn" data-overlay="status" title="Status">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
     </button>
@@ -66,10 +63,6 @@
     <div class="overlay" id="overlay-history">
       <div class="overlay-header"><h3>Version History</h3><button class="overlay-close">&times;</button></div>
       <div id="history-list"></div>
-    </div>
-    <div class="overlay" id="overlay-files">
-      <div class="overlay-header"><h3>Files</h3><button class="overlay-close">&times;</button></div>
-      <div id="file-tree"><!-- file tree populated by JS --></div>
     </div>
     <div class="overlay" id="overlay-status">
       <div class="overlay-header"><h3>Service Status</h3><button class="overlay-close">&times;</button></div>
