@@ -170,10 +170,13 @@
     </div>
 
     <!-- Code Tab -->
-    <div class="tab-content" id="tab-code">
-      <div class="code-path" id="code-path">No file selected</div>
-      <div class="code-view">
-        <pre class="code-content" id="code-content"></pre>
+    <div class="tab-content" id="tab-code" style="flex-direction:row">
+      <div class="code-sidebar" id="code-sidebar"></div>
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+        <div class="code-path" id="code-path">Select a file to view</div>
+        <div class="code-view" style="flex:1;overflow:auto">
+          <pre class="code-content" id="code-content"></pre>
+        </div>
       </div>
     </div>
 

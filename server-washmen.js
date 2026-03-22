@@ -111,6 +111,41 @@ app.get("/api/sessions/:id/messages", (req, res) => {
   res.json(messages);
 });
 
+// File read API — for Code tab
+app.get("/api/file", (req, res) => {
+  try {
+    const filePath = req.query.path;
+    if (!filePath) return res.status(400).json({ error: "Missing path" });
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    const fullPath = filePath.startsWith("/") ? filePath : join(workspaceDir, filePath);
+    const content = readFileSync(fullPath, "utf8");
+    res.json({ path: filePath, content });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+// Project files API — list key files across repos
+app.get("/api/files", (_req, res) => {
+  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+  const files = [];
+  const repos = [
+    { name: "mock-ops-frontend", icon: "FE", key: ["src/App.tsx", "src/api/client.ts", "src/api/UserAPI.ts", "src/features/users/components/UsersList.tsx", "src/features/dashboard/components/Dashboard.tsx", "vite.config.ts"] },
+    { name: "mock-api-gateway", icon: "GW", key: ["config/routes.js", "config/bootstrap.js", "api/controllers/UserController.js", "api/controllers/AuthController.js", "api/policies/isAuthenticated.js", "api/dtos/index.js"] },
+    { name: "mock-core-service", icon: "Core", key: ["config/routes.js", "config/bootstrap.js", "api/models/User.js", "api/models/Order.js", "api/controllers/UserController.js", "api/dtos/index.js"] },
+  ];
+  for (const repo of repos) {
+    for (const f of repo.key) {
+      try {
+        const full = join(workspaceDir, repo.name, f);
+        readFileSync(full); // just check existence
+        files.push({ path: `${repo.name}/${f}`, repo: repo.name, icon: repo.icon, name: f });
+      } catch {}
+    }
+  }
+  res.json({ files });
+});
+
 // Console output — read last lines from service logs
 app.get("/api/console", (_req, res) => {
   const entries = [];

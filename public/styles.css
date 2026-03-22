@@ -237,9 +237,15 @@ pre:hover .code-copy { opacity: 1; }
 .preview-loading .status-lines .done { color: var(--green); }
 
 /* Code tab */
+.code-sidebar { width: 200px; background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; flex-shrink: 0; }
+.code-sidebar-group { padding: 6px 0; }
+.code-sidebar-label { padding: 4px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); font-weight: 600; }
+.code-sidebar-file { padding: 4px 10px 4px 16px; font-size: 11.5px; color: var(--text-dim); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: all var(--transition); }
+.code-sidebar-file:hover { background: var(--surface2); color: var(--text); }
+.code-sidebar-file.active { background: var(--accent-soft); color: var(--accent); }
 .code-view { flex: 1; overflow: auto; padding: 0; background: var(--bg); }
 .code-path { padding: 8px 12px; font-size: 12px; font-family: var(--mono); color: var(--text-dim); background: var(--surface); border-bottom: 1px solid var(--border); }
-.code-content { padding: 12px; font-family: var(--mono); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; }
+.code-content { padding: 12px; font-family: var(--mono); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; margin: 0; }
 .code-line-add { background: var(--green-soft); }
 .code-line-del { background: var(--red-soft); text-decoration: line-through; opacity: .7; }
 

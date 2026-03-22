@@ -292,6 +292,7 @@ document.querySelectorAll('.panel-tab').forEach(tab => {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     $('tab-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'code') loadCodeFiles();
   };
 });
 
@@ -423,17 +424,73 @@ input.oninput = () => {
 })();
 
 /* ═══ Code Tab ═══ */
+let codeFilesLoaded = false;
+
 function updateCodeTab(path, content) {
   const codePath = $('code-path');
   const codeContent = $('code-content');
-  if (codePath) codePath.textContent = path || 'No file selected';
+  if (codePath) codePath.textContent = path || 'Select a file to view';
   if (codeContent && content) {
     codeContent.textContent = content;
-    // Apply syntax highlighting
     codeContent.className = 'code-content';
     try { hljs.highlightElement(codeContent); } catch {}
   }
+  // Highlight active file in sidebar
+  document.querySelectorAll('.code-sidebar-file').forEach(f => {
+    f.classList.toggle('active', f.dataset.path === path);
+  });
 }
+
+async function loadCodeFile(path) {
+  try {
+    const resp = await fetch('/api/file?path=' + encodeURIComponent(path));
+    const data = await resp.json();
+    if (data.content) {
+      updateCodeTab(data.path, data.content);
+    }
+  } catch {}
+}
+
+async function loadCodeFiles() {
+  if (codeFilesLoaded) return;
+  codeFilesLoaded = true;
+  try {
+    const resp = await fetch('/api/files');
+    const data = await resp.json();
+    const sidebar = $('code-sidebar');
+    if (!sidebar || !data.files) return;
+
+    // Group by repo
+    const groups = {};
+    for (const f of data.files) {
+      if (!groups[f.repo]) groups[f.repo] = [];
+      groups[f.repo].push(f);
+    }
+
+    sidebar.innerHTML = '';
+    for (const [repo, files] of Object.entries(groups)) {
+      const group = document.createElement('div');
+      group.className = 'code-sidebar-group';
+      group.innerHTML = '<div class="code-sidebar-label">' + repo.replace('mock-', '') + '</div>';
+      for (const f of files) {
+        const item = document.createElement('div');
+        item.className = 'code-sidebar-file';
+        item.textContent = f.name;
+        item.dataset.path = f.path;
+        item.title = f.path;
+        item.onclick = () => loadCodeFile(f.path);
+        group.appendChild(item);
+      }
+      sidebar.appendChild(group);
+    }
+
+    // Auto-load first file
+    if (data.files.length > 0) {
+      loadCodeFile(data.files[0].path);
+    }
+  } catch {}
+}
+
 
 /* ═══ Console ═══ */
 function addConsoleEntry(level, message) {
