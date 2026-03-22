@@ -41,7 +41,8 @@ function connect() {
     loadStarters();
     loadSessions();
     loadChatHistory();
-    initPreview(portUrl(3000));
+    // Real frontend serves at /v2/ due to homepage config in package.json
+    initPreview(portUrl(3000) + '/v2/');
     initVisualEdit($('preview-frame'), doSend);
     setInterval(checkHealth, 10000);
   };
