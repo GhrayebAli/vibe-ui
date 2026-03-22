@@ -212,17 +212,16 @@ pre:hover .code-copy { opacity: 1; }
 /* ── Right Panel ── */
 .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg); min-width: 320px; position: relative; }
 
-/* Tabs */
+/* Tabs — icon-only default, pill with label when active */
 .panel-tabs { height: 44px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 12px; gap: 4px; flex-shrink: 0; }
-.panel-tab { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 10px; border: none; background: none; color: var(--text-dim); transition: all var(--transition); cursor: pointer; flex-shrink: 0; }
+.panel-tab { height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 10px; border: none; background: none; color: var(--text-dim); transition: all .2s ease; cursor: pointer; flex-shrink: 0; padding: 0 10px; gap: 0; }
 .panel-tab:hover { color: var(--text); background: var(--bg-3); }
-.panel-tab.active:not(.tab-pill) { color: var(--text); background: var(--bg-3); }
 .panel-tab svg { flex-shrink: 0; }
-/* Preview pill */
-.panel-tab.tab-pill { width: auto; padding: 0 16px; height: 34px; gap: 7px; border-radius: 18px; font-size: 13px; font-weight: 600; }
-.panel-tab.tab-pill.active { background: var(--accent); color: #fff; }
-.panel-tab.tab-pill:hover:not(.active) { background: var(--bg-3); }
-.panel-tab.tab-pill span { line-height: 1; }
+.tab-label { display: none; font-size: 13px; font-weight: 600; line-height: 1; margin-left: 7px; }
+/* Active = pill with label */
+.panel-tab.active { background: var(--accent); color: #fff; border-radius: 18px; padding: 0 16px; }
+.panel-tab.active .tab-label { display: inline; }
+.panel-tab.active:hover { filter: brightness(1.1); }
 .tab-content { flex: 1; display: none; overflow: hidden; }
 .tab-content.active { display: flex; flex-direction: column; }
 
