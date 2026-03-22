@@ -343,7 +343,18 @@ app.post("/api/inspect-element", async (req, res) => {
     console.log(`[inspect] coordinates: pct=(${pctX},${pctY}) actual=(${actualX},${actualY}) viewport=${viewportSize.width}x${viewportSize.height}`);
 
     const info = await page.evaluate(({ cx, cy }) => {
-      const el = document.elementFromPoint(cx, cy);
+      // Try the exact point first, then sample nearby points to find the most specific element
+      let el = document.elementFromPoint(cx, cy);
+
+      // If we hit a very generic element (html, body, or a large container), try nearby points
+      const isGeneric = (e) => !e || e === document.documentElement || e === document.body || e.tagName === 'HTML' || e.tagName === 'BODY';
+      if (isGeneric(el)) {
+        const offsets = [[0,15],[0,30],[0,-15],[15,0],[-15,0],[15,15],[-15,15],[0,45]];
+        for (const [dx, dy] of offsets) {
+          const candidate = document.elementFromPoint(cx + dx, cy + dy);
+          if (!isGeneric(candidate)) { el = candidate; break; }
+        }
+      }
       if (!el) return null;
 
       // Walk up to find data-component attribute
