@@ -334,7 +334,18 @@ app.post("/api/inspect-element", async (req, res) => {
   if (x == null && pctX == null) return res.status(400).json({ error: "Missing coordinates" });
 
   try {
-    const targetPath = currentUrl ? (currentUrl.startsWith("http") ? new URL(currentUrl).pathname : (currentUrl.startsWith("/") ? currentUrl : "/" + currentUrl)) : "/";
+    // Extract just the pathname from the URL bar value
+    // URL bar may contain: "localhost:3000", "localhost:3000/users", "codespace-3000.app.github.dev", "/users", etc.
+    let targetPath = "/";
+    if (currentUrl) {
+      try {
+        const full = currentUrl.startsWith("http") ? currentUrl : "http://" + currentUrl;
+        targetPath = new URL(full).pathname || "/";
+      } catch {
+        targetPath = currentUrl.startsWith("/") ? currentUrl : "/";
+      }
+    }
+    console.log(`[inspect] targetPath="${targetPath}" from currentUrl="${currentUrl}"`);
     const page = await getInspectPage(targetPath);
 
     // Scale coordinates from preview iframe size to actual page size
