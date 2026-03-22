@@ -50,25 +50,25 @@ input, textarea { font-family: var(--font); }
 .left-panel { display: flex; flex-direction: column; background: var(--bg); min-height: 0; overflow: hidden; min-width: 280px; }
 
 /* Top bar */
-.top-bar { height: 38px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--surface); }
+.top-bar { height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--surface); }
 .top-bar-left { display: flex; align-items: center; gap: 10px; }
 .project-name { background: none; border: none; color: var(--text); font-size: 14px; font-weight: 600; font-family: var(--font); padding: 2px 6px; border-radius: var(--radius-sm); width: 140px; transition: all var(--transition); }
 .project-name:hover { background: var(--surface2); }
 .project-name:focus { outline: none; background: var(--surface2); border: 1px solid var(--accent); padding: 1px 5px; }
-.health-dots { display: flex; gap: 6px; align-items: center; }
-.h-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: background .3s; }
+.health-dots { display: flex; gap: 5px; align-items: center; }
+.h-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border); transition: background .3s; }
 .h-dot.ok { background: var(--green); box-shadow: 0 0 5px rgba(34,197,94,.4); }
 .h-dot.err { background: var(--red); box-shadow: 0 0 5px rgba(239,68,68,.4); }
 .top-bar-right { display: flex; align-items: center; gap: 8px; }
 
 /* Mode toggle */
 .mode-toggle { display: flex; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); }
-.mode-btn { padding: 3px 12px; border: none; background: transparent; color: var(--text-dim); font-size: 11px; font-weight: 500; transition: all var(--transition); }
+.mode-btn { padding: 2px 10px; border: none; background: transparent; color: var(--text-dim); font-size: 10px; font-weight: 500; transition: all var(--transition); }
 .mode-btn.active { background: var(--accent); color: #fff; }
 .mode-btn:hover:not(.active) { color: var(--text); }
 
 /* Model selector */
-.model-select { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px 8px; font-size: 11px; font-weight: 500; appearance: none; cursor: pointer; }
+.model-select { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px 6px; font-size: 10px; font-weight: 500; appearance: none; cursor: pointer; }
 .model-select:focus { outline: none; border-color: var(--accent); }
 
 /* ── Chat Area ── */
@@ -213,15 +213,15 @@ pre:hover .code-copy { opacity: 1; }
 .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg); min-width: 320px; position: relative; }
 
 /* Tabs — three sections: left (branch+health), center (tabs), right (empty) */
-.panel-tabs { height: 38px; display: flex; align-items: center; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 14px; flex-shrink: 0; }
+.panel-tabs { height: 32px; display: flex; align-items: center; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 12px; flex-shrink: 0; }
 .tabs-left { display: flex; align-items: center; gap: 10px; flex: 1; }
 .tabs-center { display: flex; align-items: center; gap: 3px; }
 .tabs-right { flex: 1; }
-.panel-tab { height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: none; background: none; color: var(--text-dim); transition: all .2s ease; cursor: pointer; flex-shrink: 0; padding: 0 8px; gap: 0; }
+.panel-tab { height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 5px; border: none; background: none; color: var(--text-dim); transition: all .2s ease; cursor: pointer; flex-shrink: 0; padding: 0 6px; gap: 0; }
 .panel-tab:hover { color: var(--text); background: var(--bg-3); }
-.panel-tab svg { flex-shrink: 0; width: 15px; height: 15px; }
-.tab-label { display: none; font-size: 12px; font-weight: 600; line-height: 1; margin-left: 6px; }
-.panel-tab.active { background: var(--accent); color: #fff; border-radius: 14px; padding: 0 12px; }
+.panel-tab svg { flex-shrink: 0; width: 13px; height: 13px; }
+.tab-label { display: none; font-size: 11px; font-weight: 600; line-height: 1; margin-left: 5px; }
+.panel-tab.active { background: var(--accent); color: #fff; border-radius: 11px; padding: 0 10px; }
 .panel-tab.active .tab-label { display: inline; }
 .panel-tab.active:hover { filter: brightness(1.1); }
 .tab-content { flex: 1; display: none; overflow: hidden; }
@@ -286,7 +286,7 @@ pre:hover .code-copy { opacity: 1; }
 .q-skip:hover { color: var(--text-dim); text-decoration: underline; }
 
 /* Branch badge in topbar */
-.branch-badge { font-size: 11px; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 10px; font-family: var(--mono); }
+.branch-badge { font-size: 10px; color: var(--accent); background: var(--accent-soft); padding: 1px 7px; border-radius: 8px; font-family: var(--mono); }
 
 /* Visual edit overlay */
 .visual-overlay { position: absolute; inset: 0; z-index: 10; cursor: crosshair; }
