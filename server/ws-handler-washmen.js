@@ -195,10 +195,16 @@ export function handleWashmenWs(ws, sessionIds) {
   });
 
   async function handleChat(msg, ws, sessionIds) {
-    const text = msg.text || msg.prompt || "";
+    let text = msg.text || msg.prompt || "";
     const sessionId = msg.sessionId || currentSessionId || crypto.randomUUID();
     const model = msg.model === "opus" ? "claude-opus-4-6" : "claude-sonnet-4-6";
+    const mode = msg.mode || "build";
     currentSessionId = sessionId;
+
+    // Plan mode — instruct agent to only plan, not execute
+    if (mode === "plan") {
+      text = `PLAN MODE — Do NOT edit any files, do NOT run any commands, do NOT make any code changes. Only analyze and create a plan.\n\n${text}\n\nRespond with a structured plan:\n1. What needs to change across each layer (frontend, API gateway, core service)\n2. Which specific files will be modified\n3. What the changes will look like\n4. Any risks or considerations\n\nDo NOT write any code. Do NOT use Edit, Write, or Bash tools. Only use Read and Glob to understand the codebase, then respond with the plan.`;
+    }
 
     // Check daily budget
     const totalCost = getTotalCost();
@@ -274,7 +280,9 @@ export function handleWashmenWs(ws, sessionIds) {
           cwd: workspaceDir,
           additionalDirectories: additionalDirs,
           settingSources: ["project"],
-          allowedTools: ["Read", "Edit", "Write", "Bash", "Glob", "Grep", "WebFetch", "Agent"],
+          allowedTools: mode === "plan"
+            ? ["Read", "Glob", "Grep"]  // Plan mode: read-only tools
+            : ["Read", "Edit", "Write", "Bash", "Glob", "Grep", "WebFetch", "Agent"],
           hooks: {
             PreToolUse: [{
               matcher: ".*",
