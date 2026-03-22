@@ -269,40 +269,62 @@ export function handleWashmenWs(ws, sessionIds) {
 
       let fullText = "";
       let gotFirstChunk = false;
+      let gotResult = false;
+      let lastCost = 0;
+
       for await (const event of q) {
         if (ws.readyState !== 1) break;
 
-        // Log all event types for debugging
-        if (event.type !== "assistant") {
-          console.log(`[agent] event type=${event.type} subtype=${event.subtype || ""}`);
+        const etype = event.type;
+        const esub = event.subtype || "";
+
+        // Log non-assistant events for debugging
+        if (etype !== "assistant") {
+          console.log(`[agent] event type=${etype} sub=${esub} keys=${Object.keys(event).join(",")}`);
         }
 
-        if (event.type === "assistant" && event.message?.content) {
+        // Tool use events — detect from assistant message content blocks
+        if (etype === "assistant" && event.message?.content) {
           for (const block of event.message.content) {
+            // Stream text
             if (block.type === "text" && block.text) {
               if (!gotFirstChunk) {
                 gotFirstChunk = true;
                 ws.send(JSON.stringify({ type: "thinking_done", sessionId }));
               }
               fullText += block.text;
-              ws.send(JSON.stringify({
-                type: "assistant_chunk",
-                text: block.text,
-                sessionId,
-              }));
+              ws.send(JSON.stringify({ type: "assistant_chunk", text: block.text, sessionId }));
+            }
+            // Tool use block — send activity
+            if (block.type === "tool_use") {
+              const toolName = block.name || "unknown";
+              const toolInput = block.input || {};
+              console.log(`[tool] ${toolName}: ${JSON.stringify(toolInput).slice(0, 100)}`);
+
+              // Guardrail check
+              const check = checkPreToolUse(toolName, toolInput);
+              if (!check.allowed) {
+                console.log(`[guardrail] BLOCKED: ${check.reason}`);
+              }
+
+              ws.send(JSON.stringify({ type: "tool_activity", tool: toolName, input: toolInput }));
+            }
+            // Tool result
+            if (block.type === "tool_result") {
+              ws.send(JSON.stringify({ type: "tool_complete", tool: block.tool_use_id }));
             }
           }
         }
 
-        if (event.type === "result") {
-          // Extract cost — try multiple fields
+        // Result event
+        if (etype === "result") {
+          gotResult = true;
           const cost = event.cost_usd || event.costUsd || event.usage?.cost_usd || 0;
-          const inputTokens = event.usage?.input_tokens || event.input_tokens || 0;
-          const outputTokens = event.usage?.output_tokens || event.output_tokens || 0;
-          console.log(`[agent] result: cost=$${cost}, tokens=${inputTokens}+${outputTokens}`);
+          lastCost = cost;
+          console.log(`[agent] result: cost=$${cost}`);
 
           if (cost > 0) {
-            try { addCost(sessionId, cost); } catch (e) { console.error("[cost] addCost error:", e.message); }
+            try { addCost(sessionId, cost); } catch (e) { console.error("[cost]", e.message); }
           }
 
           ws.send(JSON.stringify({
@@ -310,22 +332,35 @@ export function handleWashmenWs(ws, sessionIds) {
             text: fullText,
             sessionId,
             cost,
-            inputTokens,
-            outputTokens,
             totalCost: getTotalCost(),
           }));
 
-          // Save assistant message
-          try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.error("[db] addMessage error:", e.message); }
+          try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.error("[db]", e.message); }
 
-          // Check if we should create a checkpoint
-          if (fullText.includes("✓") || fullText.toLowerCase().includes("done") || fullText.toLowerCase().includes("complete")) {
+          if (fullText.toLowerCase().match(/done|complete|✓|finished/)) {
             try {
               const checkpoint = createCheckpoint(text.slice(0, 40));
               ws.send(JSON.stringify({ type: "checkpoint_created", name: checkpoint }));
-            } catch (e) { console.error("[checkpoint] error:", e.message); }
+            } catch (e) { console.error("[checkpoint]", e.message); }
           }
         }
+      }
+
+      // If loop ended without a result event, still send done
+      if (!gotResult && fullText) {
+        console.log("[agent] stream ended without result event — sending done");
+        try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch {}
+        ws.send(JSON.stringify({
+          type: "assistant_done",
+          text: fullText,
+          sessionId,
+          cost: lastCost,
+          totalCost: getTotalCost(),
+        }));
+      }
+
+      if (!gotFirstChunk) {
+        ws.send(JSON.stringify({ type: "thinking_done", sessionId }));
       }
 
       if (!gotFirstChunk) {
