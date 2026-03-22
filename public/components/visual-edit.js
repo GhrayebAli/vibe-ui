@@ -272,16 +272,20 @@ async function showSimpleEditPanel(clickX, clickY) {
   // Call server to inspect the element using Playwright (same-origin access)
   let elementInfo = null;
   try {
-    // Scale coordinates: the overlay covers the preview-wrap area
-    // We need to map to the actual page coordinates (1280x720)
-    const previewWrap = document.getElementById('preview-wrap');
-    const wrapRect = previewWrap.getBoundingClientRect();
-    const scaleX = 1280 / wrapRect.width;
-    const scaleY = 720 / wrapRect.height;
+    // The iframe renders at 1280x720 in Playwright.
+    // clickX/Y are relative to the iframe element's bounding rect (from handleClick).
+    // Scale from iframe's display size to Playwright's 1280x720 viewport.
+    const iframe = document.getElementById('preview-frame');
+    const iframeW = iframe.offsetWidth;
+    const iframeH = iframe.offsetHeight;
+    const scaleX = 1280 / iframeW;
+    const scaleY = 720 / iframeH;
     const pageX = Math.round(clickX * scaleX);
     const pageY = Math.round(clickY * scaleY);
 
-    // Get the current URL from the preview URL bar so the server navigates to the same page
+    console.log(`[visual-edit] click=(${clickX},${clickY}) iframe=(${iframeW}x${iframeH}) scaled=(${pageX},${pageY})`);
+
+    // Get the current URL from the preview URL bar
     const currentUrl = document.getElementById('preview-url')?.value || '/';
 
     const resp = await fetch('/api/inspect-element', {
