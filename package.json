@@ -1,55 +1,22 @@
 {
-  "name": "claudeck",
-  "version": "1.1.1",
+  "name": "vibe-ui",
+  "version": "1.0.0",
   "type": "module",
-  "description": "A browser-based UI for Claude Code — chat, run workflows, manage MCP servers, track costs, and orchestrate autonomous agents from a local web interface. Installable as a PWA.",
-  "main": "server.js",
-  "bin": {
-    "claudeck": "./cli.js"
-  },
-  "files": [
-    "cli.js",
-    "server.js",
-    "db.js",
-    "server/",
-    "public/",
-    "config/",
-    "plugins/",
-    "README.md",
-    "LICENSE"
-  ],
-  "keywords": [
-    "claude",
-    "claude-code",
-    "ai",
-    "llm",
-    "web-ui",
-    "chat",
-    "mcp",
-    "agents",
-    "workflows",
-    "pwa",
-    "developer-tools"
-  ],
-  "homepage": "https://github.com/hamedafarag/claudeck",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/hamedafarag/claudeck"
-  },
+  "description": "Washmen MVP Workspace — AI chat interface powered by Claude Agent SDK",
+  "main": "server-washmen.js",
   "license": "MIT",
-  "author": "Hamed Farag",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server-washmen.js",
+    "start:original": "node server.js"
   },
   "dependencies": {
-    "@anthropic-ai/claude-code": "^1.0.128",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.81",
     "better-sqlite3": "^11",
     "dotenv": "^17.3.1",
     "express": "^4",
-    "web-push": "^3.6.7",
     "ws": "^8"
   }
 }
