@@ -150,6 +150,55 @@ app.get("/api/files", (_req, res) => {
 // Track last read position per log file to only return new lines
 const logPositions = {};
 
+// Browser console buffer — populated by a background Playwright listener
+const browserConsoleBuffer = [];
+let browserConsoleStarted = false;
+
+async function startBrowserConsoleListener() {
+  if (browserConsoleStarted) return;
+  browserConsoleStarted = true;
+  try {
+    const { chromium } = await import("playwright");
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
+
+    page.on("console", msg => {
+      const type = msg.type();
+      if (type === "error" || type === "warning" || type === "warn") {
+        browserConsoleBuffer.push({
+          level: type === "warning" || type === "warn" ? "warn" : "error",
+          message: `[browser] ${msg.text()}`,
+          ts: Date.now(),
+        });
+        // Keep buffer manageable
+        if (browserConsoleBuffer.length > 200) browserConsoleBuffer.splice(0, 100);
+      }
+    });
+
+    page.on("pageerror", err => {
+      browserConsoleBuffer.push({
+        level: "error",
+        message: `[browser] Uncaught: ${err.message}`,
+        ts: Date.now(),
+      });
+    });
+
+    await page.goto("http://localhost:3000", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+    console.log("[console] Browser console listener started");
+
+    // Periodically reload to catch new errors after HMR
+    setInterval(async () => {
+      try { await page.reload({ waitUntil: "domcontentloaded", timeout: 10000 }); } catch {}
+    }, 30000);
+  } catch (err) {
+    console.error("[console] Failed to start browser listener:", err.message);
+    browserConsoleStarted = false;
+  }
+}
+
+// Start listener after services are likely up
+setTimeout(startBrowserConsoleListener, 10000);
+
 app.get("/api/console", (req, res) => {
   const entries = [];
   const reset = req.query.reset === "true";
@@ -189,6 +238,10 @@ app.get("/api/console", (req, res) => {
       }
     } catch {}
   }
+
+  // Add browser console entries
+  const browserEntries = browserConsoleBuffer.splice(0, browserConsoleBuffer.length);
+  entries.push(...browserEntries);
 
   res.json({ entries });
 });

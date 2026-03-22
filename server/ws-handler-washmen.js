@@ -211,6 +211,27 @@ export function handleWashmenWs(ws, sessionIds) {
       return;
     }
 
+    // Lazy context rebuild — on first prompt of resumed session
+    let contextPrefix = "";
+    if (isFirstMessage && getSession(sessionId)) {
+      try {
+        const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+        const gitLogs = [];
+        for (const repo of ["mock-ops-frontend", "mock-api-gateway", "mock-core-service"]) {
+          try {
+            const log = execSync(`git -C "${workspaceDir}/${repo}" log --oneline -5 2>/dev/null`, { stdio: "pipe" }).toString().trim();
+            if (log) gitLogs.push(`${repo}:\n${log}`);
+          } catch {}
+        }
+        if (gitLogs.length > 0) {
+          contextPrefix = `[Context from previous session — recent git history across repos:\n${gitLogs.join("\n\n")}\n\nContinue from where we left off.]\n\n`;
+          console.log("[context] Prepended git history context for resumed session");
+        }
+      } catch (e) {
+        console.error("[context]", e.message);
+      }
+    }
+
     // Onboarding: first message creates branches
     if (isFirstMessage && !msg.skipOnboarding) {
       isFirstMessage = false;
@@ -246,7 +267,7 @@ export function handleWashmenWs(ws, sessionIds) {
 
     try {
       const q = query({
-        prompt: text,
+        prompt: contextPrefix + text,
         options: {
           model,
           tools: { type: "preset", preset: "claude_code" },
@@ -288,6 +309,7 @@ export function handleWashmenWs(ws, sessionIds) {
       let lastCost = 0;
       let changedFiles = []; // Track files edited/written by agent
       let lastEditedFile = null;
+      const fileContentBefore = new Map(); // Store pre-edit content for diff
 
       for await (const event of q) {
         if (ws.readyState !== 1) break;
@@ -330,13 +352,19 @@ export function handleWashmenWs(ws, sessionIds) {
               if (toolInput.file_path) {
                 if (toolName === "Edit" || toolName === "Write" || toolName === "edit" || toolName === "write") {
                   lastEditedFile = toolInput.file_path;
+                  // Capture content before edit for diff
+                  if (!fileContentBefore.has(toolInput.file_path)) {
+                    try {
+                      fileContentBefore.set(toolInput.file_path, readFileSync(toolInput.file_path, "utf8"));
+                    } catch { fileContentBefore.set(toolInput.file_path, ""); }
+                  }
                   if (!changedFiles.find(f => f.name === toolInput.file_path)) {
                     changedFiles.push({ name: toolInput.file_path, tool: toolName });
                   }
                 }
                 // Also track reads for Code tab (show last accessed file)
                 if (toolName === "Read" || toolName === "read") {
-                  if (!lastEditedFile) lastEditedFile = toolInput.file_path; // Only if no edits yet
+                  if (!lastEditedFile) lastEditedFile = toolInput.file_path;
                 }
               }
             }
@@ -360,7 +388,29 @@ export function handleWashmenWs(ws, sessionIds) {
 
           // Send file changes for Code tab and diff summary
           if (changedFiles.length > 0) {
-            ws.send(JSON.stringify({ type: "file_diff", files: changedFiles }));
+            // Compute real line counts
+            const filesWithDiff = changedFiles.map(f => {
+              try {
+                const before = fileContentBefore.get(f.name) || "";
+                const after = readFileSync(f.name, "utf8");
+                const beforeLines = before.split("\n").length;
+                const afterLines = after.split("\n").length;
+                const additions = Math.max(0, afterLines - beforeLines);
+                const deletions = Math.max(0, beforeLines - afterLines);
+                // For edits (same line count), estimate from content diff
+                if (additions === 0 && deletions === 0 && before !== after) {
+                  const bSet = new Set(before.split("\n"));
+                  const aSet = new Set(after.split("\n"));
+                  let changed = 0;
+                  for (const line of aSet) { if (!bSet.has(line)) changed++; }
+                  return { ...f, additions: changed, deletions: changed };
+                }
+                return { ...f, additions, deletions };
+              } catch {
+                return { ...f, additions: 0, deletions: 0 };
+              }
+            });
+            ws.send(JSON.stringify({ type: "file_diff", files: filesWithDiff }));
           }
           if (lastEditedFile) {
             try {

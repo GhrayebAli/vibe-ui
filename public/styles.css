@@ -276,6 +276,32 @@ pre:hover .code-copy { opacity: 1; }
 /* Branch badge in topbar */
 .branch-badge { font-size: 11px; color: var(--accent); background: var(--accent-soft); padding: 2px 8px; border-radius: 10px; font-family: var(--mono); }
 
+/* Visual edit overlay */
+.visual-overlay { position: absolute; inset: 0; z-index: 10; cursor: crosshair; }
+.vo-hint { position: absolute; background: var(--accent); color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 500; pointer-events: none; white-space: nowrap; z-index: 11; }
+
+/* Edit panel */
+.edit-panel { position: absolute; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); z-index: 15; max-height: 50%; overflow-y: auto; animation: slideUp .2s ease; }
+@keyframes slideUp { from { transform: translateY(100%); } }
+.ep-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.ep-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.ep-path { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+.ep-close { margin-left: auto; background: none; border: none; color: var(--text-muted); font-size: 16px; cursor: pointer; }
+.ep-fields { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.ep-field { display: flex; flex-direction: column; gap: 3px; }
+.ep-field label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+.ep-input { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; color: var(--text); font-size: 12px; width: 100%; }
+.ep-input:focus { outline: none; border-color: var(--accent); }
+.ep-color { width: 32px; height: 28px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; padding: 0; }
+.ep-num { width: 50px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 6px; color: var(--text); font-size: 12px; text-align: center; }
+.ep-row { display: flex; gap: 8px; }
+.ep-actions { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--border); }
+.ep-save { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm); padding: 6px 16px; font-size: 12px; font-weight: 500; cursor: pointer; }
+.ep-cancel { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 16px; font-size: 12px; cursor: pointer; }
+
+/* Visual edit button active state */
+.pbar-btn.ve-active { background: var(--accent); color: #fff; }
+
 /* ── Overlays ── */
 .overlay { position: absolute; top: 0; left: 0; bottom: 0; width: 100%; background: var(--bg); z-index: 20; transform: translateX(-100%); transition: transform .2s ease; overflow-y: auto; pointer-events: none; }
 .overlay.open { pointer-events: auto; }

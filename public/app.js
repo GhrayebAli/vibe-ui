@@ -4,6 +4,7 @@ import { initHistory, loadHistory } from './components/history.js';
 import { initNotes, onNotesOpen } from './components/notes.js';
 import { initStatus, checkHealth } from './components/status.js';
 import { initBudget, updateBudget } from './components/budget.js';
+import { initVisualEdit, toggleVisualEdit, deactivate as deactivateVisualEdit } from './components/visual-edit.js';
 
 /* ═══ DOM refs ═══ */
 const $ = id => document.getElementById(id);
@@ -41,6 +42,7 @@ function connect() {
     loadSessions();
     loadChatHistory();
     initPreview(portUrl(3000));
+    initVisualEdit($('preview-frame'), doSend);
     setInterval(checkHealth, 10000);
   };
 
@@ -156,6 +158,9 @@ function handleMessage(msg) {
 /* ═══ Send ═══ */
 function doSend(text) {
   if (!text.trim()) return;
+
+  // Deactivate visual edit mode
+  deactivateVisualEdit();
 
   // Hide welcome
   if (!hasSent) {
@@ -320,6 +325,10 @@ document.querySelectorAll('.device-btns .pbar-btn').forEach(btn => {
 /* ═══ Preview Bar ═══ */
 $('preview-back').onclick = () => { try { $('preview-frame').contentWindow.history.back(); } catch {} };
 $('preview-refresh').onclick = refreshPreview;
+$('visual-edit-btn').onclick = () => {
+  const isActive = toggleVisualEdit();
+  $('visual-edit-btn').classList.toggle('ve-active', isActive);
+};
 $('preview-url').onkeydown = e => {
   if (e.key === 'Enter') {
     let url = e.target.value.trim();
