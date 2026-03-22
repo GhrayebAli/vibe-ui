@@ -33,9 +33,11 @@
   --font-mono:     "JetBrains Mono", "SF Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
 
   /* Spacing & Sizing */
-  --radius:        4px;
-  --radius-md:     8px;
-  --radius-lg:     12px;
+  --radius:        8px;
+  --radius-md:     12px;
+  --radius-lg:     16px;
+  --radius-xl:     20px;
+  --radius-pill:   9999px;
   --header-h:      40px;
   --sidebar-w:     280px;
   --chat-max-w:    820px;

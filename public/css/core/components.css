@@ -91,7 +91,7 @@ input[type="checkbox"] {
 .welcome-btn-primary {
   background: var(--accent-solid);
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-pill);
   padding: 8px 16px;
   color: #000;
   font-size: 12px;
@@ -138,7 +138,7 @@ input[type="checkbox"] {
 .welcome-btn-secondary {
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-pill);
   padding: 8px 16px;
   color: var(--text-secondary);
   font-size: 12px;
@@ -161,7 +161,7 @@ input[type="checkbox"] {
 .perm-deny-btn {
   background: transparent;
   border: 1px solid var(--error);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-pill);
   padding: 8px 16px;
   color: var(--error);
   font-size: 12px;

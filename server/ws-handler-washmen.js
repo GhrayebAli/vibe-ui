@@ -487,9 +487,11 @@ export function handleWashmenWs(ws, sessionIds) {
           // Only checkpoint when files were actually changed
           if (changedFiles.length > 0) {
             try {
-              // Use first line of agent response as label (summary of what was done)
-              const firstLine = fullText.split("\n").find(l => l.trim().length > 10) || text;
-              const label = firstLine.replace(/^[#*\->\s]+/, "").slice(0, 60);
+              // Label from user prompt + files changed (not agent's thinking text)
+              const promptClean = text.replace(/^(PLAN MODE|VISUAL EDIT REQUEST)[^\n]*/i, "").trim();
+              const promptShort = promptClean.split("\n")[0].slice(0, 40);
+              const fileNames = changedFiles.map(f => f.name.split("/").pop()).slice(0, 3).join(", ");
+              const label = promptShort + (fileNames ? " → " + fileNames : "");
               const checkpoint = createCheckpoint(label);
               ws.send(JSON.stringify({
                 type: "checkpoint_created",
