@@ -111,6 +111,29 @@ app.get("/api/sessions/:id/messages", (req, res) => {
   res.json(messages);
 });
 
+// Console output — read last lines from service logs
+app.get("/api/console", (_req, res) => {
+  const entries = [];
+  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+  try {
+    for (const [name, logFile] of [["frontend", "fe.log"], ["gateway", "gw.log"], ["core", "core.log"]]) {
+      try {
+        const log = readFileSync(`/tmp/${logFile}`, "utf8");
+        const lines = log.split("\n").filter(Boolean).slice(-20);
+        for (const line of lines) {
+          const lower = line.toLowerCase();
+          if (lower.includes("error") || lower.includes("err ")) {
+            entries.push({ level: "error", message: `[${name}] ${line.trim()}` });
+          } else if (lower.includes("warn")) {
+            entries.push({ level: "warn", message: `[${name}] ${line.trim()}` });
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+  res.json({ entries: entries.slice(-50) });
+});
+
 // Branch check
 app.get("/api/branch", (_req, res) => {
   try {

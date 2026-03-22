@@ -1,6 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import crypto from "crypto";
 import { execSync } from "child_process";
+import { readFileSync } from "fs";
 import {
   createSession,
   getSession,
@@ -271,6 +272,8 @@ export function handleWashmenWs(ws, sessionIds) {
       let gotFirstChunk = false;
       let gotResult = false;
       let lastCost = 0;
+      let changedFiles = []; // Track files edited/written by agent
+      let lastEditedFile = null;
 
       for await (const event of q) {
         if (ws.readyState !== 1) break;
@@ -308,6 +311,14 @@ export function handleWashmenWs(ws, sessionIds) {
               }
 
               ws.send(JSON.stringify({ type: "tool_activity", tool: toolName, input: toolInput }));
+
+              // Track file changes
+              if ((toolName === "Edit" || toolName === "Write" || toolName === "edit" || toolName === "write") && toolInput.file_path) {
+                lastEditedFile = toolInput.file_path;
+                if (!changedFiles.find(f => f.name === toolInput.file_path)) {
+                  changedFiles.push({ name: toolInput.file_path, tool: toolName });
+                }
+              }
             }
             // Tool result
             if (block.type === "tool_result") {
@@ -325,6 +336,17 @@ export function handleWashmenWs(ws, sessionIds) {
 
           if (cost > 0) {
             try { addCost(sessionId, cost); } catch (e) { console.error("[cost]", e.message); }
+          }
+
+          // Send file changes for Code tab and diff summary
+          if (changedFiles.length > 0) {
+            ws.send(JSON.stringify({ type: "file_diff", files: changedFiles }));
+          }
+          if (lastEditedFile) {
+            try {
+              const content = readFileSync(lastEditedFile, "utf8");
+              ws.send(JSON.stringify({ type: "code_update", path: lastEditedFile, content }));
+            } catch (e) { console.error("[code]", e.message); }
           }
 
           ws.send(JSON.stringify({

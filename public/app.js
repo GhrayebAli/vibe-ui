@@ -101,6 +101,10 @@ function handleMessage(msg) {
       showDiffSummary(msg.files);
       break;
 
+    case 'code_update':
+      updateCodeTab(msg.path, msg.content);
+      break;
+
     case 'system':
       addSystemMsg(msg.text);
       break;
@@ -417,6 +421,54 @@ input.oninput = () => {
     updateBudget(data.totalCost);
   } catch {}
 })();
+
+/* ═══ Code Tab ═══ */
+function updateCodeTab(path, content) {
+  const codePath = $('code-path');
+  const codeContent = $('code-content');
+  if (codePath) codePath.textContent = path || 'No file selected';
+  if (codeContent && content) {
+    codeContent.textContent = content;
+    // Apply syntax highlighting
+    codeContent.className = 'code-content';
+    try { hljs.highlightElement(codeContent); } catch {}
+  }
+}
+
+/* ═══ Console ═══ */
+function addConsoleEntry(level, message) {
+  const view = $('console-view');
+  if (!view) return;
+  const entry = document.createElement('div');
+  entry.className = 'console-entry';
+  const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  entry.innerHTML = `<span class="ts">${ts}</span><span class="lvl ${level}">${level.toUpperCase()}</span><span class="msg">${message}</span>`;
+  view.appendChild(entry);
+  view.scrollTop = view.scrollHeight;
+}
+
+// Pipe tool activities to console
+const _origShowActivity = showActivity;
+// Override showActivity to also log to console
+const origHandleMessage = handleMessage;
+
+// Poll for console output from the server
+async function pollConsole() {
+  try {
+    const resp = await fetch('/api/console');
+    const data = await resp.json();
+    if (data.entries) {
+      data.entries.forEach(e => addConsoleEntry(e.level, e.message));
+    }
+  } catch {}
+}
+setInterval(pollConsole, 5000);
+
+// Add initial console message
+setTimeout(() => {
+  addConsoleEntry('info', 'vibe-ui connected');
+  addConsoleEntry('info', 'Services: Frontend :3000, Gateway :1337, Core :2339');
+}, 1000);
 
 /* ═══ Init ═══ */
 initChat(chat);
