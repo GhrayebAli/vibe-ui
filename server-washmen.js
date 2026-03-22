@@ -346,13 +346,21 @@ app.post("/api/inspect-element", async (req, res) => {
       // Try the exact point first, then sample nearby points to find the most specific element
       let el = document.elementFromPoint(cx, cy);
 
-      // If we hit a very generic element (html, body, or a large container), try nearby points
+      // If we hit a very generic element, try nearby points in a wider area.
+      // The coordinate mapping between browser sizes can be off by 20-30px.
       const isGeneric = (e) => !e || e === document.documentElement || e === document.body || e.tagName === 'HTML' || e.tagName === 'BODY';
-      if (isGeneric(el)) {
-        const offsets = [[0,15],[0,30],[0,-15],[15,0],[-15,0],[15,15],[-15,15],[0,45]];
+      // Also consider large containers generic if they have a data-component but contain most of the page
+      const isVeryLarge = (e) => e && e.offsetWidth > window.innerWidth * 0.5 && e.offsetHeight > window.innerHeight * 0.5;
+      if (isGeneric(el) || isVeryLarge(el)) {
+        const offsets = [
+          [0,20],[0,40],[0,-20],[20,0],[-20,0],
+          [20,20],[-20,20],[20,-20],[-20,-20],
+          [0,60],[0,-40],[40,0],[-40,0],
+          [30,30],[-30,30],[30,-30],
+        ];
         for (const [dx, dy] of offsets) {
           const candidate = document.elementFromPoint(cx + dx, cy + dy);
-          if (!isGeneric(candidate)) { el = candidate; break; }
+          if (candidate && !isGeneric(candidate) && !isVeryLarge(candidate)) { el = candidate; break; }
         }
       }
       if (!el) return null;
