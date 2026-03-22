@@ -62,10 +62,10 @@ input, textarea { font-family: var(--font); }
 .top-bar-right { display: flex; align-items: center; gap: 8px; }
 
 /* Mode toggle */
-.mode-toggle { display: flex; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); }
-.mode-btn { padding: 2px 10px; border: none; background: transparent; color: var(--text-dim); font-size: 10px; font-weight: 500; transition: all var(--transition); }
+.mode-toggle { display: flex; gap: 3px; align-items: center; }
+.mode-btn { height: 22px; padding: 0 10px; border: none; border-radius: 11px; background: transparent; color: var(--text-dim); font-size: 11px; font-weight: 600; font-family: var(--font); transition: all .2s ease; cursor: pointer; }
 .mode-btn.active { background: var(--accent); color: #fff; }
-.mode-btn:hover:not(.active) { color: var(--text); }
+.mode-btn:hover:not(.active) { color: var(--text); background: var(--bg-3); }
 
 /* Model selector */
 .model-select { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px 6px; font-size: 10px; font-weight: 500; appearance: none; cursor: pointer; }
