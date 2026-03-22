@@ -244,7 +244,8 @@ function addCopyButtons(container) {
     btn.className = 'code-copy';
     btn.textContent = 'Copy';
     btn.onclick = () => {
-      navigator.clipboard.writeText(pre.textContent.replace(/Copy(ed!)?/, '').trim());
+      const text = pre.textContent.replace(/Copy(ed!)?/, '').trim();
+      try { navigator.clipboard.writeText(text); } catch { /* fallback */ const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
       btn.textContent = 'Copied!';
       btn.classList.add('copied');
       setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
