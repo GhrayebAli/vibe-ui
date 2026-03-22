@@ -319,7 +319,7 @@ export function handleWashmenWs(ws, sessionIds) {
         // Result event
         if (etype === "result") {
           gotResult = true;
-          const cost = event.cost_usd || event.costUsd || event.usage?.cost_usd || 0;
+          const cost = event.total_cost_usd || event.cost_usd || event.costUsd || event.usage?.cost_usd || 0;
           lastCost = cost;
           console.log(`[agent] result: cost=$${cost}`);
 
