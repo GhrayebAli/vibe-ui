@@ -255,6 +255,7 @@ pre:hover .code-copy { opacity: 1; }
 .console-entry .ts { color: var(--text-muted); min-width: 60px; }
 .console-entry .lvl { min-width: 40px; font-weight: 600; }
 .console-entry .lvl.error { color: var(--red); }
+.console-entry .lvl.info { color: var(--accent); }
 .console-entry .lvl.warn { color: var(--orange); }
 .console-entry .msg { color: var(--text-dim); word-break: break-all; }
 .console-clear { position: absolute; top: 8px; right: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted); font-size: 11px; padding: 2px 8px; cursor: pointer; }

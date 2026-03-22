@@ -147,26 +147,48 @@ app.get("/api/files", (_req, res) => {
 });
 
 // Console output — read last lines from service logs
-app.get("/api/console", (_req, res) => {
+// Track last read position per log file to only return new lines
+const logPositions = {};
+
+app.get("/api/console", (req, res) => {
   const entries = [];
-  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
-  try {
-    for (const [name, logFile] of [["frontend", "fe.log"], ["gateway", "gw.log"], ["core", "core.log"]]) {
-      try {
-        const log = readFileSync(`/tmp/${logFile}`, "utf8");
-        const lines = log.split("\n").filter(Boolean).slice(-20);
-        for (const line of lines) {
-          const lower = line.toLowerCase();
-          if (lower.includes("error") || lower.includes("err ")) {
-            entries.push({ level: "error", message: `[${name}] ${line.trim()}` });
-          } else if (lower.includes("warn")) {
-            entries.push({ level: "warn", message: `[${name}] ${line.trim()}` });
-          }
+  const reset = req.query.reset === "true";
+
+  for (const [name, logFile] of [["frontend", "fe.log"], ["gateway", "gw.log"], ["core", "core.log"], ["vibe-ui", "vibe.log"]]) {
+    try {
+      const path = `/tmp/${logFile}`;
+      const log = readFileSync(path, "utf8");
+      const allLines = log.split("\n").filter(Boolean);
+
+      // Only return lines we haven't sent before
+      const lastPos = reset ? 0 : (logPositions[logFile] || Math.max(0, allLines.length - 5)); // On first call show last 5 lines
+      const newLines = allLines.slice(lastPos);
+      logPositions[logFile] = allLines.length;
+
+      for (const line of newLines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        // Skip Sails boilerplate/decoration lines
+        if (trimmed.match(/^[-=~_.·•|\\/<>,'`]+$/) || trimmed.startsWith("debug: ---") || trimmed === "debug:") continue;
+        if (trimmed.includes("Sails              <|") || trimmed.includes("__---___")) continue;
+        if (trimmed.includes("Read more at https://sailsjs.com")) continue;
+
+        const lower = trimmed.toLowerCase();
+
+        // Real errors — not just lines containing the word "error"
+        if (lower.startsWith("error:") || lower.includes("throw ") || lower.includes("uncaught") || lower.includes("eaddrinuse") || lower.includes("enoent") || lower.includes("fatal")) {
+          entries.push({ level: "error", message: `[${name}] ${trimmed}` });
+        } else if (lower.includes("warning:") || lower.startsWith("warn:") || lower.includes("deprecat")) {
+          entries.push({ level: "warn", message: `[${name}] ${trimmed}` });
+        } else if (lower.startsWith("info:") || lower.includes("server lifted") || lower.includes("running on") || lower.includes("listening")) {
+          entries.push({ level: "info", message: `[${name}] ${trimmed}` });
         }
-      } catch {}
-    }
-  } catch {}
-  res.json({ entries: entries.slice(-50) });
+      }
+    } catch {}
+  }
+
+  res.json({ entries });
 });
 
 // Branch check
