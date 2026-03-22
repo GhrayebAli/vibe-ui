@@ -298,6 +298,23 @@ app.get("/api/checkpoints", (_req, res) => {
   }
 });
 
+// Restore to checkpoint
+app.post("/api/restore", (req, res) => {
+  const { checkpointId } = req.body;
+  if (!checkpointId) return res.status(400).json({ error: "Missing checkpointId" });
+  try {
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    for (const repo of ["mock-ops-frontend", "mock-api-gateway", "mock-core-service"]) {
+      try {
+        execSync(`git -C "${workspaceDir}/${repo}" reset --hard "${checkpointId}"`, { stdio: "pipe" });
+      } catch {}
+    }
+    res.json({ ok: true, restoredTo: checkpointId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Inspect element at coordinates — for visual edit mode
 // Cached Playwright browser for element inspection — avoids 10s startup per click
 let inspectBrowser = null;

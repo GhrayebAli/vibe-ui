@@ -324,12 +324,18 @@ pre:hover .code-copy { opacity: 1; }
 .overlay-close:hover { color: var(--text); }
 
 /* History items */
-.history-item { padding: 12px 14px; border-bottom: 1px solid var(--border); }
-.history-item.current { border-left: 3px solid var(--green); }
-.history-label { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+.history-item { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.history-item.current { background: var(--green-soft); }
+.history-row { display: flex; align-items: center; gap: 10px; }
+.history-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+.history-dot.dot-current { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.history-info { flex: 1; min-width: 0; }
+.history-label { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-current-badge { font-size: 10px; color: var(--green); font-weight: 600; flex-shrink: 0; }
 .history-meta { font-size: 11px; color: var(--text-muted); display: flex; gap: 10px; }
-.history-restore { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim); font-size: 11px; padding: 4px 10px; margin-top: 6px; cursor: pointer; }
+.history-restore { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim); font-size: 10px; padding: 3px 10px; cursor: pointer; flex-shrink: 0; font-family: var(--font); }
 .history-restore:hover { border-color: var(--accent); color: var(--text); }
+.history-restore:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Status overlay items */
 .status-svc { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }

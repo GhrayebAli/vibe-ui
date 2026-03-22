@@ -452,10 +452,19 @@ export function handleWashmenWs(ws, sessionIds) {
 
           try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.error("[db]", e.message); }
 
-          if (fullText.toLowerCase().match(/done|complete|✓|finished/)) {
+          // Only checkpoint when files were actually changed
+          if (changedFiles.length > 0) {
             try {
-              const checkpoint = createCheckpoint(text.slice(0, 40));
-              ws.send(JSON.stringify({ type: "checkpoint_created", name: checkpoint }));
+              // Use first line of agent response as label (summary of what was done)
+              const firstLine = fullText.split("\n").find(l => l.trim().length > 10) || text;
+              const label = firstLine.replace(/^[#*\->\s]+/, "").slice(0, 60);
+              const checkpoint = createCheckpoint(label);
+              ws.send(JSON.stringify({
+                type: "checkpoint_created",
+                name: checkpoint,
+                label,
+                files: changedFiles.length,
+              }));
             } catch (e) { console.error("[checkpoint]", e.message); }
           }
         }
