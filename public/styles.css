@@ -47,7 +47,7 @@ input, textarea { font-family: var(--font); }
 .strip-divider { width: 20px; height: 1px; background: var(--border); margin: 6px 0; }
 
 /* ── Left Panel ── */
-.left-panel { display: flex; flex-direction: column; background: var(--bg); min-height: 0; overflow: hidden; }
+.left-panel { display: flex; flex-direction: column; background: var(--bg); min-height: 0; overflow: hidden; min-width: 280px; }
 
 /* Top bar */
 .top-bar { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--surface); }
