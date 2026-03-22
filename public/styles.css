@@ -1,22 +1,22 @@
 /* ── Tokens ── */
 :root {
-  --bg: #0f0f0f;
-  --surface: #1a1a1a;
-  --surface2: #222222;
-  --border: #2a2a2a;
-  --border-hover: #3a3a3a;
-  --text: #e4e4e7;
-  --text-dim: #71717a;
-  --text-muted: #52525b;
-  --accent: #6366f1;
-  --accent-soft: rgba(99,102,241,.1);
+  --bg: #1A1F2C;
+  --surface: #222738;
+  --surface2: #2A3044;
+  --border: #33394D;
+  --border-hover: #444B62;
+  --text: #F1F0FB;
+  --text-dim: #8E8EA0;
+  --text-muted: #6E6E82;
+  --accent: #9b87f5;
+  --accent-soft: rgba(155,135,245,.12);
   --green: #22c55e;
-  --green-soft: rgba(34,197,94,.08);
+  --green-soft: rgba(34,197,94,.1);
   --red: #ef4444;
-  --red-soft: rgba(239,68,68,.08);
+  --red-soft: rgba(239,68,68,.1);
   --orange: #f59e0b;
-  --orange-soft: rgba(245,158,11,.08);
-  --blue: #3b82f6;
+  --orange-soft: rgba(245,158,11,.1);
+  --blue: #7E69AB;
   --font: 'DM Sans', system-ui, -apple-system, sans-serif;
   --mono: 'JetBrains Mono', 'Fira Code', monospace;
   --radius: 12px;
@@ -29,7 +29,7 @@
 /* ── Reset ── */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; overflow: hidden; }
-body { font-family: var(--font); background: #000; color: var(--text); font-size: 13.5px; line-height: 1.5; }
+body { font-family: var(--font); background: #0F1117; color: var(--text); font-size: 13.5px; line-height: 1.5; }
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -38,7 +38,7 @@ button { font-family: var(--font); cursor: pointer; }
 input, textarea { font-family: var(--font); }
 
 /* ── Shell ── */
-.shell { display: flex; height: 100vh; width: 100vw; padding: 6px; gap: 6px; background: #000; }
+.shell { display: flex; height: 100vh; width: 100vw; padding: 6px; gap: 6px; background: #0F1117; }
 
 /* ── Icon Strip ── */
 .icon-strip { width: 44px; background: var(--surface); display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 2px; flex-shrink: 0; z-index: 30; position: relative; border-radius: 12px; }
