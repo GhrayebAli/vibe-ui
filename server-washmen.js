@@ -158,7 +158,10 @@ async function startBrowserConsoleListener() {
   if (browserConsoleStarted) return;
   browserConsoleStarted = true;
   try {
-    const { chromium } = await import("playwright");
+    // Playwright is installed in the workspace root, not in vibe-ui
+    let chromium;
+    try { ({ chromium } = await import("playwright")); }
+    catch { ({ chromium } = await import("/workspaces/washmen-mvp-workspace/node_modules/playwright/index.mjs")); }
     const browser = await chromium.launch();
     const page = await browser.newPage();
 
@@ -197,7 +200,9 @@ async function startBrowserConsoleListener() {
 }
 
 // Start listener after services are likely up
-setTimeout(startBrowserConsoleListener, 10000);
+setTimeout(() => {
+  startBrowserConsoleListener().catch(e => console.error("[console] listener failed:", e.message));
+}, 10000);
 
 app.get("/api/console", (req, res) => {
   const entries = [];

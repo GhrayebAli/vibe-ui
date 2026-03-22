@@ -91,31 +91,54 @@ function handleMouseMove(e) {
       }
     }
   } catch {
-    // Cross-origin — can't access iframe content
+    // Cross-origin — show hint
     const hint = overlay.querySelector('.vo-hint');
-    if (hint) hint.textContent = 'Cross-origin: visual edit unavailable';
+    if (hint) {
+      hint.textContent = 'Click to describe what to change';
+      hint.style.left = (e.offsetX + 10) + 'px';
+      hint.style.top = (e.offsetY - 20) + 'px';
+    }
   }
 }
 
 function handleClick(e) {
-  if (!previewFrame?.contentDocument) return;
-
   const rect = previewFrame.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
 
+  let element = null;
+  let compName = 'Element';
+  let filePath = '';
+  let lineNum = '';
+
   try {
     const iframeDoc = previewFrame.contentDocument;
-    const element = iframeDoc.elementFromPoint(x, y);
-    if (!element || element === iframeDoc.body || element === iframeDoc.documentElement) return;
+    element = iframeDoc.elementFromPoint(x, y);
+    if (!element || element === iframeDoc.body || element === iframeDoc.documentElement) {
+      // Fall through to cross-origin panel
+      element = null;
+    } else {
+      // Lock selection
+      selectedElement = element;
+      element.style.outline = '2px solid #6366f1';
+      const compAttr = findComponentAttr(element);
+      if (compAttr) {
+        [compName, filePath, lineNum] = compAttr.split(':');
+      } else {
+        compName = element.tagName.toLowerCase();
+      }
+    }
+  } catch {
+    // Cross-origin — show simplified panel
+    element = null;
+  }
 
-    // Lock selection
-    selectedElement = element;
-    element.style.outline = '2px solid #6366f1';
+  if (!element) {
+    // Cross-origin or no element found — show prompt-only edit panel
+    showSimpleEditPanel(x, y);
+    return;
+  }
 
-    // Get component info
-    const compAttr = findComponentAttr(element);
-    const [compName, filePath, lineNum] = compAttr ? compAttr.split(':') : [element.tagName, '', ''];
 
     // Show edit panel
     showEditPanel(element, compName, filePath, lineNum);
@@ -215,6 +238,49 @@ function showEditPanel(element, compName, filePath, lineNum) {
   };
 
   rightPanel.appendChild(editPanel);
+}
+
+function showSimpleEditPanel(clickX, clickY) {
+  if (editPanel) editPanel.remove();
+
+  const rightPanel = document.querySelector('.right-panel');
+  if (!rightPanel) return;
+
+  editPanel = document.createElement('div');
+  editPanel.className = 'edit-panel';
+  editPanel.innerHTML = `
+    <div class="ep-header">
+      <span class="ep-title">Edit Element</span>
+      <span class="ep-path">Click position: ${Math.round(clickX)}, ${Math.round(clickY)}</span>
+      <button class="ep-close">&times;</button>
+    </div>
+    <div class="ep-fields">
+      <div class="ep-field">
+        <label>Describe what to change</label>
+        <input type="text" class="ep-input" id="ep-custom" placeholder="e.g. Make the header blue, increase font size of the table...">
+      </div>
+    </div>
+    <div class="ep-actions">
+      <button class="ep-save">Send to Agent</button>
+      <button class="ep-cancel">Cancel</button>
+    </div>
+  `;
+
+  editPanel.querySelector('.ep-close').onclick = () => { editPanel.remove(); editPanel = null; };
+  editPanel.querySelector('.ep-cancel').onclick = () => { editPanel.remove(); editPanel = null; };
+  editPanel.querySelector('.ep-save').onclick = () => {
+    const custom = editPanel.querySelector('#ep-custom').value.trim();
+    if (custom && onSendPrompt) {
+      onSendPrompt('In the frontend app preview: ' + custom);
+      deactivate();
+    }
+    editPanel.remove();
+    editPanel = null;
+  };
+
+  // Focus the input
+  rightPanel.appendChild(editPanel);
+  setTimeout(() => editPanel.querySelector('#ep-custom')?.focus(), 100);
 }
 
 function rgbToHex(rgb) {
