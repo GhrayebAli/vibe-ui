@@ -212,17 +212,16 @@ pre:hover .code-copy { opacity: 1; }
 /* ── Right Panel ── */
 .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg); min-width: 320px; position: relative; }
 
-/* Tabs — Lovable-style centered icon toolbar */
-.panel-tabs { height: 42px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 12px; gap: 2px; flex-shrink: 0; position: relative; }
-.tab-group-left, .tab-group-right { display: flex; align-items: center; gap: 2px; }
-.tab-group-center { display: flex; align-items: center; margin: 0 8px; }
-.panel-tab { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: none; background: none; color: var(--text-muted); transition: all var(--transition); cursor: pointer; flex-shrink: 0; }
-.panel-tab:hover:not(:disabled) { color: var(--text); background: var(--bg-3); }
-.panel-tab.active { color: var(--accent); background: var(--accent-soft); }
+/* Tabs */
+.panel-tabs { height: 44px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 12px; gap: 4px; flex-shrink: 0; }
+.panel-tab { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 10px; border: none; background: none; color: var(--text-dim); transition: all var(--transition); cursor: pointer; flex-shrink: 0; }
+.panel-tab:hover { color: var(--text); background: var(--bg-3); }
+.panel-tab.active:not(.tab-pill) { color: var(--text); background: var(--bg-3); }
 .panel-tab svg { flex-shrink: 0; }
-/* Pill-style active tab (for Preview) */
-.panel-tab.tab-pill { width: auto; padding: 0 14px; gap: 6px; border-radius: 18px; font-size: 12px; font-weight: 600; }
+/* Preview pill */
+.panel-tab.tab-pill { width: auto; padding: 0 16px; height: 34px; gap: 7px; border-radius: 18px; font-size: 13px; font-weight: 600; }
 .panel-tab.tab-pill.active { background: var(--accent); color: #fff; }
+.panel-tab.tab-pill:hover:not(.active) { background: var(--bg-3); }
 .panel-tab.tab-pill span { line-height: 1; }
 .tab-content { flex: 1; display: none; overflow: hidden; }
 .tab-content.active { display: flex; flex-direction: column; }
