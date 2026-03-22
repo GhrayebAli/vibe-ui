@@ -298,6 +298,120 @@ app.get("/api/checkpoints", (_req, res) => {
   }
 });
 
+// Inspect element at coordinates — for visual edit mode
+app.post("/api/inspect-element", async (req, res) => {
+  const { x, y } = req.body;
+  if (x == null || y == null) return res.status(400).json({ error: "Missing x,y" });
+
+  try {
+    let chromium;
+    try { ({ chromium } = await import("playwright")); }
+    catch { ({ chromium } = await import("/workspaces/washmen-mvp-workspace/node_modules/playwright/index.mjs")); }
+
+    const browser = await chromium.launch();
+    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    await page.goto("http://localhost:3000", { waitUntil: "networkidle", timeout: 15000 });
+    await page.waitForTimeout(1000);
+
+    // Scale coordinates from preview iframe size to actual page size
+    // The preview iframe might be a different size than 1280x720
+    const info = await page.evaluate(({ cx, cy }) => {
+      const el = document.elementFromPoint(cx, cy);
+      if (!el) return null;
+
+      // Walk up to find data-component attribute
+      let comp = null;
+      let node = el;
+      while (node && node !== document.body) {
+        if (node.dataset && node.dataset.component) {
+          comp = node.dataset.component;
+          break;
+        }
+        node = node.parentElement;
+      }
+
+      // Get element details
+      const tag = el.tagName.toLowerCase();
+      const classes = el.className ? String(el.className).split(" ").filter(Boolean).slice(0, 3).join(".") : "";
+      const text = (el.textContent || "").trim().slice(0, 50);
+      const id = el.id || "";
+      const role = el.getAttribute("role") || "";
+      const ariaLabel = el.getAttribute("aria-label") || "";
+
+      // Get computed styles
+      const style = window.getComputedStyle(el);
+      const currentStyles = {
+        color: style.color,
+        backgroundColor: style.backgroundColor,
+        fontSize: style.fontSize,
+        padding: style.padding,
+      };
+
+      // Build a CSS selector path
+      let selectorParts = [];
+      let n = el;
+      for (let i = 0; i < 3 && n && n !== document.body; i++) {
+        let part = n.tagName.toLowerCase();
+        if (n.id) part += "#" + n.id;
+        else if (n.className && typeof n.className === "string") {
+          const cls = n.className.trim().split(/\s+/).slice(0, 2).join(".");
+          if (cls) part += "." + cls;
+        }
+        selectorParts.unshift(part);
+        n = n.parentElement;
+      }
+      const selector = selectorParts.join(" > ");
+
+      // Get parent component context
+      let parentComp = null;
+      if (node && node.parentElement) {
+        let p = node.parentElement;
+        while (p && p !== document.body) {
+          if (p.dataset && p.dataset.component) {
+            parentComp = p.dataset.component;
+            break;
+          }
+          p = p.parentElement;
+        }
+      }
+
+      return {
+        tag, classes, text, id, role, ariaLabel,
+        component: comp,
+        parentComponent: parentComp,
+        selector,
+        currentStyles,
+        outerHTML: el.outerHTML.slice(0, 200),
+      };
+    }, { cx: x, cy: y });
+
+    // Take a screenshot with a red dot at the click position
+    const screenshot = await page.screenshot({ type: "png" });
+    await browser.close();
+
+    if (!info) return res.json({ found: false });
+
+    // Build a human-readable description
+    let description = "";
+    if (info.component) {
+      const [name, file, line] = info.component.split(":");
+      description = `Component: ${name} in ${file}${line ? `:${line}` : ""}`;
+    } else {
+      description = `<${info.tag}${info.classes ? "." + info.classes : ""}>${info.text ? ' "' + info.text + '"' : ""}`;
+    }
+
+    res.json({
+      found: true,
+      description,
+      element: info,
+      screenshot: screenshot.toString("base64"),
+    });
+  } catch (err) {
+    console.error("[inspect]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Restart service
 app.post("/api/restart-service", (req, res) => {
   try {

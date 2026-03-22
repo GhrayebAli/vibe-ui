@@ -234,24 +234,85 @@ function showEditPanel(element, compName, filePath, lineNum) {
   rightPanel.appendChild(editPanel);
 }
 
-function showSimpleEditPanel(clickX, clickY) {
+async function showSimpleEditPanel(clickX, clickY) {
   if (editPanel) editPanel.remove();
 
   const rightPanel = document.querySelector('.right-panel');
   if (!rightPanel) return;
 
+  // Show loading state while we inspect the element server-side
   editPanel = document.createElement('div');
   editPanel.className = 'edit-panel';
   editPanel.innerHTML = `
     <div class="ep-header">
-      <span class="ep-title">Edit Element</span>
-      <span class="ep-path">Click position: ${Math.round(clickX)}, ${Math.round(clickY)}</span>
+      <span class="ep-title">Identifying element...</span>
+      <span class="ep-path"></span>
       <button class="ep-close">&times;</button>
     </div>
+    <div class="ep-fields" style="text-align:center;padding:20px;color:var(--text-muted)">
+      <div class="activity-spinner" style="margin:0 auto 8px"></div>
+      Inspecting element at (${Math.round(clickX)}, ${Math.round(clickY)})...
+    </div>
+  `;
+  editPanel.querySelector('.ep-close').onclick = () => { editPanel.remove(); editPanel = null; };
+  rightPanel.appendChild(editPanel);
+
+  // Call server to inspect the element using Playwright (same-origin access)
+  let elementInfo = null;
+  try {
+    // Scale coordinates: the overlay covers the preview-wrap area
+    // We need to map to the actual page coordinates (1280x720)
+    const previewWrap = document.getElementById('preview-wrap');
+    const wrapRect = previewWrap.getBoundingClientRect();
+    const scaleX = 1280 / wrapRect.width;
+    const scaleY = 720 / wrapRect.height;
+    const pageX = Math.round(clickX * scaleX);
+    const pageY = Math.round(clickY * scaleY);
+
+    const resp = await fetch('/api/inspect-element', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ x: pageX, y: pageY }),
+    });
+    const data = await resp.json();
+    if (data.found) elementInfo = data;
+  } catch (e) {
+    console.error('[visual-edit] inspect failed:', e);
+  }
+
+  // Remove loading panel
+  editPanel.remove();
+
+  // Build the real edit panel with element info
+  editPanel = document.createElement('div');
+  editPanel.className = 'edit-panel';
+
+  const title = elementInfo?.element?.component
+    ? elementInfo.element.component.split(':')[0]
+    : elementInfo?.element?.tag || 'Element';
+  const pathInfo = elementInfo?.element?.component
+    ? elementInfo.element.component.split(':').slice(1).join(':')
+    : elementInfo?.element?.selector || '';
+  const elementText = elementInfo?.element?.text || '';
+  const elementHTML = elementInfo?.element?.outerHTML || '';
+
+  editPanel.innerHTML = `
+    <div class="ep-header">
+      <span class="ep-title">${title}</span>
+      <span class="ep-path">${pathInfo}</span>
+      <button class="ep-close">&times;</button>
+    </div>
+    ${elementInfo?.screenshot ? `<div style="padding:8px 12px;border-bottom:1px solid var(--border)"><img src="data:image/png;base64,${elementInfo.screenshot}" style="width:100%;height:120px;object-fit:cover;border-radius:4px;border:1px solid var(--border)"></div>` : ''}
     <div class="ep-fields">
+      ${elementText ? `<div class="ep-field"><label>Element Text</label><div style="font-size:12px;color:var(--text-dim);padding:4px 0">"${elementText}"</div></div>` : ''}
+      ${elementInfo?.element?.currentStyles ? `
+      <div class="ep-row">
+        <div class="ep-field"><label>Current Color</label><div style="display:flex;align-items:center;gap:6px"><span style="width:16px;height:16px;border-radius:3px;background:${elementInfo.element.currentStyles.color};border:1px solid var(--border)"></span><span style="font-size:11px;color:var(--text-muted)">${elementInfo.element.currentStyles.color}</span></div></div>
+        <div class="ep-field"><label>Current BG</label><div style="display:flex;align-items:center;gap:6px"><span style="width:16px;height:16px;border-radius:3px;background:${elementInfo.element.currentStyles.backgroundColor};border:1px solid var(--border)"></span><span style="font-size:11px;color:var(--text-muted)">${elementInfo.element.currentStyles.backgroundColor}</span></div></div>
+      </div>` : ''}
       <div class="ep-field">
-        <label>Describe what to change</label>
-        <input type="text" class="ep-input" id="ep-custom" placeholder="e.g. Make the header blue, increase font size of the table...">
+        <label>What do you want to change?</label>
+        <input type="text" class="ep-input" id="ep-custom" placeholder="e.g. Change the color to blue, make it larger...">
       </div>
     </div>
     <div class="ep-actions">
@@ -265,12 +326,30 @@ function showSimpleEditPanel(clickX, clickY) {
   editPanel.querySelector('.ep-save').onclick = () => {
     const custom = editPanel.querySelector('#ep-custom').value.trim();
     if (custom && onSendPrompt) {
-      onSendPrompt('In the frontend app preview: ' + custom);
+      // Build a precise, scoped prompt using the element info
+      let prompt = '';
+      if (elementInfo?.element?.component) {
+        const [compName, file, line] = elementInfo.element.component.split(':');
+        prompt = `In the file ${file}${line ? ' around line ' + line : ''}, in the ${compName} component`;
+        if (elementText) prompt += `, specifically the element containing "${elementText}"`;
+        prompt += `: ${custom}`;
+      } else if (elementInfo?.element?.selector) {
+        prompt = `In the frontend app, for the element matching "${elementInfo.element.selector}"`;
+        if (elementText) prompt += ` (containing "${elementText}")`;
+        prompt += `: ${custom}`;
+      } else {
+        prompt = `In the frontend app: ${custom}`;
+      }
+      prompt += `. Only change this specific element, not the whole app.`;
+      onSendPrompt(prompt);
       deactivate();
     }
     editPanel.remove();
     editPanel = null;
   };
+
+  rightPanel.appendChild(editPanel);
+  setTimeout(() => editPanel.querySelector('#ep-custom')?.focus(), 100);
 
   // Focus the input
   rightPanel.appendChild(editPanel);
