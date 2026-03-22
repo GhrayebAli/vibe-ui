@@ -1,102 +1,205 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Washmen Ops - vibe-ui</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
+    :root { --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d; --text: #c9d1d9; --text2: #8b949e; --accent: #58a6ff; --green: #3fb950; --red: #f85149; --orange: #d29922; --blue: #1f6feb; --purple: #a371f7; }
+    [data-theme="light"] { --bg: #ffffff; --bg2: #f6f8fa; --bg3: #e1e4e8; --border: #d0d7de; --text: #1f2328; --text2: #656d76; --accent: #0969da; --green: #1a7f37; --red: #cf222e; --orange: #9a6700; --blue: #0969da; --purple: #8250df; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #0d1117; color: #c9d1d9; height: 100vh; display: flex; flex-direction: column; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; }
+
+    /* Session sidebar (#21) */
+    .sidebar { width: 260px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; transition: width 0.2s; }
+    .sidebar.collapsed { width: 0; overflow: hidden; border: none; }
+    .sidebar-header { padding: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .sidebar-header h3 { font-size: 13px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+    .sidebar-toggle { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 16px; padding: 4px; }
+    .sidebar-toggle:hover { color: var(--text); }
+    .session-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .session-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; color: var(--text2); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .session-item:hover { background: var(--bg3); color: var(--text); }
+    .session-item.active { background: var(--bg3); color: var(--accent); }
+    .new-session-btn { margin: 8px; padding: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text2); cursor: pointer; font-size: 12px; text-align: center; }
+    .new-session-btn:hover { color: var(--text); border-color: var(--accent); }
+
+    /* Main content */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
     /* Header */
-    .header { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: #161b22; border-bottom: 1px solid #30363d; }
+    .header { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: var(--bg2); border-bottom: 1px solid var(--border); }
     .header-left { display: flex; align-items: center; gap: 12px; }
-    .header-title { font-size: 16px; font-weight: 600; color: #58a6ff; }
+    .header-title { font-size: 16px; font-weight: 600; color: var(--accent); }
     .health-bar { display: flex; gap: 8px; }
-    .health-dot { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #8b949e; }
-    .health-dot .dot { width: 8px; height: 8px; border-radius: 50%; background: #484f58; }
-    .health-dot .dot.healthy { background: #3fb950; }
-    .health-dot .dot.unhealthy { background: #f85149; }
+    .health-dot { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text2); }
+    .health-dot .dot { width: 8px; height: 8px; border-radius: 50%; background: #484f58; transition: background 0.3s; }
+    .health-dot .dot.healthy { background: var(--green); box-shadow: 0 0 4px var(--green); }
+    .health-dot .dot.unhealthy { background: var(--red); box-shadow: 0 0 4px var(--red); }
     .header-right { display: flex; align-items: center; gap: 12px; }
-    .model-select { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 4px 8px; font-size: 12px; }
-    .cost-display { font-size: 12px; color: #8b949e; }
+
+    /* Model pill toggle (#14) */
+    .model-toggle { display: flex; background: var(--bg3); border-radius: 6px; border: 1px solid var(--border); overflow: hidden; }
+    .model-btn { padding: 4px 12px; font-size: 11px; font-weight: 500; cursor: pointer; border: none; background: none; color: var(--text2); transition: all 0.2s; }
+    .model-btn.active { background: var(--accent); color: #fff; }
+    .model-btn:hover:not(.active) { color: var(--text); }
+
+    /* Cost bar (#15) */
+    .cost-bar { display: flex; align-items: center; gap: 6px; }
+    .cost-progress { width: 60px; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+    .cost-progress-fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s, background 0.3s; }
+    .cost-progress-fill.warning { background: var(--orange); }
+    .cost-progress-fill.danger { background: var(--red); }
+    .cost-text { font-size: 11px; color: var(--text2); }
+
+    /* Theme toggle (#18) */
+    .theme-toggle { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 16px; padding: 4px; }
 
     /* Chat area */
-    .chat-container { flex: 1; overflow-y: auto; padding: 16px; }
-    .message { margin-bottom: 16px; max-width: 800px; }
-    .message.user { }
-    .message.user .msg-content { background: #1f6feb; color: #fff; padding: 10px 14px; border-radius: 12px 12px 4px 12px; display: inline-block; }
-    .message.assistant .msg-content { background: #161b22; border: 1px solid #30363d; padding: 12px 16px; border-radius: 4px 12px 12px 12px; }
-    .message.assistant .msg-content pre { background: #0d1117; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+    .chat-container { flex: 1; overflow-y: auto; padding: 16px; scroll-behavior: smooth; }
+
+    /* Welcome state (#6) */
+    .welcome { text-align: center; padding: 60px 20px 20px; }
+    .welcome h2 { font-size: 22px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+    .welcome p { font-size: 14px; color: var(--text2); max-width: 500px; margin: 0 auto 24px; line-height: 1.5; }
+
+    /* Messages with spacing (#9) */
+    .turn-group { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .turn-group:last-child { border-bottom: none; }
+    .message { margin-bottom: 8px; max-width: 800px; }
+    .message.user .msg-content { background: var(--blue); color: #fff; padding: 10px 14px; border-radius: 12px 12px 4px 12px; display: inline-block; max-width: 100%; }
+    .message.user .msg-content p { margin: 4px 0; }
+    .message.user .msg-content code { background: rgba(255,255,255,0.15); padding: 1px 4px; border-radius: 3px; }
+    .message.assistant .msg-content { background: var(--bg2); border: 1px solid var(--border); padding: 12px 16px; border-radius: 4px 12px 12px 12px; position: relative; }
+    .message.assistant .msg-content pre { background: var(--bg); padding: 12px; border-radius: 6px; overflow-x: auto; margin: 8px 0; position: relative; }
     .message.assistant .msg-content code { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
-    .message.assistant .msg-content p { margin: 6px 0; line-height: 1.5; }
+    .message.assistant .msg-content p { margin: 6px 0; line-height: 1.6; }
+    .message.assistant .msg-content ul, .message.assistant .msg-content ol { margin: 6px 0 6px 20px; }
+    .message.assistant .msg-content li { margin: 3px 0; }
     .message.system { text-align: center; }
-    .message.system .msg-content { background: none; color: #8b949e; font-size: 12px; font-style: italic; }
+    .message.system .msg-content { background: none; color: var(--text2); font-size: 12px; font-style: italic; }
 
-    /* Tool activity */
-    .tool-activity { font-size: 11px; color: #8b949e; padding: 4px 0; display: flex; align-items: center; gap: 6px; }
-    .tool-activity .spinner { width: 12px; height: 12px; border: 2px solid #30363d; border-top: 2px solid #58a6ff; border-radius: 50%; animation: spin 1s linear infinite; }
+    /* Copy button on code blocks (#20) */
+    .code-copy { position: absolute; top: 6px; right: 6px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); cursor: pointer; font-size: 11px; padding: 2px 8px; opacity: 0; transition: opacity 0.2s; }
+    pre:hover .code-copy { opacity: 1; }
+    .code-copy:hover { color: var(--text); }
+    .code-copy.copied { color: var(--green); }
+
+    /* Thinking indicator (#3) */
+    .thinking { display: flex; align-items: center; gap: 8px; padding: 8px 0; color: var(--text2); font-size: 13px; }
+    .thinking-dots { display: flex; gap: 4px; }
+    .thinking-dots span { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: bounce 1.4s infinite; }
+    .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-8px); } }
+
+    /* Tool activity (#8) */
+    .tool-activity { font-size: 11px; color: var(--text2); padding: 4px 0; display: flex; align-items: center; gap: 6px; }
+    .tool-activity .spinner { width: 12px; height: 12px; border: 2px solid var(--border); border-top: 2px solid var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+    .tool-icon { font-size: 13px; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .tool-log { font-size: 11px; color: var(--text2); padding: 2px 0 2px 20px; opacity: 0.7; }
 
-    /* Prompt starters */
-    .starters { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px; justify-content: center; }
-    .starter-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 16px; cursor: pointer; max-width: 280px; transition: border-color 0.2s; }
-    .starter-card:hover { border-color: #58a6ff; }
-    .starter-card .title { font-size: 13px; font-weight: 600; color: #c9d1d9; margin-bottom: 4px; }
-    .starter-card .desc { font-size: 11px; color: #8b949e; }
+    /* Prompt starters (#11) */
+    .starters { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; padding: 0 20px; max-width: 860px; margin: 0 auto; }
+    .starter-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: all 0.2s; }
+    .starter-card:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+    .starter-card .s-icon { font-size: 18px; margin-bottom: 6px; }
+    .starter-card .s-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .starter-card .s-desc { font-size: 11px; color: var(--text2); line-height: 1.4; }
 
-    /* Input area */
-    .input-area { padding: 12px 16px; background: #161b22; border-top: 1px solid #30363d; }
+    /* Input area (#12, #19) */
+    .input-area { padding: 12px 16px; background: var(--bg2); border-top: 1px solid var(--border); }
     .input-row { display: flex; gap: 8px; align-items: flex-end; }
-    .input-row textarea { flex: 1; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 8px; padding: 10px 12px; font-family: 'Inter', sans-serif; font-size: 14px; resize: none; min-height: 44px; max-height: 200px; }
-    .input-row textarea:focus { outline: none; border-color: #58a6ff; }
-    .send-btn { background: #238636; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; font-weight: 500; }
-    .send-btn:hover { background: #2ea043; }
-    .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .input-row textarea { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 14px; resize: none; min-height: 48px; max-height: 200px; line-height: 1.4; transition: border-color 0.2s; }
+    .input-row textarea:focus { outline: none; border-color: var(--accent); }
+    .send-btn { background: var(--green); color: #fff; border: none; border-radius: 10px; padding: 12px 20px; font-size: 14px; cursor: pointer; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+    .send-btn:hover { filter: brightness(1.1); }
+    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .shortcut-hint { font-size: 10px; color: var(--text2); text-align: right; margin-top: 4px; }
 
-    /* Action buttons */
+    /* Action buttons (#13) */
     .actions { display: flex; gap: 8px; margin-top: 8px; }
-    .action-btn { background: #21262d; color: #8b949e; border: 1px solid #30363d; border-radius: 6px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
-    .action-btn:hover { color: #c9d1d9; border-color: #484f58; }
+    .action-btn { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 14px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; font-weight: 500; }
+    .action-btn:hover { color: var(--text); border-color: var(--accent); background: var(--bg2); }
+    .action-btn svg { width: 14px; height: 14px; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="header-left">
-      <span class="header-title">Washmen Ops</span>
-      <div class="health-bar" id="health-bar">
-        <div class="health-dot"><span class="dot" id="health-frontend"></span> Frontend</div>
-        <div class="health-dot"><span class="dot" id="health-gateway"></span> Gateway</div>
-        <div class="health-dot"><span class="dot" id="health-core"></span> Core</div>
+  <!-- Session sidebar (#21) -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h3>Sessions</h3>
+      <button class="sidebar-toggle" id="sidebar-close" title="Close sidebar">&#x2715;</button>
+    </div>
+    <div class="new-session-btn" id="new-session">+ New Session</div>
+    <div class="session-list" id="session-list"></div>
+  </div>
+
+  <div class="main">
+    <div class="header">
+      <div class="header-left">
+        <button class="sidebar-toggle" id="sidebar-open" title="Toggle sidebar">&#9776;</button>
+        <span class="header-title">Washmen Ops</span>
+        <div class="health-bar" id="health-bar">
+          <div class="health-dot"><span class="dot" id="health-frontend"></span> Frontend</div>
+          <div class="health-dot"><span class="dot" id="health-gateway"></span> Gateway</div>
+          <div class="health-dot"><span class="dot" id="health-core"></span> Core</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <!-- Model pill toggle (#14) -->
+        <div class="model-toggle" id="model-toggle">
+          <button class="model-btn active" data-model="sonnet">Sonnet</button>
+          <button class="model-btn" data-model="opus">Opus</button>
+        </div>
+        <!-- Cost bar (#15) -->
+        <div class="cost-bar">
+          <div class="cost-progress"><div class="cost-progress-fill" id="cost-fill" style="width:0%"></div></div>
+          <span class="cost-text" id="cost-display">$0.00</span>
+        </div>
+        <!-- Theme toggle (#18) -->
+        <button class="theme-toggle" id="theme-toggle" title="Toggle theme">&#9789;</button>
       </div>
     </div>
-    <div class="header-right">
-      <select class="model-select" id="model-select">
-        <option value="sonnet">Sonnet</option>
-        <option value="opus">Opus</option>
-      </select>
-      <span class="cost-display" id="cost-display">$0.00 / $20.00</span>
-    </div>
-  </div>
 
-  <div class="chat-container" id="chat">
-    <div class="starters" id="starters"></div>
-  </div>
-
-  <div class="input-area">
-    <div class="input-row">
-      <textarea id="input" placeholder="What would you like to build?" rows="1"></textarea>
-      <button class="send-btn" id="send-btn">Send</button>
+    <div class="chat-container" id="chat">
+      <!-- Welcome state (#6) -->
+      <div class="welcome" id="welcome">
+        <h2>Welcome to Washmen Ops</h2>
+        <p>I can help you build features across the frontend, API gateway, and core service. Pick a starter below or describe what you'd like to build.</p>
+      </div>
+      <div class="starters" id="starters"></div>
     </div>
-    <div class="actions">
-      <button class="action-btn" id="btn-undo">Undo Last Change</button>
-      <button class="action-btn" id="btn-restart">Restart Services</button>
-      <button class="action-btn" id="btn-mvp-notes">Generate MVP Notes</button>
+
+    <div class="input-area">
+      <div class="input-row">
+        <textarea id="input" placeholder="What would you like to build?" rows="1"></textarea>
+        <button class="send-btn" id="send-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+          Send
+        </button>
+      </div>
+      <div class="actions">
+        <button class="action-btn" id="btn-undo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h10a5 5 0 015 5v2"/><path d="M3 10l4-4"/><path d="M3 10l4 4"/></svg>
+          Undo
+        </button>
+        <button class="action-btn" id="btn-restart">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+          Restart Services
+        </button>
+        <button class="action-btn" id="btn-mvp-notes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+          MVP Notes
+        </button>
+      </div>
+      <div class="shortcut-hint">Enter to send &middot; Shift+Enter for new line</div>
     </div>
   </div>
 
@@ -105,232 +208,354 @@
     const input = document.getElementById('input');
     const sendBtn = document.getElementById('send-btn');
     const starters = document.getElementById('starters');
-    const modelSelect = document.getElementById('model-select');
+    const welcome = document.getElementById('welcome');
     const costDisplay = document.getElementById('cost-display');
+    const costFill = document.getElementById('cost-fill');
 
     let ws;
     let currentSessionId = null;
     let isStreaming = false;
     let currentAssistantEl = null;
     let currentAssistantText = '';
+    let currentTurnGroup = null;
+    let thinkingEl = null;
+    let hasUserSentMessage = false;
+    let activeModel = 'sonnet';
+    let toolLogHistory = [];
 
-    // Connect WebSocket
+    // ── Theme toggle (#18) ──
+    const themeToggle = document.getElementById('theme-toggle');
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    themeToggle.textContent = savedTheme === 'dark' ? '\u263D' : '\u2600';
+    themeToggle.onclick = () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      themeToggle.textContent = next === 'dark' ? '\u263D' : '\u2600';
+      document.getElementById('hljs-theme').href = next === 'dark'
+        ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css'
+        : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
+    };
+
+    // ── Model pill toggle (#14) ──
+    document.getElementById('model-toggle').onclick = (e) => {
+      const btn = e.target.closest('.model-btn');
+      if (!btn || btn.classList.contains('active')) return;
+      document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeModel = btn.dataset.model;
+      if (ws?.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'set_model', model: activeModel }));
+      }
+    };
+
+    // ── Sidebar (#21) ──
+    const sidebar = document.getElementById('sidebar');
+    document.getElementById('sidebar-close').onclick = () => sidebar.classList.add('collapsed');
+    document.getElementById('sidebar-open').onclick = () => sidebar.classList.toggle('collapsed');
+    document.getElementById('new-session').onclick = () => {
+      currentSessionId = null;
+      hasUserSentMessage = false;
+      chat.innerHTML = '';
+      chat.appendChild(welcome);
+      welcome.style.display = '';
+      chat.appendChild(starters);
+      starters.style.display = '';
+      loadPromptStarters();
+    };
+
+    // ── WebSocket ──
     function connect() {
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(`${protocol}//${location.host}/ws`);
-
       ws.onopen = () => {
-        console.log('Connected to vibe-ui');
+        console.log('Connected');
         checkHealth();
         loadPromptStarters();
+        loadSessions();
         loadChatHistory();
       };
-
-      ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        handleMessage(msg);
-      };
-
-      ws.onclose = () => {
-        console.log('Disconnected — reconnecting in 2s');
-        setTimeout(connect, 2000);
-      };
+      ws.onmessage = (event) => handleMessage(JSON.parse(event.data));
+      ws.onclose = () => setTimeout(connect, 2000);
+      ws.onerror = (err) => console.error('WS error:', err);
     }
 
     function handleMessage(msg) {
-      if (msg.type === 'assistant_chunk') {
+      if (msg.type === 'thinking') {
+        showThinking();
+      }
+      else if (msg.type === 'thinking_done') {
+        hideThinking();
+      }
+      else if (msg.type === 'assistant_chunk') {
+        hideThinking();
         if (!currentAssistantEl) {
           currentAssistantEl = addMessage('assistant', '');
           currentAssistantText = '';
         }
         currentAssistantText += msg.text;
-        currentAssistantEl.querySelector('.msg-content').innerHTML = marked.parse(currentAssistantText);
-        currentAssistantEl.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+        const content = currentAssistantEl.querySelector('.msg-content');
+        content.innerHTML = marked.parse(currentAssistantText);
+        addCopyButtons(content);
+        content.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
         chat.scrollTop = chat.scrollHeight;
         if (msg.sessionId) currentSessionId = msg.sessionId;
       }
       else if (msg.type === 'assistant_done') {
+        hideThinking();
         isStreaming = false;
         sendBtn.disabled = false;
         currentAssistantEl = null;
-        if (msg.totalCost !== undefined) {
-          costDisplay.textContent = `$${msg.totalCost.toFixed(2)} / $20.00`;
-        }
+        currentTurnGroup = null;
+        updateCost(msg.totalCost);
+        loadSessions();
       }
       else if (msg.type === 'assistant') {
         addMessage('assistant', msg.text);
       }
       else if (msg.type === 'tool_activity') {
-        addToolActivity(msg.tool, msg.input);
+        showToolActivity(msg.tool, msg.input);
       }
       else if (msg.type === 'tool_complete') {
-        removeToolActivity();
+        hideToolActivity();
       }
       else if (msg.type === 'system') {
         addMessage('system', msg.text);
       }
       else if (msg.type === 'error') {
-        addMessage('system', `Error: ${msg.text}`);
+        hideThinking();
+        addMessage('system', 'Error: ' + msg.text);
         isStreaming = false;
         sendBtn.disabled = false;
       }
       else if (msg.type === 'undo_result') {
-        addMessage('system', `Undo: ${JSON.stringify(msg.results)}`);
+        addMessage('system', 'Undo complete');
       }
       else if (msg.type === 'checkpoint_created') {
-        addMessage('system', `Checkpoint created: ${msg.name}`);
+        addMessage('system', 'Checkpoint: ' + msg.name);
       }
       else if (msg.type === 'model_changed') {
-        addMessage('system', `Model switched to ${msg.model}`);
+        addMessage('system', 'Switched to ' + msg.model);
       }
     }
 
-    function addMessage(role, text) {
-      // Hide starters on first message
-      if (starters.style.display !== 'none') starters.style.display = 'none';
+    // ── Thinking indicator (#3) ──
+    function showThinking() {
+      if (thinkingEl) return;
+      thinkingEl = document.createElement('div');
+      thinkingEl.className = 'thinking';
+      thinkingEl.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div> Thinking...';
+      chat.appendChild(thinkingEl);
+      chat.scrollTop = chat.scrollHeight;
+    }
+    function hideThinking() {
+      if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
+    }
 
+    // ── Tool activity (#8) ──
+    let currentToolEl = null;
+    function showToolActivity(tool, inp) {
+      hideToolActivity();
+      currentToolEl = document.createElement('div');
+      currentToolEl.className = 'tool-activity';
+      const icons = { Bash: '\u2699', Edit: '\u270E', Write: '\u270E', Read: '\uD83D\uDCC4', Glob: '\uD83D\uDD0D', Grep: '\uD83D\uDD0D', Agent: '\uD83E\uDD16' };
+      const icon = icons[tool] || '\u26A1';
+      const label = tool === 'Bash' ? 'Running: ' + (inp?.command || '').slice(0, 80) :
+                    tool === 'Edit' || tool === 'Write' ? 'Editing: ' + (inp?.file_path || '').split('/').pop() :
+                    tool === 'Read' ? 'Reading: ' + (inp?.file_path || '').split('/').pop() :
+                    tool === 'Glob' ? 'Searching: ' + (inp?.pattern || '') :
+                    tool === 'Grep' ? 'Searching: ' + (inp?.pattern || '') :
+                    tool + '...';
+      currentToolEl.innerHTML = '<span class="spinner"></span> <span class="tool-icon">' + icon + '</span> ' + label;
+      chat.appendChild(currentToolEl);
+      chat.scrollTop = chat.scrollHeight;
+
+      // Keep a log (#8)
+      const logEl = document.createElement('div');
+      logEl.className = 'tool-log';
+      logEl.textContent = icon + ' ' + label;
+      toolLogHistory.push(logEl);
+    }
+    function hideToolActivity() {
+      if (currentToolEl) { currentToolEl.remove(); currentToolEl = null; }
+    }
+
+    // ── Messages (#9, #16) ──
+    function addMessage(role, text) {
+      // Hide welcome and starters on first user message (#7)
+      if (role === 'user' && !hasUserSentMessage) {
+        hasUserSentMessage = true;
+        welcome.style.display = 'none';
+        starters.style.display = 'none';
+      }
+
+      // Create turn group for user messages (#9)
+      if (role === 'user') {
+        currentTurnGroup = document.createElement('div');
+        currentTurnGroup.className = 'turn-group';
+        chat.appendChild(currentTurnGroup);
+        // Append any tool logs from previous turn
+        toolLogHistory = [];
+      }
+
+      const container = currentTurnGroup || chat;
       const div = document.createElement('div');
-      div.className = `message ${role}`;
+      div.className = 'message ' + role;
       const content = document.createElement('div');
       content.className = 'msg-content';
-      if (role === 'assistant') {
+
+      if (role === 'assistant' || role === 'user') {
+        // Render markdown for both (#16)
         content.innerHTML = marked.parse(text || '');
+        addCopyButtons(content);
         content.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
       } else {
         content.textContent = text;
       }
       div.appendChild(content);
-      chat.appendChild(div);
+      container.appendChild(div);
       chat.scrollTop = chat.scrollHeight;
       return div;
     }
 
-    let currentToolEl = null;
-    function addToolActivity(tool, input) {
-      if (currentToolEl) currentToolEl.remove();
-      currentToolEl = document.createElement('div');
-      currentToolEl.className = 'tool-activity';
-      const label = tool === 'Bash' ? `Running: ${(input?.command || '').slice(0, 60)}` :
-                    tool === 'Edit' ? `Editing: ${(input?.file_path || '').split('/').pop()}` :
-                    tool === 'Read' ? `Reading: ${(input?.file_path || '').split('/').pop()}` :
-                    `${tool}...`;
-      currentToolEl.innerHTML = `<span class="spinner"></span> ${label}`;
-      chat.appendChild(currentToolEl);
-      chat.scrollTop = chat.scrollHeight;
-    }
-    function removeToolActivity() {
-      if (currentToolEl) { currentToolEl.remove(); currentToolEl = null; }
+    // ── Copy button (#20) ──
+    function addCopyButtons(container) {
+      container.querySelectorAll('pre').forEach(pre => {
+        if (pre.querySelector('.code-copy')) return;
+        const btn = document.createElement('button');
+        btn.className = 'code-copy';
+        btn.textContent = 'Copy';
+        btn.onclick = () => {
+          navigator.clipboard.writeText(pre.textContent.replace('Copy', '').trim());
+          btn.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+        };
+        pre.style.position = 'relative';
+        pre.appendChild(btn);
+      });
     }
 
+    // ── Cost (#15) ──
+    function updateCost(totalCost) {
+      if (totalCost === undefined) return;
+      const budget = 20;
+      const pct = Math.min((totalCost / budget) * 100, 100);
+      costDisplay.textContent = '$' + totalCost.toFixed(2);
+      costFill.style.width = pct + '%';
+      costFill.className = 'cost-progress-fill' + (pct > 80 ? ' danger' : pct > 50 ? ' warning' : '');
+    }
+
+    // ── Send ──
     function sendMessage(text) {
       if (!text.trim() || isStreaming) return;
       addMessage('user', text);
       isStreaming = true;
       sendBtn.disabled = true;
-      ws.send(JSON.stringify({
-        type: 'chat',
-        text: text,
-        sessionId: currentSessionId,
-        model: modelSelect.value,
-      }));
+      ws.send(JSON.stringify({ type: 'chat', text, sessionId: currentSessionId, model: activeModel }));
       input.value = '';
       input.style.height = 'auto';
     }
 
-    // Health check
+    // ── Health ──
     async function checkHealth() {
       try {
-        const resp = await fetch('/api/service-health');
-        const data = await resp.json();
+        const data = await (await fetch('/api/service-health')).json();
         for (const svc of data.services) {
-          const dot = document.getElementById(`health-${svc.name === 'api-gateway' ? 'gateway' : svc.name === 'core-service' ? 'core' : 'frontend'}`);
-          if (dot) dot.className = `dot ${svc.status}`;
+          const id = svc.name === 'api-gateway' ? 'gateway' : svc.name === 'core-service' ? 'core' : 'frontend';
+          const dot = document.getElementById('health-' + id);
+          if (dot) dot.className = 'dot ' + svc.status;
         }
       } catch {}
     }
     setInterval(checkHealth, 15000);
 
-    // Load prompt starters
+    // ── Prompt starters (#11) ──
+    const starterIcons = ['\uD83D\uDCCA', '\uD83D\uDD0D', '\uD83D\uDCDD', '\uD83D\uDCCA', '\u2795', '\uD83D\uDD17'];
     async function loadPromptStarters() {
       try {
-        const resp = await fetch('/api/prompts');
-        const data = await resp.json();
+        const data = await (await fetch('/api/prompts')).json();
         starters.innerHTML = '';
-        for (const s of data.starters) {
+        data.starters.forEach((s, i) => {
           const card = document.createElement('div');
           card.className = 'starter-card';
-          card.innerHTML = `<div class="title">${s.title}</div><div class="desc">${s.prompt.slice(0, 80)}...</div>`;
-          card.onclick = () => {
-            input.value = s.prompt;
-            input.focus();
-          };
+          card.innerHTML = '<div class="s-icon">' + (starterIcons[i] || '\u26A1') + '</div><div class="s-title">' + s.title + '</div><div class="s-desc">' + s.prompt.slice(0, 90) + '...</div>';
+          card.onclick = () => { input.value = s.prompt; input.focus(); input.dispatchEvent(new Event('input')); };
           starters.appendChild(card);
+        });
+      } catch {}
+    }
+
+    // ── Sessions (#21, #10) ──
+    async function loadSessions() {
+      try {
+        const sessions = await (await fetch('/api/sessions')).json();
+        const list = document.getElementById('session-list');
+        list.innerHTML = '';
+        for (const s of sessions) {
+          const item = document.createElement('div');
+          item.className = 'session-item' + (s.id === currentSessionId ? ' active' : '');
+          item.textContent = s.title || s.project_name || 'Session';
+          item.onclick = () => loadSession(s.id);
+          list.appendChild(item);
         }
       } catch {}
     }
 
-    // Load chat history
-    async function loadChatHistory() {
+    async function loadSession(sessionId) {
       try {
-        const resp = await fetch('/api/sessions');
-        const sessions = await resp.json();
-        if (sessions.length > 0) {
-          const latest = sessions[0];
-          currentSessionId = latest.id;
-          const msgResp = await fetch(`/api/sessions/${latest.id}/messages`);
-          const messages = await msgResp.json();
-          if (messages.length > 0) {
-            starters.style.display = 'none';
-            for (const m of messages) {
-              try {
-                const parsed = JSON.parse(m.content);
-                addMessage(m.role, parsed.text || '');
-              } catch {
-                addMessage(m.role, m.content);
-              }
-            }
+        const messages = await (await fetch('/api/sessions/' + sessionId + '/messages')).json();
+        currentSessionId = sessionId;
+        hasUserSentMessage = false;
+        chat.innerHTML = '';
+        chat.appendChild(welcome);
+        chat.appendChild(starters);
+        if (messages.length > 0) {
+          welcome.style.display = 'none';
+          starters.style.display = 'none';
+          hasUserSentMessage = true;
+          for (const m of messages) {
+            try {
+              const parsed = JSON.parse(m.content);
+              addMessage(m.role, parsed.text || '');
+            } catch { addMessage(m.role, m.content); }
           }
         }
+        loadSessions();
       } catch {}
     }
 
-    // Cost check
-    async function loadCost() {
+    async function loadChatHistory() {
       try {
-        const resp = await fetch('/api/cost');
-        const data = await resp.json();
-        costDisplay.textContent = `$${data.totalCost.toFixed(2)} / $${data.dailyBudget.toFixed(2)}`;
+        const sessions = await (await fetch('/api/sessions')).json();
+        if (sessions.length > 0) {
+          await loadSession(sessions[0].id);
+        }
       } catch {}
     }
-    loadCost();
 
-    // Event handlers
+    // ── Cost init ──
+    (async () => {
+      try {
+        const data = await (await fetch('/api/cost')).json();
+        updateCost(data.totalCost);
+      } catch {}
+    })();
+
+    // ── Events ──
     sendBtn.onclick = () => sendMessage(input.value);
-    input.onkeydown = (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input.value); }
-    };
-    input.oninput = () => {
-      input.style.height = 'auto';
-      input.style.height = Math.min(input.scrollHeight, 200) + 'px';
-    };
-
-    modelSelect.onchange = () => {
-      if (ws && ws.readyState === 1) {
-        ws.send(JSON.stringify({ type: 'set_model', model: modelSelect.value }));
-      }
-    };
+    input.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input.value); } };
+    input.oninput = () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 200) + 'px'; };
 
     document.getElementById('btn-undo').onclick = () => {
       if (confirm('Undo last change? This will revert all repos to the previous checkpoint.')) {
         ws.send(JSON.stringify({ type: 'undo' }));
       }
     };
-    document.getElementById('btn-restart').onclick = () => {
-      ws.send(JSON.stringify({ type: 'restart_services' }));
-    };
-    document.getElementById('btn-mvp-notes').onclick = () => {
-      ws.send(JSON.stringify({ type: 'generate_mvp_notes' }));
-    };
+    document.getElementById('btn-restart').onclick = () => ws.send(JSON.stringify({ type: 'restart_services' }));
+    document.getElementById('btn-mvp-notes').onclick = () => ws.send(JSON.stringify({ type: 'generate_mvp_notes' }));
 
     connect();
   </script>

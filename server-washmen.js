@@ -92,9 +92,14 @@ app.get("/api/prompts", (_req, res) => {
 
 // Sessions API
 app.get("/api/sessions", (_req, res) => {
-  const db = getDb();
-  const sessions = db.prepare("SELECT * FROM sessions ORDER BY updated_at DESC LIMIT 50").all();
-  res.json(sessions);
+  try {
+    const db = getDb();
+    const sessions = db.prepare("SELECT * FROM sessions ORDER BY last_used_at DESC LIMIT 50").all();
+    res.json(sessions);
+  } catch (err) {
+    console.error("Sessions API error:", err.message);
+    res.json([]);
+  }
 });
 
 app.get("/api/sessions/:id/messages", (req, res) => {

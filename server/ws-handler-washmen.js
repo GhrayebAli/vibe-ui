@@ -264,13 +264,26 @@ export function handleWashmenWs(ws, sessionIds) {
 
       currentQuery = q;
 
+      // Signal thinking state
+      ws.send(JSON.stringify({ type: "thinking", sessionId }));
+
       let fullText = "";
+      let gotFirstChunk = false;
       for await (const event of q) {
         if (ws.readyState !== 1) break;
 
+        // Log all event types for debugging
+        if (event.type !== "assistant") {
+          console.log(`[agent] event type=${event.type} subtype=${event.subtype || ""}`);
+        }
+
         if (event.type === "assistant" && event.message?.content) {
           for (const block of event.message.content) {
-            if (block.type === "text") {
+            if (block.type === "text" && block.text) {
+              if (!gotFirstChunk) {
+                gotFirstChunk = true;
+                ws.send(JSON.stringify({ type: "thinking_done", sessionId }));
+              }
               fullText += block.text;
               ws.send(JSON.stringify({
                 type: "assistant_chunk",
@@ -282,38 +295,53 @@ export function handleWashmenWs(ws, sessionIds) {
         }
 
         if (event.type === "result") {
-          // Extract cost
-          const cost = event.cost_usd || 0;
-          if (cost > 0) addCost(sessionId, cost);
+          // Extract cost — try multiple fields
+          const cost = event.cost_usd || event.costUsd || event.usage?.cost_usd || 0;
+          const inputTokens = event.usage?.input_tokens || event.input_tokens || 0;
+          const outputTokens = event.usage?.output_tokens || event.output_tokens || 0;
+          console.log(`[agent] result: cost=$${cost}, tokens=${inputTokens}+${outputTokens}`);
+
+          if (cost > 0) {
+            try { addCost(sessionId, cost); } catch (e) { console.error("[cost] addCost error:", e.message); }
+          }
 
           ws.send(JSON.stringify({
             type: "assistant_done",
             text: fullText,
             sessionId,
             cost,
+            inputTokens,
+            outputTokens,
             totalCost: getTotalCost(),
           }));
 
           // Save assistant message
-          addMessage(sessionId, "assistant", JSON.stringify({ text: fullText }));
+          try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.error("[db] addMessage error:", e.message); }
 
           // Check if we should create a checkpoint
-          if (fullText.includes("✓") || fullText.includes("done") || fullText.includes("complete")) {
+          if (fullText.includes("✓") || fullText.toLowerCase().includes("done") || fullText.toLowerCase().includes("complete")) {
             try {
               const checkpoint = createCheckpoint(text.slice(0, 40));
               ws.send(JSON.stringify({ type: "checkpoint_created", name: checkpoint }));
-            } catch {}
+            } catch (e) { console.error("[checkpoint] error:", e.message); }
           }
         }
       }
 
+      if (!gotFirstChunk) {
+        ws.send(JSON.stringify({ type: "thinking_done", sessionId }));
+      }
+
       currentQuery = null;
     } catch (err) {
-      ws.send(JSON.stringify({
-        type: "error",
-        text: `Agent error: ${err.message}`,
-        sessionId,
-      }));
+      console.error("[agent] Error:", err.message, err.stack?.split("\n").slice(0, 3).join("\n"));
+      try {
+        ws.send(JSON.stringify({
+          type: "error",
+          text: `Agent error: ${err.message}`,
+          sessionId,
+        }));
+      } catch {}
       currentQuery = null;
     }
   }
