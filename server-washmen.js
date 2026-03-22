@@ -343,38 +343,48 @@ app.post("/api/inspect-element", async (req, res) => {
     console.log(`[inspect] coordinates: pct=(${pctX},${pctY}) actual=(${actualX},${actualY}) viewport=${viewportSize.width}x${viewportSize.height}`);
 
     const info = await page.evaluate(({ cx, cy }) => {
-      // Try the exact point first, then sample nearby points to find the most specific element
-      let el = document.elementFromPoint(cx, cy);
-
-      // If we hit a very generic element, try nearby points in a wider area.
-      // The coordinate mapping between browser sizes can be off by 20-30px.
-      const isGeneric = (e) => !e || e === document.documentElement || e === document.body || e.tagName === 'HTML' || e.tagName === 'BODY';
-      // Also consider large containers generic if they have a data-component but contain most of the page
-      const isVeryLarge = (e) => e && e.offsetWidth > window.innerWidth * 0.5 && e.offsetHeight > window.innerHeight * 0.5;
-      if (isGeneric(el) || isVeryLarge(el)) {
-        const offsets = [
-          [0,20],[0,40],[0,-20],[20,0],[-20,0],
-          [20,20],[-20,20],[20,-20],[-20,-20],
-          [0,60],[0,-40],[40,0],[-40,0],
-          [30,30],[-30,30],[30,-30],
-        ];
-        for (const [dx, dy] of offsets) {
-          const candidate = document.elementFromPoint(cx + dx, cy + dy);
-          if (candidate && !isGeneric(candidate) && !isVeryLarge(candidate)) { el = candidate; break; }
-        }
+      // Sample the click point and surrounding area, find the best (most specific) element
+      const points = [[cx, cy]];
+      for (const [dx, dy] of [[0,20],[0,40],[0,-20],[20,0],[-20,0],[20,20],[-20,20],[0,60],[0,-40],[40,20],[-40,20],[0,80]]) {
+        points.push([cx + dx, cy + dy]);
       }
+
+      // Find all unique elements at these points
+      const candidates = [];
+      const seen = new Set();
+      for (const [px, py] of points) {
+        const e = document.elementFromPoint(px, py);
+        if (!e || seen.has(e)) continue;
+        seen.add(e);
+
+        // Find the closest data-component ancestor
+        let compEl = e;
+        while (compEl && compEl !== document.body) {
+          if (compEl.dataset && compEl.dataset.component) break;
+          compEl = compEl.parentElement;
+        }
+        const comp = compEl?.dataset?.component || null;
+        const area = e.offsetWidth * e.offsetHeight;
+        candidates.push({ el: e, comp, area, compEl });
+      }
+
+      // Pick the best candidate: prefer smallest element with a data-component
+      candidates.sort((a, b) => {
+        // Prefer elements with data-component
+        if (a.comp && !b.comp) return -1;
+        if (!a.comp && b.comp) return 1;
+        // Among those with component, prefer the smallest (most specific)
+        return a.area - b.area;
+      });
+
+      const best = candidates[0];
+      if (!best) return null;
+      const el = best.comp ? best.compEl : best.el;
       if (!el) return null;
 
-      // Walk up to find data-component attribute
-      let comp = null;
-      let node = el;
-      while (node && node !== document.body) {
-        if (node.dataset && node.dataset.component) {
-          comp = node.dataset.component;
-          break;
-        }
-        node = node.parentElement;
-      }
+      // Component already found by the candidate selection above
+      const comp = best.comp;
+      const node = el;
 
       // Get element details
       const tag = el.tagName.toLowerCase();
