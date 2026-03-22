@@ -174,11 +174,16 @@ pre:hover .code-copy { opacity: 1; }
 .input-row textarea { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; font-size: 13.5px; resize: none; min-height: 42px; max-height: 150px; line-height: 1.4; transition: border-color var(--transition); }
 .input-row textarea:focus { outline: none; border-color: var(--accent); }
 .input-row textarea:disabled { opacity: .5; cursor: not-allowed; }
-.send-btn { width: 38px; height: 38px; border-radius: var(--radius); border: none; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; transition: all var(--transition); flex-shrink: 0; }
-.send-btn:hover { filter: brightness(1.12); }
-.send-btn:disabled { opacity: .3; cursor: not-allowed; }
-.send-btn svg { width: 16px; height: 16px; }
+/* Send button — Lovable circle style */
+.send-btn { width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; transition: all var(--transition); flex-shrink: 0; }
+.send-btn:hover { filter: brightness(1.15); transform: scale(1.05); }
+.send-btn:disabled { opacity: .25; cursor: not-allowed; transform: none; }
+.send-btn svg { width: 18px; height: 18px; }
 .input-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+.input-icons, .input-icons-right { display: flex; align-items: center; gap: 2px; }
+.input-icon-btn { height: 30px; border-radius: 6px; border: none; background: none; color: var(--text-muted); display: flex; align-items: center; gap: 5px; padding: 0 8px; font-size: 11px; font-family: var(--font); cursor: pointer; transition: all var(--transition); }
+.input-icon-btn:hover:not(:disabled) { color: var(--text); background: var(--bg-3); }
+.input-icon-btn span { font-weight: 500; }
 .edit-toggle { background: none; border: none; color: var(--text-muted); font-size: 11px; display: flex; align-items: center; gap: 4px; padding: 2px 0; }
 .edit-toggle:hover { color: var(--text-dim); }
 .edit-toggle svg { width: 12px; height: 12px; }
@@ -207,11 +212,18 @@ pre:hover .code-copy { opacity: 1; }
 /* ── Right Panel ── */
 .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg); min-width: 320px; position: relative; }
 
-/* Tabs */
-.panel-tabs { height: 38px; display: flex; align-items: center; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 12px; gap: 0; flex-shrink: 0; }
-.panel-tab { padding: 8px 16px; font-size: 12px; font-weight: 500; color: var(--text-muted); border: none; background: none; border-bottom: 2px solid transparent; transition: all var(--transition); }
-.panel-tab:hover { color: var(--text-dim); }
-.panel-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+/* Tabs — Lovable-style centered icon toolbar */
+.panel-tabs { height: 42px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 12px; gap: 2px; flex-shrink: 0; position: relative; }
+.tab-group-left, .tab-group-right { display: flex; align-items: center; gap: 2px; }
+.tab-group-center { display: flex; align-items: center; margin: 0 8px; }
+.panel-tab { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: none; background: none; color: var(--text-muted); transition: all var(--transition); cursor: pointer; flex-shrink: 0; }
+.panel-tab:hover:not(:disabled) { color: var(--text); background: var(--bg-3); }
+.panel-tab.active { color: var(--accent); background: var(--accent-soft); }
+.panel-tab svg { flex-shrink: 0; }
+/* Pill-style active tab (for Preview) */
+.panel-tab.tab-pill { width: auto; padding: 0 14px; gap: 6px; border-radius: 18px; font-size: 12px; font-weight: 600; }
+.panel-tab.tab-pill.active { background: var(--accent); color: #fff; }
+.panel-tab.tab-pill span { line-height: 1; }
 .tab-content { flex: 1; display: none; overflow: hidden; }
 .tab-content.active { display: flex; flex-direction: column; }
 
