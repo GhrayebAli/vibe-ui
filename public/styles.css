@@ -29,7 +29,7 @@
 /* ── Reset ── */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; overflow: hidden; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 13.5px; line-height: 1.5; }
+body { font-family: var(--font); background: #000; color: var(--text); font-size: 13.5px; line-height: 1.5; }
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -38,10 +38,10 @@ button { font-family: var(--font); cursor: pointer; }
 input, textarea { font-family: var(--font); }
 
 /* ── Shell ── */
-.shell { display: flex; height: 100vh; width: 100vw; }
+.shell { display: flex; height: 100vh; width: 100vw; padding: 6px; gap: 6px; background: #000; }
 
 /* ── Icon Strip ── */
-.icon-strip { width: 44px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 2px; flex-shrink: 0; z-index: 30; position: relative; }
+.icon-strip { width: 44px; background: var(--surface); display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 2px; flex-shrink: 0; z-index: 30; position: relative; border-radius: 12px; }
 .strip-btn { width: 34px; height: 34px; border-radius: var(--radius-sm); border: none; background: transparent; color: var(--text-dim); display: flex; align-items: center; justify-content: center; transition: all var(--transition); position: relative; }
 .strip-btn:hover { background: var(--accent-soft); color: var(--accent); }
 .strip-btn.active { background: var(--accent-soft); color: var(--accent); }
@@ -49,7 +49,7 @@ input, textarea { font-family: var(--font); }
 .strip-divider { width: 20px; height: 1px; background: var(--border); margin: 6px 0; }
 
 /* ── Left Panel ── */
-.left-panel { display: flex; flex-direction: column; background: var(--bg); min-height: 0; overflow: hidden; min-width: 280px; }
+.left-panel { display: flex; flex-direction: column; background: var(--bg); min-height: 0; overflow: hidden; min-width: 280px; border-radius: 12px; }
 
 /* Top bar */
 .top-bar { height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--surface); }
@@ -208,11 +208,11 @@ pre:hover .code-copy { opacity: 1; }
 .budget-amount { font-size: 11px; color: var(--text-dim); white-space: nowrap; font-family: var(--mono); }
 
 /* ── Resize Handle ── */
-.resize-handle { width: 4px; cursor: col-resize; background: var(--border); flex-shrink: 0; transition: background var(--transition); position: relative; z-index: 5; }
+.resize-handle { width: 6px; cursor: col-resize; background: transparent; flex-shrink: 0; transition: background var(--transition); position: relative; z-index: 5; border-radius: 3px; }
 .resize-handle:hover, .resize-handle.dragging { background: var(--accent); }
 
 /* ── Right Panel ── */
-.right-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg); min-width: 320px; position: relative; }
+.right-panel { flex: 1; display: flex; flex-direction: column; background: var(--bg); min-width: 320px; position: relative; border-radius: 12px; overflow: hidden; }
 
 /* Tabs — three sections: left (branch+health), center (tabs), right (empty) */
 .panel-tabs { height: 32px; display: flex; align-items: center; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 12px; flex-shrink: 0; }
@@ -240,7 +240,7 @@ pre:hover .code-copy { opacity: 1; }
 .pbar-btn svg { width: 14px; height: 14px; }
 .device-btns { display: flex; gap: 2px; margin-left: 4px; }
 .preview-wrap { flex: 1; position: relative; overflow: hidden; background: var(--bg); }
-.preview-wrap iframe { border: none; background: #fff; width: 100%; height: 100%; }
+.preview-wrap iframe { border: none; background: #fff; width: 100%; height: 100%; border-radius: 0 0 12px 12px; }
 .preview-wrap.tablet iframe { width: 768px; height: 100%; margin: 0 auto; display: block; }
 .preview-wrap.mobile iframe { width: 390px; height: 100%; margin: 0 auto; display: block; }
 .preview-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg); gap: 12px; z-index: 2; }
