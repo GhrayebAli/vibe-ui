@@ -1,7 +1,7 @@
 import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, showDiffSummary, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion } from './components/chat.js';
 import { initPreview, refreshPreview, setDevice, navigatePreview } from './components/preview.js';
 import { initHistory, loadHistory } from './components/history.js';
-import { initNotes } from './components/notes.js';
+import { initNotes, onNotesOpen } from './components/notes.js';
 import { initStatus, checkHealth } from './components/status.js';
 import { initBudget, updateBudget } from './components/budget.js';
 
@@ -282,6 +282,7 @@ document.querySelectorAll('.strip-btn[data-overlay]').forEach(btn => {
       // Load data for the overlay
       if (name === 'history') loadHistory();
       if (name === 'status') checkHealth();
+      if (name === 'notes') onNotesOpen();
     }
   };
 });

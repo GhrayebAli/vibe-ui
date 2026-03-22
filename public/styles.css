@@ -312,3 +312,8 @@ pre:hover .code-copy { opacity: 1; }
 .notes-btn-gen { background: var(--accent); color: #fff; }
 .notes-btn-save { background: var(--green); color: #fff; }
 .notes-btn-copy { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
+
+/* Notes loading spinner */
+.notes-spinner { display: flex; align-items: center; gap: 8px; padding: 10px 0; color: var(--text-dim); font-size: 12px; }
+.notes-spinner.hidden { display: none; }
+.notes-spin-icon { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }

@@ -1,16 +1,26 @@
 let editorEl = null;
 let getWs = null;
+let notesArea = null;
+let spinnerEl = null;
 
 export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
   editorEl = editor;
   getWs = wsGetter;
+  notesArea = editor.closest('.notes-area');
 
-  // Load existing notes when overlay opens
+  // Create spinner element (hidden by default)
+  spinnerEl = document.createElement('div');
+  spinnerEl.className = 'notes-spinner hidden';
+  spinnerEl.innerHTML = '<div class="notes-spin-icon"></div><span>Generating notes...</span>';
+  if (notesArea) notesArea.insertBefore(spinnerEl, editor);
+
+  // Load existing notes on init
   loadNotes();
 
   genBtn.onclick = () => {
     genBtn.disabled = true;
     genBtn.textContent = 'Generating...';
+    showSpinner(true);
 
     // Send generate command via WebSocket
     const ws = typeof getWs === 'function' ? getWs() : getWs;
@@ -27,6 +37,7 @@ export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
         clearInterval(poll);
         genBtn.disabled = false;
         genBtn.textContent = 'Generate';
+        showSpinner(false);
       }
     }, 3000);
   };
@@ -57,6 +68,15 @@ export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
     copyBtn.textContent = 'Copied!';
     setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
   };
+}
+
+// Call this when the notes overlay opens
+export function onNotesOpen() {
+  loadNotes();
+}
+
+function showSpinner(show) {
+  if (spinnerEl) spinnerEl.classList.toggle('hidden', !show);
 }
 
 export async function loadNotes() {
