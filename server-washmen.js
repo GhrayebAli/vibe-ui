@@ -344,6 +344,13 @@ app.post("/api/inspect-element", async (req, res) => {
     const actualX = pctX != null ? Math.round(pctX * viewportSize.width) : x;
     const actualY = pctY != null ? Math.round(pctY * viewportSize.height) : y;
     console.log(`[inspect] coordinates: pct=(${pctX},${pctY}) actual=(${actualX},${actualY}) viewport=${viewportSize.width}x${viewportSize.height}`);
+    // Debug: save what the inspect browser actually sees
+    const { writeFileSync: wfs } = await import("fs");
+    const debugScreenshot = await page.screenshot({ type: "png" });
+    wfs("/tmp/inspect-debug.png", debugScreenshot);
+    console.log("[inspect] debug screenshot saved to /tmp/inspect-debug.png");
+    const debugUrl = page.url();
+    console.log("[inspect] current URL:", debugUrl);
 
     const info = await page.evaluate(({ cx, cy }) => {
       // Sample the click point and surrounding area, find the best (most specific) element
