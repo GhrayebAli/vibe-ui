@@ -312,11 +312,17 @@ export function handleWashmenWs(ws, sessionIds) {
 
               ws.send(JSON.stringify({ type: "tool_activity", tool: toolName, input: toolInput }));
 
-              // Track file changes
-              if ((toolName === "Edit" || toolName === "Write" || toolName === "edit" || toolName === "write") && toolInput.file_path) {
-                lastEditedFile = toolInput.file_path;
-                if (!changedFiles.find(f => f.name === toolInput.file_path)) {
-                  changedFiles.push({ name: toolInput.file_path, tool: toolName });
+              // Track file changes and reads
+              if (toolInput.file_path) {
+                if (toolName === "Edit" || toolName === "Write" || toolName === "edit" || toolName === "write") {
+                  lastEditedFile = toolInput.file_path;
+                  if (!changedFiles.find(f => f.name === toolInput.file_path)) {
+                    changedFiles.push({ name: toolInput.file_path, tool: toolName });
+                  }
+                }
+                // Also track reads for Code tab (show last accessed file)
+                if (toolName === "Read" || toolName === "read") {
+                  if (!lastEditedFile) lastEditedFile = toolInput.file_path; // Only if no edits yet
                 }
               }
             }
