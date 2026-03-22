@@ -157,6 +157,71 @@ export function clearChat() {
   activityLog = [];
 }
 
+// Inline screenshot
+export function addScreenshot(base64, caption) {
+  const div = document.createElement('div');
+  div.className = 'msg-screenshot';
+  div.innerHTML = `
+    <img src="data:image/png;base64,${base64}" alt="Preview screenshot">
+    ${caption ? `<div class="screenshot-caption">${caption}</div>` : ''}
+  `;
+  chatEl.appendChild(div);
+  scrollBottom();
+}
+
+// Follow-up question detection and rendering
+export function detectAndRenderQuestion(text, onAnswer) {
+  // Detect question patterns
+  const lines = text.split('\n');
+  const questionLine = lines.find(l => l.trim().endsWith('?'));
+  if (!questionLine) return false;
+
+  // Check for numbered options (1. option, 2. option)
+  const options = [];
+  const optionRegex = /^\s*(\d+)[.)]\s+(.+)/;
+  const yesNoRegex = /\b(yes|no)\b.*\bor\b.*\b(yes|no)\b/i;
+  const choiceRegex = /\b(option [A-D]|choice \d|alternative \d)\b/i;
+
+  for (const line of lines) {
+    const match = line.match(optionRegex);
+    if (match) options.push(match[2].trim());
+  }
+
+  // Yes/No question
+  const isYesNo = yesNoRegex.test(text) || text.match(/\?\s*$/) && options.length === 0 && text.match(/\bshould\b|\bwould you\b|\bdo you\b|\bwant\b/i);
+
+  if (options.length === 0 && !isYesNo) return false;
+
+  const div = document.createElement('div');
+  div.className = 'question-block';
+
+  if (isYesNo && options.length === 0) {
+    options.push('Yes', 'No');
+  }
+
+  const btnsHtml = options.map(o => `<button class="q-option">${o}</button>`).join('');
+  div.innerHTML = `
+    <div class="q-options">${btnsHtml}</div>
+    <a class="q-skip" href="#">Skip and build anyway</a>
+  `;
+
+  div.querySelectorAll('.q-option').forEach(btn => {
+    btn.onclick = () => {
+      div.remove();
+      onAnswer(btn.textContent);
+    };
+  });
+  div.querySelector('.q-skip').onclick = (e) => {
+    e.preventDefault();
+    div.remove();
+    onAnswer('Just build it with your best judgment');
+  };
+
+  chatEl.appendChild(div);
+  scrollBottom();
+  return true;
+}
+
 export function loadMessages(msgs) {
   msgs.forEach(m => {
     try {

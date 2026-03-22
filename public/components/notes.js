@@ -1,43 +1,55 @@
 let editorEl = null;
-let wsRef = null;
+let getWs = null;
 
-export function initNotes(editor, genBtn, saveBtn, copyBtn, ws) {
+export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
   editorEl = editor;
-  wsRef = ws;
+  getWs = wsGetter;
 
-  // Load existing notes
+  // Load existing notes when overlay opens
   loadNotes();
 
   genBtn.onclick = () => {
     genBtn.disabled = true;
     genBtn.textContent = 'Generating...';
-    // Send generate command via ws or fetch
-    if (wsRef?.readyState === 1) {
-      wsRef.send(JSON.stringify({ type: 'generate_mvp_notes' }));
+
+    // Send generate command via WebSocket
+    const ws = typeof getWs === 'function' ? getWs() : getWs;
+    if (ws?.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'generate_mvp_notes' }));
     }
+
     // Poll for the file to appear
+    let attempts = 0;
     const poll = setInterval(async () => {
+      attempts++;
       const loaded = await loadNotes();
-      if (loaded) {
+      if (loaded || attempts > 20) {
         clearInterval(poll);
         genBtn.disabled = false;
         genBtn.textContent = 'Generate';
       }
     }, 3000);
-    // Timeout after 60s
-    setTimeout(() => { clearInterval(poll); genBtn.disabled = false; genBtn.textContent = 'Generate'; }, 60000);
   };
 
   saveBtn.onclick = async () => {
     try {
-      await fetch('/api/notes', {
+      const resp = await fetch('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: editorEl.value }),
       });
-      saveBtn.textContent = 'Saved!';
-      setTimeout(() => { saveBtn.textContent = 'Save'; }, 1500);
-    } catch {}
+      if (resp.ok) {
+        saveBtn.textContent = 'Saved!';
+        saveBtn.style.background = 'var(--green)';
+      } else {
+        saveBtn.textContent = 'Error';
+        saveBtn.style.background = 'var(--red)';
+      }
+      setTimeout(() => { saveBtn.textContent = 'Save'; saveBtn.style.background = ''; }, 2000);
+    } catch {
+      saveBtn.textContent = 'Error';
+      setTimeout(() => { saveBtn.textContent = 'Save'; }, 2000);
+    }
   };
 
   copyBtn.onclick = () => {
@@ -47,11 +59,12 @@ export function initNotes(editor, genBtn, saveBtn, copyBtn, ws) {
   };
 }
 
-async function loadNotes() {
+export async function loadNotes() {
+  if (!editorEl) return false;
   try {
     const resp = await fetch('/api/notes');
     const data = await resp.json();
-    if (data.content) {
+    if (data.content && data.content.trim()) {
       editorEl.value = data.content;
       return true;
     }

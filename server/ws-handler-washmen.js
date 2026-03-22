@@ -2,6 +2,20 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import crypto from "crypto";
 import { execSync } from "child_process";
 import { readFileSync } from "fs";
+
+// Screenshot capture using Playwright
+async function takeScreenshot() {
+  try {
+    const result = execSync(
+      'node -e "const{chromium}=require(\'playwright\');(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(\'http://localhost:3000\',{waitUntil:\'networkidle\',timeout:10000});await p.waitForTimeout(1000);const buf=await p.screenshot();await b.close();process.stdout.write(buf.toString(\'base64\'));})()"',
+      { cwd: "/workspaces/washmen-mvp-workspace", timeout: 20000, maxBuffer: 10 * 1024 * 1024 }
+    );
+    return result.toString();
+  } catch (e) {
+    console.error("[screenshot] Failed:", e.message);
+    return null;
+  }
+}
 import {
   createSession,
   getSession,
@@ -353,6 +367,21 @@ export function handleWashmenWs(ws, sessionIds) {
               const content = readFileSync(lastEditedFile, "utf8");
               ws.send(JSON.stringify({ type: "code_update", path: lastEditedFile, content }));
             } catch (e) { console.error("[code]", e.message); }
+          }
+
+          // Take screenshot if frontend files were changed
+          const touchedFrontend = changedFiles.some(f => f.name.includes("mock-ops-frontend"));
+          if (touchedFrontend) {
+            try {
+              const screenshotData = await takeScreenshot();
+              if (screenshotData) {
+                ws.send(JSON.stringify({
+                  type: "screenshot",
+                  image: screenshotData,
+                  caption: changedFiles.filter(f => f.name.includes("mock-ops-frontend")).map(f => f.name.split("/").pop()).join(", "),
+                }));
+              }
+            } catch (e) { console.error("[screenshot]", e.message); }
           }
 
           ws.send(JSON.stringify({

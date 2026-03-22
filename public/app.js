@@ -1,4 +1,4 @@
-import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, showDiffSummary, clearChat, loadMessages } from './components/chat.js';
+import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, showDiffSummary, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion } from './components/chat.js';
 import { initPreview, refreshPreview, setDevice, navigatePreview } from './components/preview.js';
 import { initHistory, loadHistory } from './components/history.js';
 import { initNotes } from './components/notes.js';
@@ -35,6 +35,7 @@ function connect() {
 
   ws.onopen = () => {
     console.log('[ws] connected');
+    checkBranch();
     checkHealth();
     loadStarters();
     loadSessions();
@@ -77,6 +78,10 @@ function handleMessage(msg) {
       sendBtn.disabled = false;
       updateBudget(msg.totalCost);
       loadSessions();
+      // Detect follow-up questions in the response
+      if (msg.text) {
+        detectAndRenderQuestion(msg.text, (answer) => doSend(answer));
+      }
       // Process queue
       if (promptQueue.length > 0) {
         const next = promptQueue.shift();
@@ -103,6 +108,12 @@ function handleMessage(msg) {
 
     case 'code_update':
       updateCodeTab(msg.path, msg.content);
+      break;
+
+    case 'screenshot':
+      addScreenshot(msg.image, msg.caption);
+      // Also refresh the preview iframe
+      refreshPreview();
       break;
 
     case 'system':
@@ -375,10 +386,27 @@ async function loadChatHistory() {
         hasSent = true;
         welcome.style.display = 'none';
         starters.style.display = 'none';
+
+        // Session continuity — show resume message
+        const lastUsed = sessions[0].last_used_at;
+        const timeAgo = lastUsed ? formatTimeAgo(lastUsed) : '';
+        const branchName = currentBranch && currentBranch !== 'main' && currentBranch !== 'master' ? currentBranch : null;
+        if (timeAgo || branchName) {
+          addSystemMsg(`Session resumed${branchName ? ' — ' + branchName : ''}${timeAgo ? ' — ' + timeAgo : ''}`);
+        }
+
         loadMessages(msgs);
       }
     }
   } catch {}
+}
+
+function formatTimeAgo(ts) {
+  const seconds = Math.floor(Date.now() / 1000 - ts);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+  if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+  return Math.floor(seconds / 86400) + 'd ago';
 }
 
 /* ═══ Branch Check ═══ */
@@ -387,6 +415,14 @@ async function checkBranch() {
     const resp = await fetch('/api/branch');
     const data = await resp.json();
     currentBranch = data.branch || 'main';
+
+    // Show branch badge
+    const badge = $('branch-badge');
+    if (badge && currentBranch !== 'main' && currentBranch !== 'master' && currentBranch !== 'unknown') {
+      badge.textContent = currentBranch;
+      badge.style.display = '';
+    }
+
     if (currentBranch === 'main' || currentBranch === 'master') {
       branchLock.style.display = 'flex';
       inputDock.style.display = 'none';
@@ -530,7 +566,7 @@ setTimeout(() => {
 /* ═══ Init ═══ */
 initChat(chat);
 initHistory($('history-list'));
-initNotes($('notes-editor'), $('notes-gen'), $('notes-save'), $('notes-copy'), ws);
+initNotes($('notes-editor'), $('notes-gen'), $('notes-save'), $('notes-copy'), () => ws);
 initStatus($('status-list'));
 initBudget($('budget-fill'), $('budget-amount'));
 
