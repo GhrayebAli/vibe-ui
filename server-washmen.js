@@ -41,13 +41,9 @@ const sessionIds = new Map();
 app.get("/api/health", (_req, res) => res.json({ status: "ok", service: "vibe-ui", port: 4000 }));
 
 // Service health check endpoint — checks all 3 services
-// Configurable via SERVICES env: "name:port:healthPath,..." e.g. "frontend:3000:/,api:1337:/health"
-// healthPath is optional (defaults to /health, use / for root-only check)
-const defaultServices = [
-  { name: "frontend", url: "http://localhost:3000", port: 3000 },
-  { name: "api-gateway", url: "http://localhost:1337/health", port: 1337 },
-  { name: "core-service", url: "http://localhost:2339/health", port: 2339 },
-];
+// Service health — configured via SERVICES env: "name:port:healthPath,..."
+// e.g. SERVICES="frontend:3000:/,api:1337:/health,worker:5000:/health"
+// healthPath defaults to /health if omitted. If SERVICES is not set, returns empty.
 const configuredServices = process.env.SERVICES
   ? process.env.SERVICES.split(",").map(s => {
       const [name, port, healthPath] = s.trim().split(":");
@@ -55,7 +51,7 @@ const configuredServices = process.env.SERVICES
       const path = healthPath || "/health";
       return { name: name.trim(), url: `http://localhost:${p}${path}`, port: p };
     })
-  : defaultServices;
+  : [];
 
 app.get("/api/service-health", async (_req, res) => {
   const services = configuredServices;
@@ -196,12 +192,21 @@ app.get("/api/files", (_req, res) => {
 // Track last read position per log file to only return new lines
 const logPositions = {};
 
-// Configurable via LOG_SOURCES env: "name:file,name:file,..." e.g. "frontend:fe.log,api:api.log"
-// Defaults to the standard Washmen service set
-const defaultLogSources = [["frontend", "fe.log"], ["gateway", "gw.log"], ["core", "core.log"], ["vibe-ui", "vibe.log"]];
-const logSources = process.env.LOG_SOURCES
+// Log sources — configured via LOG_SOURCES env: "name:file,name:file,..."
+// e.g. LOG_SOURCES="frontend:fe.log,api:gw.log,vibe-ui:vibe.log"
+// If not set, auto-discovers all *.log files in /tmp/ on each poll
+const explicitLogSources = process.env.LOG_SOURCES
   ? process.env.LOG_SOURCES.split(",").map(s => { const [n, f] = s.split(":"); return [n.trim(), f.trim()]; })
-  : defaultLogSources;
+  : null;
+
+function getLogSources() {
+  if (explicitLogSources) return explicitLogSources;
+  try {
+    return readdirSync("/tmp")
+      .filter(f => f.endsWith(".log"))
+      .map(f => [f.replace(/\.log$/, ""), f]);
+  } catch { return []; }
+}
 
 // Browser console buffer — populated by a background Playwright listener
 const browserConsoleBuffer = [];
@@ -261,7 +266,7 @@ app.get("/api/console", (req, res) => {
   const entries = [];
   const reset = req.query.reset === "true";
 
-  for (const [name, logFile] of logSources) {
+  for (const [name, logFile] of getLogSources()) {
     try {
       const path = `/tmp/${logFile}`;
       const log = readFileSync(path, "utf8");
