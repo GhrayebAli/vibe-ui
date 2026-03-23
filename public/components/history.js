@@ -4,10 +4,11 @@ export function initHistory(el) {
   listEl = el;
 }
 
-export async function loadHistory() {
+export async function loadHistory(branch) {
   if (!listEl) return;
   try {
-    const resp = await fetch('/api/checkpoints');
+    const branchParam = branch ? `?branch=${encodeURIComponent(branch)}` : '';
+    const resp = await fetch('/api/checkpoints' + branchParam);
     const data = await resp.json();
     renderHistory(data.checkpoints || []);
   } catch {

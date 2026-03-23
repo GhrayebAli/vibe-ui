@@ -77,6 +77,8 @@ try { db.exec(`ALTER TABLE messages ADD COLUMN workflow_step_index INTEGER DEFAU
 try { db.exec(`ALTER TABLE messages ADD COLUMN workflow_step_label TEXT DEFAULT NULL`); } catch { /* exists */ }
 // AI-generated session summary
 try { db.exec(`ALTER TABLE sessions ADD COLUMN summary TEXT DEFAULT NULL`); } catch { /* exists */ }
+// Branch name for session-branch linking
+try { db.exec(`ALTER TABLE sessions ADD COLUMN branch TEXT DEFAULT NULL`); } catch { /* exists */ }
 // Todo archive
 try { db.exec(`ALTER TABLE todos ADD COLUMN archived INTEGER DEFAULT 0`); } catch { /* exists */ }
 // Todo priority (0=none, 1=low, 2=medium, 3=high)
@@ -189,6 +191,15 @@ try {
   }
 } catch { /* ignore */ }
 
+// Branch-scoped notes
+db.exec(`
+  CREATE TABLE IF NOT EXISTS branch_notes (
+    branch TEXT PRIMARY KEY,
+    content TEXT DEFAULT '',
+    updated_at INTEGER DEFAULT (unixepoch())
+  );
+`);
+
 // Brags table
 db.exec(`
   CREATE TABLE IF NOT EXISTS brags (
@@ -208,6 +219,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_costs_created_at ON costs(created_at);
   CREATE INDEX IF NOT EXISTS idx_sessions_project_path ON sessions(project_path);
   CREATE INDEX IF NOT EXISTS idx_sessions_pinned_last_used ON sessions(pinned DESC, last_used_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_sessions_branch ON sessions(branch);
 `);
 
 // Deduplicated mode CASE subquery — used in 4 session listing queries
@@ -224,8 +236,8 @@ const MODE_CASE = `
 // Prepared statements
 const stmts = {
   createSession: db.prepare(
-    `INSERT OR IGNORE INTO sessions (id, claude_session_id, project_name, project_path)
-     VALUES (?, ?, ?, ?)`
+    `INSERT OR IGNORE INTO sessions (id, claude_session_id, project_name, project_path, branch)
+     VALUES (?, ?, ?, ?, ?)`
   ),
   updateClaudeSessionId: db.prepare(
     `UPDATE sessions SET claude_session_id = ? WHERE id = ?`
@@ -375,8 +387,8 @@ const stmts = {
   ),
 };
 
-export function createSession(id, claudeSessionId, projectName, projectPath) {
-  stmts.createSession.run(id, claudeSessionId, projectName, projectPath);
+export function createSession(id, claudeSessionId, projectName, projectPath, branch = null) {
+  stmts.createSession.run(id, claudeSessionId, projectName, projectPath, branch);
 }
 
 export function updateClaudeSessionId(id, claudeSessionId) {
@@ -465,6 +477,21 @@ export const deleteSession = db.transaction((id) => {
   db.prepare("DELETE FROM messages WHERE session_id = ?").run(id);
   db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
 });
+
+export function getSessionByBranch(branch) {
+  return db.prepare('SELECT * FROM sessions WHERE branch = ? ORDER BY last_used_at DESC LIMIT 1').get(branch);
+}
+
+export function getNotes(branch) {
+  return db.prepare('SELECT content FROM branch_notes WHERE branch = ?').get(branch);
+}
+
+export function saveNotes(branch, content) {
+  db.prepare(`
+    INSERT INTO branch_notes (branch, content, updated_at) VALUES (?, ?, unixepoch())
+    ON CONFLICT(branch) DO UPDATE SET content = excluded.content, updated_at = unixepoch()
+  `).run(branch, content);
+}
 
 export function getSessionCosts(projectPath) {
   if (projectPath) {

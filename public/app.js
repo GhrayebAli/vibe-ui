@@ -17,6 +17,7 @@ let ws, sid = null, streaming = false, model = 'sonnet', mode = 'build';
 let hasSent = false;
 let promptQueue = [];
 let currentBranch = 'main';
+let workspaceData = null;
 
 /* ═══ Port URL resolver ═══ */
 export function portUrl(port) {
@@ -28,6 +29,163 @@ export function portUrl(port) {
   return 'http://localhost:' + port;
 }
 
+/* ═══ Landing Screen ═══ */
+async function showLanding() {
+  const landing = $('landing');
+  const inputDock = $('input-dock');
+  const homeBtn = $('home-btn');
+
+  // Show landing, hide chat elements
+  landing.style.display = 'flex';
+  chat.style.display = 'none';
+  inputDock.style.display = 'none';
+  homeBtn.style.display = 'none';
+  // Hide history/notes buttons in landing
+  document.querySelectorAll('.strip-btn[data-overlay="history"], .strip-btn[data-overlay="notes"]').forEach(b => b.style.display = '');
+
+  try {
+    const resp = await fetch('/api/workspace');
+    workspaceData = await resp.json();
+  } catch (e) {
+    console.error('Failed to load workspace', e);
+    return;
+  }
+
+  // Budget
+  const budgetEl = $('landing-budget');
+  if (budgetEl && workspaceData.budget) {
+    budgetEl.textContent = `$${workspaceData.budget.spent.toFixed(2)} / $${workspaceData.budget.limit} budget today`;
+  }
+
+  // Populate resume branches
+  const resumeCard = $('landing-resume');
+  const branchList = $('branch-list');
+  const resumeCount = $('resume-count');
+  const branches = workspaceData.branches || [];
+
+  if (branches.length > 0) {
+    resumeCard.style.display = 'flex';
+    resumeCount.textContent = branches.length;
+    branchList.innerHTML = '';
+    for (const b of branches) {
+      const item = document.createElement('div');
+      item.className = 'landing-branch-item';
+      const meta = b.session ? formatTimeAgo(b.session.lastUsedAt) : (b.lastActivity ? 'no session' : '');
+      item.innerHTML = `<span class="landing-branch-name">${escapeHtml(b.name)}</span><span class="landing-branch-meta">${meta}</span>`;
+      item.onclick = () => resumeBranch(b);
+      branchList.appendChild(item);
+    }
+  } else {
+    resumeCard.style.display = 'none';
+  }
+}
+
+function hideLanding() {
+  $('landing').style.display = 'none';
+  chat.style.display = '';
+  $('input-dock').style.display = '';
+  $('home-btn').style.display = '';
+}
+
+function startDiscover() {
+  mode = 'discover';
+  sid = null;
+  hideLanding();
+  clearChat();
+  addSystemMsg('Discovery mode — exploring the codebase on main (read-only)');
+  // Hide history/notes buttons (not applicable in discover)
+  document.querySelectorAll('.strip-btn[data-overlay="history"], .strip-btn[data-overlay="notes"]').forEach(b => b.style.display = 'none');
+  // Set mode toggle to plan (closest to discover)
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'plan'));
+}
+
+async function resumeBranch(branch) {
+  hideLanding();
+  clearChat();
+  addSystemMsg(`Switching to ${branch.name}...`);
+
+  try {
+    const resp = await fetch('/api/switch-branch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ branch: branch.name }),
+    });
+    const result = await resp.json();
+    if (!result.ok) throw new Error(result.error || 'Switch failed');
+  } catch (e) {
+    addErrorMsg(`Failed to switch branch: ${e.message}`);
+    return;
+  }
+
+  mode = 'build';
+  currentBranch = branch.name;
+  const badge = $('branch-badge');
+  if (badge) { badge.textContent = branch.name; badge.style.display = ''; }
+
+  if (branch.session) {
+    sid = branch.session.id;
+    try {
+      const msgs = await (await fetch(`/api/sessions/${sid}/messages`)).json();
+      if (msgs.length > 0) loadMessages(msgs);
+    } catch {}
+    addSystemMsg(`Resumed ${branch.name}`);
+  } else {
+    addSystemMsg(`Switched to ${branch.name} — no previous session found`);
+  }
+
+  refreshPreview();
+}
+
+async function startNewFeature() {
+  const nameInput = $('feature-name-input');
+  const name = nameInput.value.trim();
+  if (!name) return;
+
+  const startBtn = $('feature-start-btn');
+  startBtn.disabled = true;
+  startBtn.textContent = 'Creating...';
+
+  hideLanding();
+  clearChat();
+  addSystemMsg(`Creating branch for: ${name}...`);
+
+  try {
+    const resp = await fetch('/api/create-branch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const result = await resp.json();
+    if (!result.ok) throw new Error(result.error || 'Branch creation failed');
+
+    mode = 'build';
+    currentBranch = result.branch;
+    sid = null;
+
+    const badge = $('branch-badge');
+    if (badge) { badge.textContent = result.branch; badge.style.display = ''; }
+
+    addSystemMsg(`Branch ${result.branch} created — start building!`);
+    nameInput.value = '';
+  } catch (e) {
+    addErrorMsg(`Failed to create branch: ${e.message}`);
+  } finally {
+    startBtn.disabled = false;
+    startBtn.textContent = 'Start';
+  }
+}
+
+// Wire up landing event listeners
+$('landing-discover').onclick = startDiscover;
+$('feature-start-btn').onclick = startNewFeature;
+$('feature-name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') startNewFeature();
+});
+$('home-btn').onclick = () => {
+  hasSent = false;
+  showLanding();
+};
+
 /* ═══ WebSocket ═══ */
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -36,10 +194,7 @@ function connect() {
   ws.onopen = () => {
     console.log('[ws] connected');
     checkHealth();
-    loadStarters();
-    loadSessions();
-    loadChatHistory();
-    // Real frontend serves at /v2/ due to homepage config in package.json
+    showLanding();
     initPreview(portUrl(3000) + '/v2/');
     initVisualEdit($('preview-frame'), doSend);
     setInterval(checkHealth, 10000);
@@ -78,7 +233,6 @@ function handleMessage(msg) {
       streaming = false;
       sendBtn.disabled = false;
       updateBudget(msg.totalCost);
-      loadSessions();
       // Detect follow-up questions in the response
       if (msg.text) {
         detectAndRenderQuestion(msg.text, (answer) => doSend(answer));
@@ -138,7 +292,7 @@ function handleMessage(msg) {
 
     case 'checkpoint_created':
       addSystemMsg('Checkpoint: ' + msg.name);
-      loadHistory();
+      loadHistory(currentBranch);
       break;
 
     case 'model_changed':
@@ -160,13 +314,7 @@ function doSend(text) {
   // Deactivate visual edit mode
   deactivateVisualEdit();
 
-  // Hide welcome
-  if (!hasSent) {
-    hasSent = true;
-    welcome.style.display = 'none';
-    starters.style.display = 'none';
-  }
-
+  hasSent = true;
   addUserMsg(text);
   streaming = true;
   sendBtn.disabled = true;
@@ -176,7 +324,8 @@ function doSend(text) {
     text,
     sessionId: sid,
     model,
-    mode, // 'plan' or 'build'
+    mode,
+    branch: currentBranch,
   }));
 }
 
@@ -282,10 +431,10 @@ document.querySelectorAll('.strip-btn[data-overlay]').forEach(btn => {
       btn.classList.add('active');
       activeOverlay = name;
 
-      // Load data for the overlay
-      if (name === 'history') loadHistory();
+      // Load data for the overlay — pass branch for scoping
+      if (name === 'history') loadHistory(currentBranch);
       if (name === 'status') checkHealth();
-      if (name === 'notes') onNotesOpen();
+      if (name === 'notes') onNotesOpen(currentBranch);
     }
   };
 });
@@ -341,73 +490,7 @@ $('preview-url').onkeydown = e => {
 /* ═══ Console ═══ */
 $('console-clear').onclick = () => { $('console-view').innerHTML = ''; };
 
-/* ═══ Starters ═══ */
-const starterData = [
-  { t: 'Add a new data table page', d: 'Create a page with a sortable, paginated data grid' },
-  { t: 'Add a filter to an existing page', d: 'Add filter bar with dropdowns to an existing table' },
-  { t: 'Add a form that submits to the API', d: 'Build a form with validation that posts to an endpoint' },
-  { t: 'Add a metric card', d: 'Dashboard card that fetches and auto-refreshes data' },
-  { t: 'Modify an existing page', d: 'Add fields, columns, or sections to a page' },
-  { t: 'Add a new API endpoint', d: 'New route consuming an existing hook method' },
-];
-
-async function loadStarters() {
-  try {
-    const data = await (await fetch('/api/prompts')).json();
-    starters.innerHTML = '';
-    (data.starters || starterData).forEach(s => {
-      const card = document.createElement('div');
-      card.className = 's-card';
-      card.innerHTML = `<div class="st">${s.title || s.t}</div><div class="sd">${(s.prompt || s.d || '').slice(0, 80)}</div>`;
-      card.onclick = () => {
-        input.value = s.prompt || s.d || s.t;
-        input.focus();
-        input.dispatchEvent(new Event('input'));
-      };
-      starters.appendChild(card);
-    });
-  } catch {
-    // Use fallback data
-    starters.innerHTML = '';
-    starterData.forEach(s => {
-      const card = document.createElement('div');
-      card.className = 's-card';
-      card.innerHTML = `<div class="st">${s.t}</div><div class="sd">${s.d}</div>`;
-      card.onclick = () => { input.value = s.t; input.focus(); };
-      starters.appendChild(card);
-    });
-  }
-}
-
-/* ═══ Sessions ═══ */
-async function loadSessions() {
-  // Sessions are shown in history overlay now
-}
-
-async function loadChatHistory() {
-  try {
-    const sessions = await (await fetch('/api/sessions')).json();
-    if (sessions.length > 0) {
-      sid = sessions[0].id;
-      const msgs = await (await fetch('/api/sessions/' + sid + '/messages')).json();
-      if (msgs.length > 0) {
-        hasSent = true;
-        welcome.style.display = 'none';
-        starters.style.display = 'none';
-
-        // Session continuity — show resume message
-        const lastUsed = sessions[0].last_used_at;
-        const timeAgo = lastUsed ? formatTimeAgo(lastUsed) : '';
-        const branchName = currentBranch && currentBranch !== 'main' && currentBranch !== 'master' ? currentBranch : null;
-        if (timeAgo || branchName) {
-          addSystemMsg(`Session resumed${branchName ? ' — ' + branchName : ''}${timeAgo ? ' — ' + timeAgo : ''}`);
-        }
-
-        loadMessages(msgs);
-      }
-    }
-  } catch {}
-}
+/* ═══ Sessions (legacy — replaced by landing screen) ═══ */
 
 function formatTimeAgo(ts) {
   const seconds = Math.floor(Date.now() / 1000 - ts);
@@ -418,19 +501,7 @@ function formatTimeAgo(ts) {
 }
 
 /* ═══ Branch Badge ═══ */
-// Just show the branch name if on an mvp/* branch — no locking
-(async () => {
-  try {
-    const resp = await fetch('/api/branch');
-    const data = await resp.json();
-    currentBranch = data.branch || 'main';
-    const badge = $('branch-badge');
-    if (badge && currentBranch.startsWith('mvp/')) {
-      badge.textContent = currentBranch;
-      badge.style.display = '';
-    }
-  } catch {}
-})();
+// Branch is now set by landing screen actions (resumeBranch, startNewFeature)
 
 /* ═══ Input Events ═══ */
 sendBtn.onclick = send;
@@ -458,13 +529,20 @@ function updateCodeTab(path, content) {
   const codeContent = $('code-content');
   if (codePath) codePath.textContent = path || 'Select a file to view';
   if (codeContent && content) {
-    // Detect language from file extension for proper syntax coloring
+    // Detect language for syntax highlighting
     const ext = (path || '').split('.').pop();
     const langMap = { tsx: 'typescript', ts: 'typescript', jsx: 'javascript', js: 'javascript', json: 'json', css: 'css', scss: 'scss', md: 'markdown', html: 'html' };
-    const lang = langMap[ext] || '';
+    const lang = langMap[ext] || 'plaintext';
+
+    // Reset and re-highlight — hljs needs clean textContent + language class
     codeContent.textContent = content;
-    codeContent.className = 'code-content' + (lang ? ' language-' + lang : '');
-    try { hljs.highlightElement(codeContent); } catch {}
+    codeContent.removeAttribute('data-highlighted');
+    codeContent.className = 'language-' + lang;
+    try {
+      hljs.highlightElement(codeContent);
+    } catch (e) {
+      console.warn('hljs error:', e);
+    }
   }
   // Highlight active file in sidebar
   document.querySelectorAll('.tree-file').forEach(f => {
@@ -534,7 +612,7 @@ async function loadCodeFiles() {
           const toggle = document.createElement('div');
           toggle.className = 'tree-toggle';
           toggle.style.paddingLeft = (depth * 12 + 4) + 'px';
-          toggle.innerHTML = '<span class="tree-arrow">▸</span><svg class="tree-svg" viewBox="0 0 16 16" fill="currentColor"><path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z"/></svg> ' + dirName;
+          toggle.innerHTML = `<span class="tree-arrow">▸</span> ${dirName}`;
           toggle.onclick = () => {
             const isOpen = dir.classList.toggle('open');
             toggle.querySelector('.tree-arrow').textContent = isOpen ? '▾' : '▸';
@@ -553,11 +631,11 @@ async function loadCodeFiles() {
           const item = document.createElement('div');
           item.className = 'tree-file';
           item.style.paddingLeft = (depth * 12 + 18) + 'px';
-          // File icon — colored SVG by type
+          // File type color dot
           const ext = file.name.split('.').pop();
           const colors = { tsx: '#61dafb', ts: '#3178c6', js: '#f7df1e', jsx: '#61dafb', json: '#cb8742', css: '#563d7c', scss: '#c6538c', md: '#519aba', html: '#e44d26' };
-          const color = colors[ext] || 'var(--text-muted)';
-          item.innerHTML = `<svg class="tree-svg" viewBox="0 0 16 16" fill="${color}"><rect x="3" y="1" width="10" height="14" rx="1.5"/></svg> ${file.name}`;
+          const color = colors[ext] || '#555';
+          item.innerHTML = `<span class="tree-dot" style="background:${color}"></span>${file.name}`;
           item.dataset.path = file.path;
           item.title = file.path;
           item.onclick = () => {
@@ -574,7 +652,7 @@ async function loadCodeFiles() {
 
       const repoHeader = document.createElement('div');
       repoHeader.className = 'tree-repo-header';
-      repoHeader.innerHTML = `<span class="tree-arrow">▾</span><svg class="tree-svg" viewBox="0 0 16 16" fill="var(--accent)"><path d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5v-9z"/></svg> ${repoName}`;
+      repoHeader.innerHTML = `<span class="tree-arrow">▾</span> ${repoName}`;
       repoHeader.onclick = () => {
         const isOpen = repoGroup.classList.toggle('collapsed');
         repoHeader.querySelector('.tree-arrow').textContent = isOpen ? '▸' : '▾';

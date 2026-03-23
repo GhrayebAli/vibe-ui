@@ -2,6 +2,7 @@ let editorEl = null;
 let getWs = null;
 let notesArea = null;
 let spinnerEl = null;
+let currentNoteBranch = null;
 
 export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
   editorEl = editor;
@@ -14,25 +15,22 @@ export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
   spinnerEl.innerHTML = '<div class="notes-spin-icon"></div><span>Generating notes...</span>';
   if (notesArea) notesArea.insertBefore(spinnerEl, editor);
 
-  // Load existing notes on init
-  loadNotes();
-
   genBtn.onclick = () => {
     genBtn.disabled = true;
     genBtn.textContent = 'Generating...';
     showSpinner(true);
 
-    // Send generate command via WebSocket
+    // Send generate command via WebSocket with branch
     const ws = typeof getWs === 'function' ? getWs() : getWs;
     if (ws?.readyState === 1) {
-      ws.send(JSON.stringify({ type: 'generate_mvp_notes' }));
+      ws.send(JSON.stringify({ type: 'generate_mvp_notes', branch: currentNoteBranch }));
     }
 
-    // Poll for the file to appear
+    // Poll for notes to appear
     let attempts = 0;
     const poll = setInterval(async () => {
       attempts++;
-      const loaded = await loadNotes();
+      const loaded = await loadNotes(currentNoteBranch);
       if (loaded || attempts > 20) {
         clearInterval(poll);
         genBtn.disabled = false;
@@ -47,7 +45,7 @@ export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
       const resp = await fetch('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: editorEl.value }),
+        body: JSON.stringify({ branch: currentNoteBranch, content: editorEl.value }),
       });
       if (resp.ok) {
         saveBtn.textContent = 'Saved!';
@@ -70,19 +68,21 @@ export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
   };
 }
 
-// Call this when the notes overlay opens
-export function onNotesOpen() {
-  loadNotes();
+// Call this when the notes overlay opens — pass current branch
+export function onNotesOpen(branch) {
+  currentNoteBranch = branch || null;
+  loadNotes(branch);
 }
 
 function showSpinner(show) {
   if (spinnerEl) spinnerEl.classList.toggle('hidden', !show);
 }
 
-export async function loadNotes() {
+export async function loadNotes(branch) {
   if (!editorEl) return false;
+  const branchParam = branch ? `?branch=${encodeURIComponent(branch)}` : '';
   try {
-    const resp = await fetch('/api/notes');
+    const resp = await fetch('/api/notes' + branchParam);
     const data = await resp.json();
     if (data.content && data.content.trim()) {
       editorEl.value = data.content;

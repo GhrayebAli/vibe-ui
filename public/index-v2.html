@@ -36,6 +36,12 @@
       <div class="top-bar-left">
         <input class="project-name" id="project-name" value="Washmen Ops" spellcheck="false">
       </div>
+      <button id="home-btn" class="strip-btn" title="Home" style="display:none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      </button>
+      </div>
       <div class="top-bar-right">
         <div class="mode-toggle" id="mode-toggle">
           <button class="mode-btn" data-mode="plan">Plan</button>
@@ -50,13 +56,51 @@
 
     <!-- Chat + Overlays container -->
     <div style="flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:0">
+    <!-- Landing Screen -->
+    <div id="landing" class="landing">
+      <div class="landing-header">
+        <div class="landing-title">Washmen Ops</div>
+        <div class="landing-subtitle">What would you like to do?</div>
+      </div>
+      <div class="landing-cards">
+        <button class="landing-card" id="landing-discover">
+          <div class="landing-card-icon">🔍</div>
+          <div class="landing-card-content">
+            <div class="landing-card-title">Discover the Codebase</div>
+            <div class="landing-card-desc">Explore architecture, models, and routes on the main branch. Read-only.</div>
+          </div>
+        </button>
+        <div class="landing-card landing-card-resume" id="landing-resume" style="display:none">
+          <div class="landing-card-icon">▶</div>
+          <div class="landing-card-content">
+            <div class="landing-card-title">Resume Feature <span class="landing-card-badge" id="resume-count"></span></div>
+            <div class="landing-branch-list" id="branch-list"></div>
+          </div>
+        </div>
+        <div class="landing-card" id="landing-build">
+          <div class="landing-card-icon">✚</div>
+          <div class="landing-card-content">
+            <div class="landing-card-title">Build a New Feature</div>
+            <div class="landing-card-desc">Create a new branch and start building.</div>
+            <div class="landing-build-row">
+              <input type="text" id="feature-name-input" placeholder="Describe your feature..." class="landing-input">
+              <button id="feature-start-btn" class="landing-start-btn">Start</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="landing-footer">
+        <div class="landing-budget" id="landing-budget"></div>
+      </div>
+    </div>
+
     <!-- Chat Area -->
-    <div class="chat-area" id="chat">
-      <div class="welcome" id="welcome">
+    <div class="chat-area" id="chat" style="display:none">
+      <div class="welcome" id="welcome" style="display:none">
         <h2>What are you building?</h2>
         <p>Describe a feature and I'll build it across the frontend, API gateway, and core service.</p>
       </div>
-      <div class="starters" id="starters"></div>
+      <div class="starters" id="starters" style="display:none"></div>
     </div>
 
     <!-- Overlays (slide over chat only) -->

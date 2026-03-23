@@ -1,14 +1,15 @@
 import dotenv from "dotenv";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { readFileSync, writeFileSync, readdirSync, existsSync } from "fs";
-import { execSync } from "child_process";
+import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from "fs";
+import { execSync, spawn } from "child_process";
+import { createHash } from "crypto";
 dotenv.config();
 
 import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
-import { getDb, createSession, getSession, addMessage, addCost, getTotalCost } from "./db.js";
+import { getDb, createSession, getSession, addMessage, addCost, getTotalCost, getSessionByBranch, getNotes, saveNotes } from "./db.js";
 import { handleWashmenWs } from "./server/ws-handler-washmen.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -99,6 +100,194 @@ app.get("/api/prompts", (_req, res) => {
   } catch {
     res.json({ starters: [] });
   }
+});
+
+// ── Workspace auto-discovery ──
+function discoverRepos() {
+  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
+  const exclude = ["vibe-ui", "node_modules", ".git", ".devcontainer", ".claude", ".github"];
+  const repos = [];
+  try {
+    const entries = readdirSync(workspaceDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || exclude.includes(entry.name) || entry.name.startsWith(".")) continue;
+      const repoPath = join(workspaceDir, entry.name);
+      if (!existsSync(join(repoPath, ".git"))) continue;
+
+      const repo = { name: entry.name, path: repoPath };
+      // Detect package manager
+      if (existsSync(join(repoPath, "yarn.lock"))) repo.packageManager = "yarn";
+      else if (existsSync(join(repoPath, "pnpm-lock.yaml"))) repo.packageManager = "pnpm";
+      else repo.packageManager = "npm";
+
+      // Detect package.json
+      repo.hasPackageJson = existsSync(join(repoPath, "package.json"));
+
+      // Detect start command
+      if (repo.hasPackageJson) {
+        try {
+          const pkg = JSON.parse(readFileSync(join(repoPath, "package.json"), "utf8"));
+          if (pkg.scripts?.start) {
+            repo.startCommand = repo.packageManager === "yarn" ? "yarn start" : "npm start";
+          } else if (pkg.scripts?.dev) {
+            repo.startCommand = repo.packageManager === "yarn" ? "yarn dev" : "npm run dev";
+          }
+          // Try to detect port from scripts
+          const startScript = pkg.scripts?.start || pkg.scripts?.dev || "";
+          const portMatch = startScript.match(/--port[= ](\d+)|PORT=(\d+)|-p (\d+)/);
+          if (portMatch) repo.port = parseInt(portMatch[1] || portMatch[2] || portMatch[3]);
+        } catch {}
+      }
+      if (!repo.startCommand) {
+        if (existsSync(join(repoPath, "app.js"))) repo.startCommand = "node app.js";
+        else if (existsSync(join(repoPath, "server.js"))) repo.startCommand = "node server.js";
+      }
+
+      // Current branch
+      try {
+        repo.branch = execSync(`git -C "${repoPath}" rev-parse --abbrev-ref HEAD`, { stdio: "pipe" }).toString().trim();
+      } catch { repo.branch = "unknown"; }
+
+      repos.push(repo);
+    }
+  } catch {}
+  return repos;
+}
+
+function detectDefaultBranch(repos) {
+  for (const repo of repos) {
+    try {
+      const ref = execSync(`git -C "${repo.path}" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim();
+      const branch = ref.replace("refs/remotes/origin/", "");
+      if (branch) return branch;
+    } catch {}
+  }
+  return "main";
+}
+
+app.get("/api/workspace", (_req, res) => {
+  try {
+    const repos = discoverRepos();
+    const defaultBranch = detectDefaultBranch(repos);
+
+    // List mvp/* branches from first repo
+    const branches = [];
+    if (repos.length > 0) {
+      try {
+        const branchList = execSync(
+          `git -C "${repos[0].path}" branch --list "mvp/*" --format="%(refname:short)|%(committerdate:unix)"`,
+          { stdio: "pipe" }
+        ).toString().trim();
+        for (const line of branchList.split("\n").filter(Boolean)) {
+          const [name, ts] = line.split("|");
+          const session = getSessionByBranch(name);
+          const msgCount = session ? getDb().prepare("SELECT COUNT(*) as c FROM messages WHERE session_id = ?").get(session.id)?.c || 0 : 0;
+          branches.push({
+            name,
+            lastActivity: ts ? new Date(parseInt(ts) * 1000).toISOString() : null,
+            session: session ? { id: session.id, messageCount: msgCount, lastUsedAt: session.last_used_at } : null,
+          });
+        }
+      } catch {}
+    }
+    // Sort by most recent activity
+    branches.sort((a, b) => (b.session?.lastUsedAt || 0) - (a.session?.lastUsedAt || 0));
+
+    const totalCost = getTotalCost();
+    res.json({
+      defaultBranch,
+      repos,
+      branches,
+      budget: { spent: totalCost, limit: 20, remaining: Math.max(0, 20 - totalCost) },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Branch switching ──
+app.post("/api/switch-branch", async (req, res) => {
+  const { branch } = req.body;
+  if (!branch) return res.status(400).json({ error: "Missing branch" });
+
+  const repos = discoverRepos();
+  const switched = [];
+  const installed = [];
+  const restarted = [];
+
+  for (const repo of repos) {
+    try {
+      // Save lockfile hash before checkout
+      let lockfileBefore = "";
+      const lockfile = repo.packageManager === "yarn" ? "yarn.lock" : "package-lock.json";
+      const lockfilePath = join(repo.path, lockfile);
+      try {
+        lockfileBefore = createHash("sha256").update(readFileSync(lockfilePath)).digest("hex");
+      } catch {}
+
+      // Checkout branch
+      execSync(`git -C "${repo.path}" checkout "${branch}"`, { stdio: "pipe" });
+      switched.push(repo.name);
+
+      // Check if lockfile changed
+      let lockfileAfter = "";
+      try {
+        lockfileAfter = createHash("sha256").update(readFileSync(lockfilePath)).digest("hex");
+      } catch {}
+      if (lockfileBefore && lockfileAfter && lockfileBefore !== lockfileAfter) {
+        const installCmd = repo.packageManager === "yarn" ? "yarn install" : "npm install";
+        try {
+          execSync(`cd "${repo.path}" && ${installCmd}`, { stdio: "pipe", timeout: 120000 });
+          installed.push(repo.name);
+        } catch (e) { console.error(`[switch] install failed for ${repo.name}:`, e.message); }
+      }
+
+      // Restart service if it has a port
+      if (repo.port && repo.startCommand) {
+        try { execSync(`kill $(lsof -ti:${repo.port}) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+        const logFile = `/tmp/${repo.name}.log`;
+        spawn("bash", ["-c", `cd "${repo.path}" && ${repo.startCommand} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
+        restarted.push(repo.port);
+      }
+    } catch (err) {
+      console.error(`[switch] Failed for ${repo.name}:`, err.message);
+    }
+  }
+
+  // Small delay for services to start
+  await new Promise(r => setTimeout(r, 2000));
+  res.json({ ok: true, switched, installed, restarted });
+});
+
+// ── Branch creation ──
+app.post("/api/create-branch", (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: "Missing name" });
+
+  const slug = name.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().replace(/\s+/g, "-").slice(0, 50).replace(/-+$/, "");
+  const branchName = `mvp/${slug || "feature-" + Date.now().toString(36)}`;
+
+  const repos = discoverRepos();
+  const defaultBranch = detectDefaultBranch(repos);
+  const created = [];
+
+  for (const repo of repos) {
+    try {
+      // Ensure on default branch first
+      try { execSync(`git -C "${repo.path}" checkout "${defaultBranch}"`, { stdio: "pipe" }); } catch {}
+      try { execSync(`git -C "${repo.path}" pull origin "${defaultBranch}" 2>/dev/null`, { stdio: "pipe", timeout: 10000 }); } catch {}
+      execSync(`git -C "${repo.path}" checkout -b "${branchName}"`, { stdio: "pipe" });
+      created.push(repo.name);
+    } catch (err) {
+      // Branch might already exist
+      try {
+        execSync(`git -C "${repo.path}" checkout "${branchName}"`, { stdio: "pipe" });
+        created.push(repo.name);
+      } catch { console.error(`[create-branch] ${repo.name}:`, err.message); }
+    }
+  }
+
+  res.json({ ok: true, branch: branchName, repos: created });
 });
 
 // Sessions API
@@ -328,32 +517,30 @@ app.get("/api/branch", (_req, res) => {
   }
 });
 
-// Notes API
-app.get("/api/notes", (_req, res) => {
-  try {
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
-    const content = readFileSync(join(workspaceDir, "MVP_NOTES.md"), "utf8");
-    res.json({ content });
-  } catch {
-    res.json({ content: "" });
-  }
+// Notes API — branch-scoped (stored in DB)
+app.get("/api/notes", (req, res) => {
+  const branch = req.query.branch;
+  if (!branch) return res.json({ content: "" });
+  const row = getNotes(branch);
+  res.json({ content: row ? row.content : "" });
 });
 
 app.post("/api/notes", (req, res) => {
-  try {
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
-    writeFileSync(join(workspaceDir, "MVP_NOTES.md"), req.body.content || "");
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  const { branch, content } = req.body;
+  if (!branch) return res.status(400).json({ error: "branch required" });
+  saveNotes(branch, content || "");
+  res.json({ ok: true });
 });
 
-// Checkpoints API
-app.get("/api/checkpoints", (_req, res) => {
+// Checkpoints API — branch-scoped
+app.get("/api/checkpoints", (req, res) => {
   try {
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
-    const tags = execSync(`git -C "${workspaceDir}/mock-ops-frontend" tag -l "checkpoint/*" --sort=-version:refname --format="%(refname:short)|%(creatordate:unix)|%(subject)"`, { stdio: "pipe" }).toString().trim();
+    const branch = req.query.branch || "main";
+    const branchSlug = branch.replace(/\//g, "-");
+    const repos = discoverRepos();
+    if (repos.length === 0) return res.json({ checkpoints: [] });
+    const repoPath = repos[0].path;
+    const tags = execSync(`git -C "${repoPath}" tag -l "checkpoint/${branchSlug}/*" --sort=-version:refname --format="%(refname:short)|%(creatordate:unix)|%(subject)"`, { stdio: "pipe" }).toString().trim();
     const checkpoints = tags.split("\n").filter(Boolean).map((line, i) => {
       const [name, ts, label] = line.split("|");
       return { id: name, label: label || name, timestamp: parseInt(ts), current: i === 0 };
@@ -369,10 +556,10 @@ app.post("/api/restore", (req, res) => {
   const { checkpointId } = req.body;
   if (!checkpointId) return res.status(400).json({ error: "Missing checkpointId" });
   try {
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
-    for (const repo of ["mock-ops-frontend", "mock-api-gateway", "mock-core-service"]) {
+    const repos = discoverRepos();
+    for (const repo of repos) {
       try {
-        execSync(`git -C "${workspaceDir}/${repo}" reset --hard "${checkpointId}"`, { stdio: "pipe" });
+        execSync(`git -C "${repo.path}" reset --hard "${checkpointId}"`, { stdio: "pipe" });
       } catch {}
     }
     res.json({ ok: true, restoredTo: checkpointId });
