@@ -100,17 +100,17 @@ input, textarea { font-family: var(--font); }
 .msg-agent .bubble.collapsed { max-height: 150px; overflow: hidden; position: relative; mask-image: linear-gradient(to bottom, #000 50%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, #000 50%, transparent 100%); }
 .collapse-toggle { background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 4px 0; font-family: var(--font); opacity: 0.8; }
 .collapse-toggle:hover { opacity: 1; text-decoration: underline; }
-.attachment-bar { display: flex; gap: 6px; padding: 6px 0; flex-wrap: wrap; }
-.attach-chip { display: flex; align-items: center; gap: 4px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 11px; color: var(--text-dim); }
-.attach-thumb { width: 32px; height: 32px; border-radius: 4px; object-fit: cover; }
-.attach-file-icon { font-size: 16px; }
-.attach-name { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.attach-remove { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 14px; padding: 0 2px; }
+.attachment-bar { display: flex; gap: 6px; padding: 8px 12px 4px; flex-wrap: wrap; }
+.attach-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 11px; color: var(--text-dim); }
+.attach-thumb { width: 36px; height: 36px; border-radius: 4px; object-fit: cover; }
+.attach-file-icon { font-size: 14px; }
+.attach-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-remove { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 0; line-height: 1; }
 .attach-remove:hover { color: var(--red); }
-.attach-preview { max-width: 200px; max-height: 120px; border-radius: 8px; margin-bottom: 6px; }
+.attach-preview { max-width: 180px; max-height: 100px; border-radius: 8px; margin-bottom: 4px; }
 .msg-attachments { display: flex; gap: 6px; justify-content: flex-end; margin-bottom: 4px; }
 .drag-over { outline: 2px dashed var(--accent); outline-offset: -2px; border-radius: var(--radius-lg); }
-.attach-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 42px; }
+.attach-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; height: 42px; }
 .attach-btn:hover { color: var(--accent); }
 .attach-btn svg { width: 16px; height: 16px; }
 .msg-error { border: 1px solid var(--red); border-radius: var(--radius-lg); padding: 12px; background: var(--red-soft); margin-bottom: 12px; }

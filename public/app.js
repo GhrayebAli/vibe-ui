@@ -427,7 +427,9 @@ function showAttachmentPreview() {
     bar = document.createElement('div');
     bar.id = 'attachment-bar';
     bar.className = 'attachment-bar';
-    input.parentElement.insertBefore(bar, input);
+    // Insert above the input-row, inside input-dock
+    const dock = $('input-dock');
+    dock.insertBefore(bar, dock.firstChild);
   }
   bar.innerHTML = pendingAttachments.map((a, i) => `
     <div class="attach-chip">
