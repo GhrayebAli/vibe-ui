@@ -772,6 +772,8 @@ app.post("/api/stop-service", (req, res) => {
   try {
     const port = req.body.port;
     if (!port) return res.status(400).json({ error: "Missing port" });
+    const vibePort = process.env.PORT || 4000;
+    if (String(port) === String(vibePort)) return res.status(400).json({ error: "Cannot stop vibe-ui" });
     try { execSync(`kill $(lsof -ti:${port}) 2>/dev/null`, { stdio: "pipe" }); } catch {}
     res.json({ ok: true });
   } catch (err) {
