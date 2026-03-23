@@ -252,6 +252,7 @@ function handleMessage(msg) {
 
     case 'assistant_done':
       hideThinking();
+      hideActivity(); // Clear any stuck spinners from the turn
       addAgentMsg(null, false); // finalize
       streaming = false;
       sendBtn.disabled = false;
@@ -300,6 +301,7 @@ function handleMessage(msg) {
 
     case 'error':
       hideThinking();
+      hideActivity();
       addErrorMsg(msg.text, () => {
         // "Try to Fix" callback
         doSend('Fix this error: ' + msg.text);
