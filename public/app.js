@@ -62,7 +62,7 @@ async function showLanding() {
   const resumeCard = $('landing-resume');
   const branchList = $('branch-list');
   const resumeCount = $('resume-count');
-  const branches = workspaceData.branches || [];
+  const branches = (workspaceData.branches || []).filter(b => b.session);
 
   if (branches.length > 0) {
     resumeCard.style.display = 'flex';
