@@ -1,6 +1,5 @@
 import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, showDiffSummary, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion } from './components/chat.js';
 import { initPreview, refreshPreview, setDevice, navigatePreview } from './components/preview.js';
-import { initHistory, loadHistory } from './components/history.js';
 import { initNotes, onNotesOpen } from './components/notes.js';
 import { initStatus, checkHealth } from './components/status.js';
 import { initBudget, updateBudget } from './components/budget.js';
@@ -314,16 +313,6 @@ function handleMessage(msg) {
       stopBtn.style.display = 'none';
       break;
 
-    case 'undo_result':
-      addSystemMsg('Restored to previous checkpoint');
-      refreshPreview();
-      break;
-
-    case 'checkpoint_created':
-      addSystemMsg('Checkpoint: ' + msg.name);
-      loadHistory(currentBranch);
-      break;
-
     case 'model_changed':
       addSystemMsg('Model: ' + msg.model);
       break;
@@ -463,7 +452,7 @@ document.querySelectorAll('.strip-btn[data-overlay]').forEach(btn => {
       activeOverlay = name;
 
       // Load data for the overlay — pass branch for scoping
-      if (name === 'history') loadHistory(currentBranch);
+      // history panel removed — git commits are the version history
       if (name === 'status') checkHealth();
       if (name === 'notes') onNotesOpen(currentBranch);
     }
@@ -832,7 +821,6 @@ setTimeout(async () => {
 
 /* ═══ Init ═══ */
 initChat(chat);
-initHistory($('history-list'));
 initNotes($('notes-editor'), $('notes-gen'), $('notes-save'), $('notes-copy'), () => ws);
 initStatus($('status-list'));
 initBudget($('budget-fill'), $('budget-amount'));

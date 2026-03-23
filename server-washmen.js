@@ -542,42 +542,6 @@ app.post("/api/notes", (req, res) => {
   res.json({ ok: true });
 });
 
-// Checkpoints API — branch-scoped
-app.get("/api/checkpoints", (req, res) => {
-  try {
-    const branch = req.query.branch || "main";
-    const branchSlug = branch.replace(/\//g, "-");
-    const repos = discoverRepos();
-    if (repos.length === 0) return res.json({ checkpoints: [] });
-    const repoPath = repos[0].path;
-    const tags = execSync(`git -C "${repoPath}" tag -l "checkpoint/${branchSlug}/*" --sort=-version:refname --format="%(refname:short)|%(creatordate:unix)|%(subject)"`, { stdio: "pipe" }).toString().trim();
-    const checkpoints = tags.split("\n").filter(Boolean).map((line, i) => {
-      const [name, ts, label] = line.split("|");
-      return { id: name, label: label || name, timestamp: parseInt(ts), current: i === 0 };
-    });
-    res.json({ checkpoints });
-  } catch {
-    res.json({ checkpoints: [] });
-  }
-});
-
-// Restore to checkpoint
-app.post("/api/restore", (req, res) => {
-  const { checkpointId } = req.body;
-  if (!checkpointId) return res.status(400).json({ error: "Missing checkpointId" });
-  try {
-    const repos = discoverRepos();
-    for (const repo of repos) {
-      try {
-        execSync(`git -C "${repo.path}" reset --hard "${checkpointId}"`, { stdio: "pipe" });
-      } catch {}
-    }
-    res.json({ ok: true, restoredTo: checkpointId });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Inspect element at coordinates — for visual edit mode
 // Cached Playwright browser for element inspection — avoids 10s startup per click
 let inspectBrowser = null;

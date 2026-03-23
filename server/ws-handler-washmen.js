@@ -1,7 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import crypto from "crypto";
 import { execSync } from "child_process";
-import { readFileSync, readdirSync, existsSync } from "fs";
+import { readFileSync } from "fs";
 import { getWorkspaceDir, getConfig, getRepoNames, getFrontendRepo, getFrontendPort, getAdditionalDirs } from "./workspace-config.js";
 
 // Screenshot capture using Playwright
@@ -25,11 +25,9 @@ import {
   addMessage,
   addCost,
   getTotalCost,
-  updateSessionTitle,
   updateClaudeSessionId,
   getClaudeSessionId,
   setClaudeSession,
-  saveNotes,
 } from "../db.js";
 
 const DAILY_BUDGET = 20; // $20/day
@@ -141,82 +139,6 @@ function createMvpBranches(featureName) {
   return results;
 }
 
-// Create checkpoint tags across all repos — branch-scoped
-function createCheckpoint(label, currentBranch) {
-  const workspaceDir = getWorkspaceDir();
-  const branchSlug = (currentBranch || "main").replace(/\//g, "-");
-
-  // Discover repos dynamically
-  const exclude = ["vibe-ui", "node_modules", ".git", ".devcontainer", ".claude", ".github"];
-  const repos = [];
-  try {
-    for (const entry of readdirSync(workspaceDir, { withFileTypes: true })) {
-      if (entry.isDirectory() && !exclude.includes(entry.name) && !entry.name.startsWith(".")) {
-        if (existsSync(`${workspaceDir}/${entry.name}/.git`)) repos.push(entry.name);
-      }
-    }
-  } catch {}
-  if (repos.length === 0) repos.push(...getRepoNames());
-
-  // Find next checkpoint number for this branch
-  let maxNum = 0;
-  for (const repo of repos) {
-    try {
-      const tags = execSync(`git -C "${workspaceDir}/${repo}" tag -l "checkpoint/${branchSlug}/*"`, { stdio: "pipe" }).toString().trim();
-      for (const tag of tags.split("\n").filter(Boolean)) {
-        const parts = tag.split("/");
-        const num = parseInt(parts[parts.length - 1]);
-        if (num > maxNum) maxNum = num;
-      }
-    } catch {}
-  }
-
-  const checkpointName = `checkpoint/${branchSlug}/${String(maxNum + 1).padStart(3, "0")}`;
-  for (const repo of repos) {
-    try {
-      execSync(`git -C "${workspaceDir}/${repo}" tag -a "${checkpointName}" -m "${label}"`, { stdio: "pipe" });
-    } catch {}
-  }
-  return checkpointName;
-}
-
-// Undo to previous checkpoint — branch-scoped
-function undoToLastCheckpoint(currentBranch) {
-  const workspaceDir = getWorkspaceDir();
-  const branchSlug = (currentBranch || "main").replace(/\//g, "-");
-
-  // Discover repos
-  const exclude = ["vibe-ui", "node_modules", ".git", ".devcontainer", ".claude", ".github"];
-  const repos = [];
-  try {
-    for (const entry of readdirSync(workspaceDir, { withFileTypes: true })) {
-      if (entry.isDirectory() && !exclude.includes(entry.name) && !entry.name.startsWith(".")) {
-        if (existsSync(`${workspaceDir}/${entry.name}/.git`)) repos.push(entry.name);
-      }
-    }
-  } catch {}
-  if (repos.length === 0) repos.push(...getRepoNames());
-
-  const results = [];
-  for (const repo of repos) {
-    try {
-      const tags = execSync(`git -C "${workspaceDir}/${repo}" tag -l "checkpoint/${branchSlug}/*" --sort=-version:refname`, { stdio: "pipe" })
-        .toString().trim().split("\n").filter(Boolean);
-
-      if (tags.length >= 2) {
-        const previousTag = tags[1]; // Second most recent
-        execSync(`git -C "${workspaceDir}/${repo}" reset --hard "${previousTag}"`, { stdio: "pipe" });
-        results.push({ repo, restoredTo: previousTag, status: "ok" });
-      } else {
-        results.push({ repo, status: "no_previous_checkpoint" });
-      }
-    } catch (err) {
-      results.push({ repo, status: "error", error: err.message });
-    }
-  }
-  return results;
-}
-
 export function handleWashmenWs(ws, sessionIds) {
   let currentSessionId = null;
   let currentQuery = null;
@@ -242,9 +164,6 @@ export function handleWashmenWs(ws, sessionIds) {
 
     if (msg.type === "chat") {
       await handleChat(msg, ws, sessionIds);
-    } else if (msg.type === "undo") {
-      const results = undoToLastCheckpoint(msg.branch);
-      ws.send(JSON.stringify({ type: "undo_result", results }));
     } else if (msg.type === "restart_services") {
       ws.send(JSON.stringify({ type: "system", text: "Restarting services..." }));
       // Services are managed by the Codespace — send a signal to restart
@@ -531,30 +450,12 @@ export function handleWashmenWs(ws, sessionIds) {
             try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.error("[db]", e.message); }
           }
 
-          // Only checkpoint + push when files were actually changed
-          if (changedFiles.length > 0) {
+          // Auto-push branch to origin when files were changed
+          if (changedFiles.length > 0 && branch && !branch.match(/^(main|master)$/)) {
             try {
-              // Label from user prompt + files changed (not agent's thinking text)
-              const promptClean = text.replace(/^(PLAN MODE|VISUAL EDIT REQUEST)[^\n]*/i, "").trim();
-              const promptShort = promptClean.split("\n")[0].slice(0, 40);
-              const fileNames = changedFiles.map(f => f.name.split("/").pop()).slice(0, 3).join(", ");
-              const label = promptShort + (fileNames ? " → " + fileNames : "");
-              const checkpoint = createCheckpoint(label, branch);
-              ws.send(JSON.stringify({
-                type: "checkpoint_created",
-                name: checkpoint,
-                label,
-                files: changedFiles.length,
-              }));
-
-              // Auto-push branch to origin after checkpoint
-              if (branch && !branch.match(/^(main|master)$/)) {
-                try {
-                  pushBranch(branch);
-                  ws.send(JSON.stringify({ type: "system", text: `Pushed ${branch} to origin` }));
-                } catch (e) { console.log("[push] post-checkpoint push failed:", e.message); }
-              }
-            } catch (e) { console.error("[checkpoint]", e.message); }
+              pushBranch(branch);
+              ws.send(JSON.stringify({ type: "system", text: `Pushed ${branch} to origin` }));
+            } catch (e) { console.log("[push] post-change push failed:", e.message); }
           }
         }
       }
