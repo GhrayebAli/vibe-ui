@@ -35,13 +35,14 @@ async function showLanding() {
   const inputDock = $('input-dock');
   const homeBtn = $('home-btn');
 
-  // Show landing, hide chat elements
+  // Show landing, hide chat + input
   landing.style.display = 'flex';
   chat.style.display = 'none';
   inputDock.style.display = 'none';
   homeBtn.style.display = 'none';
-  // Hide history/notes buttons in landing
-  document.querySelectorAll('.strip-btn[data-overlay="history"], .strip-btn[data-overlay="notes"]').forEach(b => b.style.display = '');
+  // Hide mode toggle and model select on landing (not relevant yet)
+  $('mode-toggle').style.display = 'none';
+  $('model-select').style.display = 'none';
 
   try {
     const resp = await fetch('/api/workspace');
@@ -85,6 +86,11 @@ function hideLanding() {
   chat.style.display = '';
   $('input-dock').style.display = '';
   $('home-btn').style.display = '';
+  // Restore mode toggle and model select
+  $('mode-toggle').style.display = '';
+  $('model-select').style.display = '';
+  // Show icon strip buttons
+  document.querySelectorAll('.strip-btn[data-overlay="history"], .strip-btn[data-overlay="notes"]').forEach(b => b.style.display = '');
 }
 
 function startDiscover() {

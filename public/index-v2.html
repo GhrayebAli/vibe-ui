@@ -35,12 +35,11 @@
     <div class="top-bar">
       <div class="top-bar-left">
         <input class="project-name" id="project-name" value="Washmen Ops" spellcheck="false">
-      </div>
-      <button id="home-btn" class="strip-btn" title="Home" style="display:none">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-        </svg>
-      </button>
+        <button id="home-btn" class="strip-btn" title="Home" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </button>
       </div>
       <div class="top-bar-right">
         <div class="mode-toggle" id="mode-toggle">
@@ -56,7 +55,8 @@
 
     <!-- Chat + Overlays container -->
     <div style="flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:0">
-    <!-- Landing Screen -->
+
+    <!-- Landing Screen (replaces chat on load) -->
     <div id="landing" class="landing">
       <div class="landing-header">
         <div class="landing-title">Washmen Ops</div>
@@ -94,13 +94,8 @@
       </div>
     </div>
 
-    <!-- Chat Area -->
+    <!-- Chat Area (hidden when landing is shown) -->
     <div class="chat-area" id="chat" style="display:none">
-      <div class="welcome" id="welcome" style="display:none">
-        <h2>What are you building?</h2>
-        <p>Describe a feature and I'll build it across the frontend, API gateway, and core service.</p>
-      </div>
-      <div class="starters" id="starters" style="display:none"></div>
     </div>
 
     <!-- Overlays (slide over chat only) -->
