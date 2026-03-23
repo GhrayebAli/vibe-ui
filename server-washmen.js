@@ -131,17 +131,20 @@ app.get("/api/files", (_req, res) => {
   const files = [];
   const repos = [
     { name: "ops-frontend", icon: "FE", key: [
-      "src/app/App.tsx", "src/app/authSlice.ts", "src/app/store.ts",
+      "src/app/App.tsx", "src/app/authSlice.ts",
       "src/api/api.ts", "src/cognitoConfig.ts",
-      "src/features/customers/customersList/CustomersList.tsx",
-      "src/features/orders/ordersList/OrdersList.tsx",
-      "src/features/dashboard/Dashboard.tsx",
       "src/auth/authCallback.tsx", "src/auth/authUtils.ts",
+      "src/features/customers/customer.module.tsx",
+      "src/features/customers/customerList/customerListPage.tsx",
+      "src/features/orders/predispatchDropoffs/predispatchDropoffsMain.tsx",
+      "src/features/dashboard/drivers/components/dashboardHeader.tsx",
+      "src/features/settings/settings.module.tsx",
     ]},
     { name: "api-gateway", icon: "GW", key: [
       "config/routes.js", "config/policies.js", "config/bootstrap.js", "config/custom.js",
-      "api/controllers/UserController.js", "api/controllers/AuthController.js",
-      "api/controllers/CustomerController.js", "api/controllers/OrderController.js",
+      "api/controllers/auth/callback.js", "api/controllers/auth/logout.js",
+      "api/controllers/customer/deactivate.js",
+      "api/controllers/order/get.js", "api/controllers/order/list.js",
       "api/policies/isAuthenticated.js", "api/dtos/index.js",
     ]},
   ];
