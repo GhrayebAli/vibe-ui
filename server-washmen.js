@@ -214,53 +214,62 @@ app.post("/api/switch-branch", async (req, res) => {
   const { branch } = req.body;
   if (!branch) return res.status(400).json({ error: "Missing branch" });
 
-  const repos = discoverRepos();
+  const workspaceDir = getWorkspaceDir();
+  const configRepos = getConfig().repos;
   const switched = [];
   const installed = [];
   const restarted = [];
 
-  for (const repo of repos) {
+  for (const cfgRepo of configRepos) {
+    const repoPath = join(workspaceDir, cfgRepo.name);
     try {
-      // Save lockfile hash before checkout
-      let lockfileBefore = "";
-      const lockfile = repo.packageManager === "yarn" ? "yarn.lock" : "package-lock.json";
-      const lockfilePath = join(repo.path, lockfile);
+      // Try checkout — branch may not exist in all repos
       try {
-        lockfileBefore = createHash("sha256").update(readFileSync(lockfilePath)).digest("hex");
-      } catch {}
-
-      // Checkout branch
-      execSync(`git -C "${repo.path}" checkout "${branch}"`, { stdio: "pipe" });
-      switched.push(repo.name);
-
-      // Check if lockfile changed
-      let lockfileAfter = "";
-      try {
-        lockfileAfter = createHash("sha256").update(readFileSync(lockfilePath)).digest("hex");
-      } catch {}
-      if (lockfileBefore && lockfileAfter && lockfileBefore !== lockfileAfter) {
-        const installCmd = repo.packageManager === "yarn" ? "yarn install" : "npm install";
+        execSync(`git -C "${repoPath}" checkout "${branch}"`, { stdio: "pipe" });
+        switched.push(cfgRepo.name);
+      } catch {
+        // Branch doesn't exist in this repo — try fetching it, else stay on current branch
         try {
-          execSync(`cd "${repo.path}" && ${installCmd}`, { stdio: "pipe", timeout: 120000 });
-          installed.push(repo.name);
-        } catch (e) { console.error(`[switch] install failed for ${repo.name}:`, e.message); }
+          execSync(`git -C "${repoPath}" fetch origin "${branch}" 2>/dev/null && git -C "${repoPath}" checkout "${branch}"`, { stdio: "pipe" });
+          switched.push(cfgRepo.name);
+        } catch {
+          console.log(`[switch] ${cfgRepo.name}: branch ${branch} not found, staying on current`);
+        }
       }
 
-      // Restart service if it has a port
-      if (repo.port && repo.startCommand) {
-        try { execSync(`kill $(lsof -ti:${repo.port} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
-        const logFile = `/tmp/${repo.name}.log`;
-        spawn("bash", ["-c", `cd "${repo.path}" && ${repo.startCommand} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
-        restarted.push(repo.port);
+      // Check if lockfile changed → reinstall
+      if (switched.includes(cfgRepo.name)) {
+        const lockfile = existsSync(join(repoPath, "yarn.lock")) ? "yarn.lock" : "package-lock.json";
+        try {
+          const changed = execSync(`git -C "${repoPath}" diff HEAD~1 --name-only 2>/dev/null`, { stdio: "pipe" }).toString();
+          if (changed.includes(lockfile)) {
+            const installCmd = existsSync(join(repoPath, "yarn.lock")) ? "yarn install" : "npm install";
+            execSync(`cd "${repoPath}" && ${installCmd}`, { stdio: "pipe", timeout: 120000 });
+            installed.push(cfgRepo.name);
+          }
+        } catch {}
+      }
+
+      // Restart service using workspace.json dev command
+      if (cfgRepo.port && cfgRepo.dev) {
+        try { execSync(`kill $(lsof -ti:${cfgRepo.port} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+        const logFile = `/tmp/${cfgRepo.name}.log`;
+        spawn("bash", ["-c", `cd "${repoPath}" && ${cfgRepo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
+        restarted.push(cfgRepo.name);
       }
     } catch (err) {
-      console.error(`[switch] Failed for ${repo.name}:`, err.message);
+      console.error(`[switch] Failed for ${cfgRepo.name}:`, err.message);
     }
   }
 
-  // Small delay for services to start
-  await new Promise(r => setTimeout(r, 2000));
-  res.json({ ok: true, switched, installed, restarted });
+  // Save active branch for codespace restarts
+  try {
+    writeFileSync(join(workspaceDir, ".active-branch"), branch);
+  } catch {}
+
+  // Wait for services to start
+  await new Promise(r => setTimeout(r, 3000));
+  res.json({ ok: true, branch, switched, installed, restarted });
 });
 
 // ── Branch creation ──
@@ -290,6 +299,9 @@ app.post("/api/create-branch", (req, res) => {
       } catch { console.error(`[create-branch] ${repo.name}:`, err.message); }
     }
   }
+
+  // Save active branch
+  try { writeFileSync(join(getWorkspaceDir(), ".active-branch"), branchName); } catch {}
 
   res.json({ ok: true, branch: branchName, repos: created });
 });
