@@ -502,6 +502,10 @@ $('preview-url').onkeydown = e => {
 
 /* ═══ Console ═══ */
 $('console-clear').onclick = () => { $('console-view').innerHTML = ''; };
+// Wire up filter buttons (can't use inline onclick with ES modules)
+document.querySelectorAll('.console-filter-btn').forEach(btn => {
+  btn.onclick = () => setConsoleFilter(btn.dataset.filter);
+});
 
 /* ═══ Sessions (legacy — replaced by landing screen) ═══ */
 
@@ -720,9 +724,9 @@ function addConsoleEntry(level, message) {
   view.appendChild(entry);
   view.scrollTop = view.scrollHeight;
 
-  // Update unread badge if console tab is not active
+  // Update unread badge (errors only) if console tab is not active
   const consoleTab = document.querySelector('[data-tab="console"]');
-  if (consoleTab && !consoleTab.classList.contains('active')) {
+  if (consoleTab && !consoleTab.classList.contains('active') && level === 'error') {
     consoleUnread++;
     updateConsoleBadge();
   }
