@@ -130,9 +130,20 @@ app.get("/api/files", (_req, res) => {
   const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
   const files = [];
   const repos = [
-    { name: "mock-ops-frontend", icon: "FE", key: ["src/App.tsx", "src/api/client.ts", "src/api/UserAPI.ts", "src/features/users/components/UsersList.tsx", "src/features/dashboard/components/Dashboard.tsx", "vite.config.ts"] },
-    { name: "mock-api-gateway", icon: "GW", key: ["config/routes.js", "config/bootstrap.js", "api/controllers/UserController.js", "api/controllers/AuthController.js", "api/policies/isAuthenticated.js", "api/dtos/index.js"] },
-    { name: "mock-core-service", icon: "Core", key: ["config/routes.js", "config/bootstrap.js", "api/models/User.js", "api/models/Order.js", "api/controllers/UserController.js", "api/dtos/index.js"] },
+    { name: "ops-frontend", icon: "FE", key: [
+      "src/app/App.tsx", "src/app/authSlice.ts", "src/app/store.ts",
+      "src/api/api.ts", "src/cognitoConfig.ts",
+      "src/features/customers/customersList/CustomersList.tsx",
+      "src/features/orders/ordersList/OrdersList.tsx",
+      "src/features/dashboard/Dashboard.tsx",
+      "src/auth/authCallback.tsx", "src/auth/authUtils.ts",
+    ]},
+    { name: "api-gateway", icon: "GW", key: [
+      "config/routes.js", "config/policies.js", "config/bootstrap.js", "config/custom.js",
+      "api/controllers/UserController.js", "api/controllers/AuthController.js",
+      "api/controllers/CustomerController.js", "api/controllers/OrderController.js",
+      "api/policies/isAuthenticated.js", "api/dtos/index.js",
+    ]},
   ];
   for (const repo of repos) {
     for (const f of repo.key) {

@@ -77,7 +77,7 @@ function checkPreToolUse(toolName, toolInput) {
 // Create mvp branches across all repos
 function createMvpBranches(featureName) {
   const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
-  const repos = ["mock-ops-frontend", "mock-api-gateway", "mock-core-service", "."];
+  const repos = ["ops-frontend", "api-gateway", "core-service", "."];
   const branchName = `mvp/${featureName}`;
   const results = [];
 
@@ -102,7 +102,7 @@ function createMvpBranches(featureName) {
 // Create checkpoint tags across all repos
 function createCheckpoint(label) {
   const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
-  const repos = ["mock-ops-frontend", "mock-api-gateway", "mock-core-service"];
+  const repos = ["ops-frontend", "api-gateway", "core-service"];
 
   // Find next checkpoint number
   let maxNum = 0;
@@ -128,7 +128,7 @@ function createCheckpoint(label) {
 // Undo to previous checkpoint
 function undoToLastCheckpoint() {
   const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
-  const repos = ["mock-ops-frontend", "mock-api-gateway", "mock-core-service"];
+  const repos = ["ops-frontend", "api-gateway", "core-service"];
   const results = [];
 
   for (const repo of repos) {
@@ -223,7 +223,7 @@ export function handleWashmenWs(ws, sessionIds) {
       try {
         const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
         const gitLogs = [];
-        for (const repo of ["mock-ops-frontend", "mock-api-gateway", "mock-core-service"]) {
+        for (const repo of ["ops-frontend", "api-gateway", "core-service"]) {
           try {
             const log = execSync(`git -C "${workspaceDir}/${repo}" log --oneline -5 2>/dev/null`, { stdio: "pipe" }).toString().trim();
             if (log) gitLogs.push(`${repo}:\n${log}`);
@@ -245,7 +245,7 @@ export function handleWashmenWs(ws, sessionIds) {
 
       // Find the first available repo to check branch
       let currentBranch = "master";
-      for (const repo of ["real-ops-frontend", "mock-ops-frontend", "real-api-gateway", "mock-api-gateway", "mock-core-service"]) {
+      for (const repo of ["ops-frontend", "ops-frontend", "api-gateway", "api-gateway", "core-service"]) {
         try {
           currentBranch = execSync(`git -C "${workspaceDir}/${repo}" rev-parse --abbrev-ref HEAD`, { stdio: "pipe" }).toString().trim();
           break;
@@ -269,7 +269,7 @@ export function handleWashmenWs(ws, sessionIds) {
 
         console.log(`[onboard] Creating branch ${branchName} from: "${text.slice(0, 50)}"`);
 
-        const repos = ["real-ops-frontend", "real-api-gateway", "mock-ops-frontend", "mock-api-gateway", "mock-core-service"];
+        const repos = ["ops-frontend", "api-gateway", "ops-frontend", "api-gateway", "core-service"];
         for (const repo of repos) {
           try {
             execSync(`git -C "${workspaceDir}/${repo}" checkout -b "${branchName}" 2>/dev/null || git -C "${workspaceDir}/${repo}" checkout "${branchName}" 2>/dev/null`, { stdio: "pipe" });
@@ -298,9 +298,8 @@ export function handleWashmenWs(ws, sessionIds) {
     // Determine workspace directories
     const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
     const additionalDirs = [
-      `${workspaceDir}/mock-ops-frontend`,
-      `${workspaceDir}/mock-api-gateway`,
-      `${workspaceDir}/mock-core-service`,
+      `${workspaceDir}/ops-frontend`,
+      `${workspaceDir}/api-gateway`,
     ];
 
     try {
@@ -460,7 +459,7 @@ export function handleWashmenWs(ws, sessionIds) {
           }
 
           // Take screenshot if frontend files were changed
-          const touchedFrontend = changedFiles.some(f => f.name.includes("mock-ops-frontend"));
+          const touchedFrontend = changedFiles.some(f => f.name.includes("ops-frontend"));
           if (touchedFrontend) {
             try {
               const screenshotData = await takeScreenshot();
@@ -468,7 +467,7 @@ export function handleWashmenWs(ws, sessionIds) {
                 ws.send(JSON.stringify({
                   type: "screenshot",
                   image: screenshotData,
-                  caption: changedFiles.filter(f => f.name.includes("mock-ops-frontend")).map(f => f.name.split("/").pop()).join(", "),
+                  caption: changedFiles.filter(f => f.name.includes("ops-frontend")).map(f => f.name.split("/").pop()).join(", "),
                 }));
               }
             } catch (e) { console.error("[screenshot]", e.message); }
