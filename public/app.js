@@ -201,7 +201,7 @@ function connect() {
     console.log('[ws] connected');
     checkHealth();
     showLanding();
-    initPreview(portUrl(3000) + '/v2/');
+    initPreview(portUrl(3000) + '/');
     initVisualEdit($('preview-frame'), doSend);
     setInterval(checkHealth, 10000);
   };
