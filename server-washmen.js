@@ -11,6 +11,7 @@ import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { getDb, createSession, getSession, addMessage, addCost, getTotalCost, getSessionByBranch, getNotes, saveNotes } from "./db.js";
 import { handleWashmenWs } from "./server/ws-handler-washmen.js";
+import { loadWorkspaceConfig, getWorkspaceDir, getConfig, getFrontendRepo, getFrontendPort, getServicesConfig, getRepoNames, getClientConfig } from "./server/workspace-config.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -27,6 +28,12 @@ app.get("/", (_req, res) => res.sendFile(join(__dirname, "public", "index-v2.htm
 app.get("/v1", (_req, res) => res.sendFile(join(__dirname, "public", "washmen.html")));
 app.use(express.static(join(__dirname, "public")));
 
+// Load workspace config at startup
+loadWorkspaceConfig();
+
+// Serve workspace config to browser
+app.get("/api/workspace-config", (_req, res) => res.json(getClientConfig()));
+
 // Session mappings
 const sessionIds = new Map();
 {
@@ -41,10 +48,7 @@ const sessionIds = new Map();
 // Health endpoint for vibe-ui itself
 app.get("/api/health", (_req, res) => res.json({ status: "ok", service: "vibe-ui", port: 4000 }));
 
-// Service health check endpoint — checks all 3 services
-// Service health — configured via SERVICES env: "name:port:healthPath,..."
-// e.g. SERVICES="frontend:3000:/,api:1337:/health,worker:5000:/health"
-// healthPath defaults to /health if omitted. If SERVICES is not set, returns empty.
+// Service health — reads from workspace.json, falls back to SERVICES env var
 const configuredServices = process.env.SERVICES
   ? process.env.SERVICES.split(",").map(s => {
       const [name, port, healthPath] = s.trim().split(":");
@@ -52,7 +56,7 @@ const configuredServices = process.env.SERVICES
       const path = healthPath || "/health";
       return { name: name.trim(), url: `http://localhost:${p}${path}`, port: p };
     })
-  : [];
+  : getServicesConfig();
 
 app.get("/api/service-health", async (_req, res) => {
   const services = configuredServices;
@@ -104,7 +108,7 @@ app.get("/api/prompts", (_req, res) => {
 
 // ── Workspace auto-discovery ──
 function discoverRepos() {
-  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
+  const workspaceDir = getWorkspaceDir();
   const exclude = ["vibe-ui", "node_modules", ".git", ".devcontainer", ".claude", ".github"];
   const repos = [];
   try {
@@ -313,7 +317,7 @@ app.get("/api/file", (req, res) => {
   try {
     const filePath = req.query.path;
     if (!filePath) return res.status(400).json({ error: "Missing path" });
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
+    const workspaceDir = getWorkspaceDir();
     const fullPath = filePath.startsWith("/") ? filePath : join(workspaceDir, filePath);
     const content = readFileSync(fullPath, "utf8");
     res.json({ path: filePath, content });
@@ -324,7 +328,7 @@ app.get("/api/file", (req, res) => {
 
 // Project files API — dynamically discover files from workspace repos
 app.get("/api/files", (_req, res) => {
-  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
+  const workspaceDir = getWorkspaceDir();
   const files = [];
   const ignore = ["node_modules", ".git", ".yarn", "dist", "build", ".cache", ".tmp", "coverage", "vibe-ui"];
   const extensions = [".js", ".ts", ".tsx", ".jsx", ".json", ".css", ".scss", ".md"];
@@ -408,7 +412,7 @@ async function startBrowserConsoleListener() {
     // Playwright is installed in the workspace root, not in vibe-ui
     let chromium;
     try { ({ chromium } = await import("playwright")); }
-    catch { ({ chromium } = await import("/workspaces/washmen-ops-workspace/node_modules/playwright/index.mjs")); }
+    catch { ({ chromium } = await import(`${getWorkspaceDir()}/node_modules/playwright/index.mjs`)); }
     const browser = await chromium.launch();
     const page = await browser.newPage();
 
@@ -433,7 +437,7 @@ async function startBrowserConsoleListener() {
       });
     });
 
-    await page.goto("http://localhost:3000", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+    await page.goto(`http://localhost:${getFrontendPort()}`, { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
     console.log("[console] Browser console listener started");
 
     // Periodically reload to catch new errors after HMR
@@ -509,8 +513,9 @@ app.get("/api/console", (req, res) => {
 // Branch check
 app.get("/api/branch", (_req, res) => {
   try {
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
-    const branch = execSync(`git -C "${workspaceDir}/mock-ops-frontend" rev-parse --abbrev-ref HEAD`, { stdio: "pipe" }).toString().trim();
+    const workspaceDir = getWorkspaceDir();
+    const frontendRepo = getFrontendRepo();
+    const branch = execSync(`git -C "${workspaceDir}/${frontendRepo.name}" rev-parse --abbrev-ref HEAD`, { stdio: "pipe" }).toString().trim();
     res.json({ branch });
   } catch {
     res.json({ branch: "unknown" });
@@ -578,11 +583,11 @@ async function getInspectPage(targetPath) {
   if (!inspectBrowser) {
     let chromium;
     try { ({ chromium } = await import("playwright")); }
-    catch { ({ chromium } = await import("/workspaces/washmen-ops-workspace/node_modules/playwright/index.mjs")); }
+    catch { ({ chromium } = await import(`${getWorkspaceDir()}/node_modules/playwright/index.mjs`)); }
     inspectBrowser = await chromium.launch();
     inspectPage = await inspectBrowser.newPage({ viewport: { width: 1280, height: 720 } });
     // Login by actually clicking the Login button (sets Redux state + Axios headers properly)
-    await inspectPage.goto("http://localhost:3000", { waitUntil: "networkidle", timeout: 15000 });
+    await inspectPage.goto(`http://localhost:${getFrontendPort()}`, { waitUntil: "networkidle", timeout: 15000 });
     await inspectPage.waitForTimeout(1000);
     try {
       // The login page has pre-filled email and a Login button
@@ -603,7 +608,7 @@ async function getInspectPage(targetPath) {
   }
   // Navigate if path changed
   if (targetPath && targetPath !== inspectLastPath) {
-    await inspectPage.goto("http://localhost:3000" + targetPath, { waitUntil: "networkidle", timeout: 10000 }).catch(() => {});
+    await inspectPage.goto(`http://localhost:${getFrontendPort()}` + targetPath, { waitUntil: "networkidle", timeout: 10000 }).catch(() => {});
     await inspectPage.waitForTimeout(500);
     inspectLastPath = targetPath;
   }
@@ -770,18 +775,20 @@ app.post("/api/inspect-element", async (req, res) => {
   }
 });
 
-// Restart service
+// Restart service — looks up dev command from workspace.json
 app.post("/api/restart-service", (req, res) => {
   try {
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
-    const svc = req.body.service;
-    if (svc === "frontend") {
-      execSync(`cd "${workspaceDir}/mock-ops-frontend" && npx vite --host &`, { stdio: "pipe", timeout: 5000 });
-    } else if (svc === "api-gateway") {
-      execSync(`cd "${workspaceDir}/mock-api-gateway" && node app.js &`, { stdio: "pipe", timeout: 5000 });
-    } else if (svc === "core-service") {
-      execSync(`cd "${workspaceDir}/mock-core-service" && node app.js &`, { stdio: "pipe", timeout: 5000 });
+    const workspaceDir = getWorkspaceDir();
+    const svcName = req.body.service;
+    const repo = getConfig().repos.find(r => r.name === svcName);
+    if (!repo || !repo.dev) return res.status(400).json({ error: `Unknown service: ${svcName}` });
+
+    // Kill existing process on the port, then start
+    if (repo.port) {
+      try { execSync(`kill $(lsof -ti:${repo.port}) 2>/dev/null`, { stdio: "pipe" }); } catch {}
     }
+    const logFile = `/tmp/${repo.name}.log`;
+    spawn("bash", ["-c", `cd "${workspaceDir}/${repo.name}" && ${repo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

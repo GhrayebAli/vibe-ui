@@ -2,13 +2,16 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import crypto from "crypto";
 import { execSync } from "child_process";
 import { readFileSync, readdirSync, existsSync } from "fs";
+import { getWorkspaceDir, getConfig, getRepoNames, getFrontendRepo, getFrontendPort, getAdditionalDirs } from "./workspace-config.js";
 
 // Screenshot capture using Playwright
 async function takeScreenshot() {
   try {
+    const port = getFrontendPort();
+    const cwd = getWorkspaceDir();
     const result = execSync(
-      'node -e "const{chromium}=require(\'playwright\');(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(\'http://localhost:3000\',{waitUntil:\'networkidle\',timeout:10000});await p.waitForTimeout(1000);const buf=await p.screenshot();await b.close();process.stdout.write(buf.toString(\'base64\'));})()"',
-      { cwd: "/workspaces/washmen-ops-workspace", timeout: 20000, maxBuffer: 10 * 1024 * 1024 }
+      `node -e "const{chromium}=require('playwright');(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto('http://localhost:${port}',{waitUntil:'networkidle',timeout:10000});await p.waitForTimeout(1000);const buf=await p.screenshot();await b.close();process.stdout.write(buf.toString('base64'));})()"`,
+      { cwd, timeout: 20000, maxBuffer: 10 * 1024 * 1024 }
     );
     return result.toString();
   } catch (e) {
@@ -77,8 +80,8 @@ function checkPreToolUse(toolName, toolInput) {
 
 // Create mvp branches across all repos
 function createMvpBranches(featureName) {
-  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
-  const repos = ["ops-frontend", "api-gateway", "core-service", "."];
+  const workspaceDir = getWorkspaceDir();
+  const repos = [...getRepoNames(), "."];
   const branchName = `mvp/${featureName}`;
   const results = [];
 
@@ -102,7 +105,7 @@ function createMvpBranches(featureName) {
 
 // Create checkpoint tags across all repos — branch-scoped
 function createCheckpoint(label, currentBranch) {
-  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
+  const workspaceDir = getWorkspaceDir();
   const branchSlug = (currentBranch || "main").replace(/\//g, "-");
 
   // Discover repos dynamically
@@ -115,7 +118,7 @@ function createCheckpoint(label, currentBranch) {
       }
     }
   } catch {}
-  if (repos.length === 0) repos.push("ops-frontend", "api-gateway");
+  if (repos.length === 0) repos.push(...getRepoNames());
 
   // Find next checkpoint number for this branch
   let maxNum = 0;
@@ -141,7 +144,7 @@ function createCheckpoint(label, currentBranch) {
 
 // Undo to previous checkpoint — branch-scoped
 function undoToLastCheckpoint(currentBranch) {
-  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
+  const workspaceDir = getWorkspaceDir();
   const branchSlug = (currentBranch || "main").replace(/\//g, "-");
 
   // Discover repos
@@ -154,7 +157,7 @@ function undoToLastCheckpoint(currentBranch) {
       }
     }
   } catch {}
-  if (repos.length === 0) repos.push("ops-frontend", "api-gateway");
+  if (repos.length === 0) repos.push(...getRepoNames());
 
   const results = [];
   for (const repo of repos) {
@@ -199,7 +202,7 @@ export function handleWashmenWs(ws, sessionIds) {
       ws.send(JSON.stringify({ type: "system", text: "Restarting services..." }));
       // Services are managed by the Codespace — send a signal to restart
       try {
-        const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
+        const workspaceDir = getWorkspaceDir();
         execSync(`bash "${workspaceDir}/.devcontainer/start.sh" &`, { stdio: "pipe", timeout: 5000 });
         ws.send(JSON.stringify({ type: "system", text: "Services restart initiated" }));
       } catch {
@@ -253,9 +256,9 @@ export function handleWashmenWs(ws, sessionIds) {
     let contextPrefix = "";
     if (isFirstMessage && getSession(sessionId)) {
       try {
-        const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
+        const workspaceDir = getWorkspaceDir();
         const gitLogs = [];
-        for (const repo of ["ops-frontend", "api-gateway", "core-service"]) {
+        for (const repo of getRepoNames()) {
           try {
             const log = execSync(`git -C "${workspaceDir}/${repo}" log --oneline -5 2>/dev/null`, { stdio: "pipe" }).toString().trim();
             if (log) gitLogs.push(`${repo}:\n${log}`);
@@ -285,11 +288,8 @@ export function handleWashmenWs(ws, sessionIds) {
     }
 
     // Determine workspace directories
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
-    const additionalDirs = [
-      `${workspaceDir}/ops-frontend`,
-      `${workspaceDir}/api-gateway`,
-    ];
+    const workspaceDir = getWorkspaceDir();
+    const additionalDirs = getAdditionalDirs();
 
     try {
       const q = query({
@@ -448,7 +448,8 @@ export function handleWashmenWs(ws, sessionIds) {
           }
 
           // Take screenshot if frontend files were changed
-          const touchedFrontend = changedFiles.some(f => f.name.includes("ops-frontend"));
+          const frontendName = getFrontendRepo()?.name;
+          const touchedFrontend = frontendName && changedFiles.some(f => f.name.includes(frontendName));
           if (touchedFrontend) {
             try {
               const screenshotData = await takeScreenshot();
@@ -456,7 +457,7 @@ export function handleWashmenWs(ws, sessionIds) {
                 ws.send(JSON.stringify({
                   type: "screenshot",
                   image: screenshotData,
-                  caption: changedFiles.filter(f => f.name.includes("ops-frontend")).map(f => f.name.split("/").pop()).join(", "),
+                  caption: changedFiles.filter(f => f.name.includes(frontendName)).map(f => f.name.split("/").pop()).join(", "),
                 }));
               }
             } catch (e) { console.error("[screenshot]", e.message); }

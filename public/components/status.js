@@ -1,11 +1,4 @@
 let listEl = null;
-
-const services = [
-  { name: 'Frontend', id: 'frontend', port: 3000 },
-  { name: 'API Gateway', id: 'api-gateway', port: 1337 },
-  { name: 'Core Service', id: 'core-service', port: 2339 },
-];
-
 let healthState = {};
 
 export function initStatus(el) {
@@ -17,13 +10,13 @@ export async function checkHealth() {
     const resp = await fetch('/api/service-health');
     const data = await resp.json();
 
-    for (const svc of data.services) {
+    // Update header dots dynamically — first service gets h-fe, rest get h-gw, h-core, h-svc3, etc.
+    const dotIds = ['h-fe', 'h-gw', 'h-core', 'h-svc3', 'h-svc4', 'h-svc5'];
+    data.services.forEach((svc, i) => {
       healthState[svc.name] = svc.status;
-      // Update header dots
-      const dotId = svc.name === 'api-gateway' ? 'h-gw' : svc.name === 'core-service' ? 'h-core' : 'h-fe';
-      const dot = document.getElementById(dotId);
+      const dot = document.getElementById(dotIds[i]);
       if (dot) dot.className = 'h-dot ' + (svc.status === 'healthy' ? 'ok' : 'err');
-    }
+    });
 
     // Update overlay if open
     if (listEl) renderStatus(data.services);

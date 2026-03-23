@@ -197,11 +197,18 @@ function connect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}/ws`);
 
-  ws.onopen = () => {
+  ws.onopen = async () => {
     console.log('[ws] connected');
+    // Load workspace config from server
+    try {
+      const resp = await fetch('/api/workspace-config');
+      const cfg = await resp.json();
+      window.__workspaceConfig = cfg;
+    } catch { window.__workspaceConfig = { frontendPort: 3000, previewPath: '/', repos: [] }; }
     checkHealth();
     showLanding();
-    initPreview(portUrl(3000) + '/');
+    const cfg = window.__workspaceConfig;
+    initPreview(portUrl(cfg.frontendPort) + cfg.previewPath);
     initVisualEdit($('preview-frame'), doSend);
     setInterval(checkHealth, 10000);
   };
