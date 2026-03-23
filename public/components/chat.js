@@ -72,7 +72,7 @@ export function addAgentMsg(text, streaming) {
 
 // Collapse long agent responses — show first ~4 lines with "Show more"
 function maybeCollapse(bubble) {
-  const COLLAPSE_THRESHOLD = 300; // chars
+  const COLLAPSE_THRESHOLD = 600; // chars
   const text = bubble.textContent || '';
   if (text.length < COLLAPSE_THRESHOLD) return;
 
