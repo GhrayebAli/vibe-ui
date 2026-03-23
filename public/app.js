@@ -89,8 +89,7 @@ function hideLanding() {
   // Restore mode toggle and model select
   $('mode-toggle').style.display = '';
   $('model-select').style.display = '';
-  // Show notes button in top bar
-  $('notes-btn').style.display = '';
+  // Notes button shown dynamically when branch has changes
 }
 
 function startDiscover() {
@@ -135,6 +134,8 @@ async function resumeBranch(branch) {
       if (msgs.length > 0) loadMessages(msgs);
     } catch {}
     addSystemMsg(`Resumed ${branch.name}`);
+    // Show notes button — branch has prior work
+    $('notes-btn').style.display = '';
   } else {
     addSystemMsg(`Switched to ${branch.name} — no previous session found`);
   }
@@ -285,6 +286,7 @@ function handleMessage(msg) {
 
     case 'file_diff':
       showDiffSummary(msg.files);
+      if (msg.files?.length > 0) $('notes-btn').style.display = '';
       break;
 
     case 'code_update':
