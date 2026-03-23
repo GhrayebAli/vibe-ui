@@ -81,6 +81,37 @@ function checkPreToolUse(toolName, toolInput) {
   return { allowed: true };
 }
 
+// Push current branch to origin for all repos (non-blocking, fail-silent)
+function pushBranch(branch) {
+  const workspaceDir = getWorkspaceDir();
+  const repos = getRepoNames();
+
+  for (const repo of repos) {
+    const repoDir = `${workspaceDir}/${repo}`;
+    try {
+      // Add all changes, commit if dirty, then push
+      const status = execSync(`git -C "${repoDir}" status --porcelain`, { stdio: "pipe" }).toString().trim();
+      if (status) {
+        execSync(`git -C "${repoDir}" add -A && git -C "${repoDir}" commit -m "auto: checkpoint"`, { stdio: "pipe", timeout: 10000 });
+      }
+      execSync(`git -C "${repoDir}" push -u origin "${branch}" 2>/dev/null`, { stdio: "pipe", timeout: 30000 });
+      console.log(`[push] ${repo}: pushed ${branch}`);
+    } catch (e) {
+      console.log(`[push] ${repo}: skipped (${e.message.split("\n")[0]})`);
+    }
+  }
+
+  // Also push workspace root if it's a git repo
+  try {
+    const status = execSync(`git -C "${workspaceDir}" status --porcelain`, { stdio: "pipe" }).toString().trim();
+    if (status) {
+      execSync(`git -C "${workspaceDir}" add -A && git -C "${workspaceDir}" commit -m "auto: checkpoint"`, { stdio: "pipe", timeout: 10000 });
+    }
+    execSync(`git -C "${workspaceDir}" push -u origin "${branch}" 2>/dev/null`, { stdio: "pipe", timeout: 30000 });
+    console.log(`[push] workspace root: pushed ${branch}`);
+  } catch {}
+}
+
 // Create mvp branches across all repos
 function createMvpBranches(featureName) {
   const workspaceDir = getWorkspaceDir();
@@ -103,6 +134,10 @@ function createMvpBranches(featureName) {
       }
     }
   }
+
+  // Push newly created branches to origin
+  pushBranch(branchName);
+
   return results;
 }
 
@@ -493,7 +528,7 @@ export function handleWashmenWs(ws, sessionIds) {
             try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.error("[db]", e.message); }
           }
 
-          // Only checkpoint when files were actually changed
+          // Only checkpoint + push when files were actually changed
           if (changedFiles.length > 0) {
             try {
               // Label from user prompt + files changed (not agent's thinking text)
@@ -508,6 +543,14 @@ export function handleWashmenWs(ws, sessionIds) {
                 label,
                 files: changedFiles.length,
               }));
+
+              // Auto-push branch to origin after checkpoint
+              if (branch && !branch.match(/^(main|master)$/)) {
+                try {
+                  pushBranch(branch);
+                  ws.send(JSON.stringify({ type: "system", text: `Pushed ${branch} to origin` }));
+                } catch (e) { console.log("[push] post-checkpoint push failed:", e.message); }
+              }
             } catch (e) { console.error("[checkpoint]", e.message); }
           }
         }
