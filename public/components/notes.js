@@ -34,7 +34,7 @@ export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
       if (loaded || attempts > 20) {
         clearInterval(poll);
         genBtn.disabled = false;
-        genBtn.textContent = 'Generate';
+        genBtn.textContent = 'Regenerate';
         showSpinner(false);
       }
     }, 3000);
@@ -86,6 +86,9 @@ export async function loadNotes(branch) {
     const data = await resp.json();
     if (data.content && data.content.trim()) {
       editorEl.value = data.content;
+      // Update button label to show notes can be refreshed
+      const genBtn = editorEl.closest('.notes-area')?.querySelector('.notes-gen, [class*="gen"]');
+      if (genBtn && genBtn.textContent === 'Generate') genBtn.textContent = 'Regenerate';
       return true;
     }
   } catch {}
