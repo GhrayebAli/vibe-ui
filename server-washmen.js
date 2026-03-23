@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from "fs";
+import { readFileSync, writeFileSync, readdirSync, existsSync, statSync, mkdirSync } from "fs";
 import { execSync, spawn } from "child_process";
 import { createHash } from "crypto";
 dotenv.config();
@@ -323,6 +323,29 @@ app.get("/api/file", (req, res) => {
     res.json({ path: filePath, content });
   } catch (err) {
     res.status(404).json({ error: err.message });
+  }
+});
+
+// File upload API — saves to workspace /tmp/uploads/ for agent to read
+app.post("/api/upload", (req, res) => {
+  try {
+    const { filename, data, mediaType } = req.body;
+    if (!data) return res.status(400).json({ error: "Missing data" });
+
+    const uploadDir = join(getWorkspaceDir(), "tmp", "uploads");
+    mkdirSync(uploadDir, { recursive: true });
+
+    const ext = filename ? filename.split(".").pop() : (mediaType || "").split("/").pop() || "png";
+    const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const filePath = join(uploadDir, name);
+
+    // data is base64
+    writeFileSync(filePath, Buffer.from(data, "base64"));
+    console.log(`[upload] Saved ${filePath} (${Math.round(Buffer.from(data, "base64").length / 1024)}KB)`);
+
+    res.json({ path: filePath, name });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

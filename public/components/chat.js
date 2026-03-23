@@ -13,10 +13,10 @@ function timeLabel() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export function addUserMsg(text) {
+export function addUserMsg(text, attachHtml) {
   const div = document.createElement('div');
   div.className = 'msg msg-user';
-  div.innerHTML = `<div class="bubble">${escapeHtml(text)}</div><span class="msg-time">${timeLabel()}</span>`;
+  div.innerHTML = `${attachHtml ? `<div class="msg-attachments">${attachHtml}</div>` : ''}<div class="bubble">${escapeHtml(text)}</div><span class="msg-time">${timeLabel()}</span>`;
   chatEl.appendChild(div);
   scrollBottom();
 }

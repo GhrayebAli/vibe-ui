@@ -16,6 +16,7 @@ let ws, sid = null, streaming = false, model = 'haiku', mode = 'build';
 let hasSent = false;
 let promptQueue = [];
 let currentBranch = 'main';
+let pendingAttachments = []; // { path, name, type, preview }
 let workspaceData = null;
 
 /* ═══ Port URL resolver ═══ */
@@ -335,13 +336,31 @@ function handleMessage(msg) {
 
 /* ═══ Send ═══ */
 function doSend(text) {
-  if (!text.trim()) return;
+  if (!text.trim() && pendingAttachments.length === 0) return;
 
   // Deactivate visual edit mode
   deactivateVisualEdit();
 
+  // Prepend attachment paths to prompt
+  let fullText = text;
+  if (pendingAttachments.length > 0) {
+    const attachRefs = pendingAttachments.map(a =>
+      `[Attached ${a.type === 'image' ? 'image' : 'file'}: ${a.path}]`
+    ).join('\n');
+    fullText = attachRefs + '\n\n' + text;
+    // Show attachments in user message
+    const previewHtml = pendingAttachments
+      .filter(a => a.type === 'image')
+      .map(a => `<img src="${a.preview}" class="attach-preview">`)
+      .join('');
+    addUserMsg(text, previewHtml);
+    pendingAttachments = [];
+    clearAttachmentPreview();
+  } else {
+    addUserMsg(text);
+  }
+
   hasSent = true;
-  addUserMsg(text);
   streaming = true;
   sendBtn.disabled = true;
   sendBtn.style.display = 'none';
@@ -349,7 +368,7 @@ function doSend(text) {
 
   ws.send(JSON.stringify({
     type: 'chat',
-    text,
+    text: fullText,
     sessionId: sid,
     model,
     mode,
@@ -359,18 +378,76 @@ function doSend(text) {
 
 function send() {
   const text = input.value.trim();
-  if (!text) return;
+  if (!text && pendingAttachments.length === 0) return;
   input.value = '';
   input.style.height = 'auto';
 
   if (streaming) {
-    // Queue it
     promptQueue.push(text);
     renderQueue();
     return;
   }
 
   doSend(text);
+}
+
+/* ═══ Attachments ═══ */
+async function handleAttachment(file) {
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const base64 = reader.result.split(',')[1];
+    const isImage = file.type.startsWith('image/');
+
+    try {
+      const resp = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name, data: base64, mediaType: file.type }),
+      });
+      const data = await resp.json();
+      if (data.path) {
+        pendingAttachments.push({
+          path: data.path,
+          name: file.name,
+          type: isImage ? 'image' : 'file',
+          preview: isImage ? reader.result : null,
+        });
+        showAttachmentPreview();
+      }
+    } catch (e) {
+      console.error('[upload]', e);
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function showAttachmentPreview() {
+  let bar = $('attachment-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'attachment-bar';
+    bar.className = 'attachment-bar';
+    input.parentElement.insertBefore(bar, input);
+  }
+  bar.innerHTML = pendingAttachments.map((a, i) => `
+    <div class="attach-chip">
+      ${a.type === 'image' ? `<img src="${a.preview}" class="attach-thumb">` : '<span class="attach-file-icon">📄</span>'}
+      <span class="attach-name">${a.name}</span>
+      <button class="attach-remove" data-idx="${i}">&times;</button>
+    </div>
+  `).join('');
+  bar.querySelectorAll('.attach-remove').forEach(btn => {
+    btn.onclick = () => {
+      pendingAttachments.splice(parseInt(btn.dataset.idx), 1);
+      if (pendingAttachments.length === 0) clearAttachmentPreview();
+      else showAttachmentPreview();
+    };
+  });
+}
+
+function clearAttachmentPreview() {
+  const bar = $('attachment-bar');
+  if (bar) bar.remove();
 }
 
 /* ═══ Prompt Queue ═══ */
@@ -575,6 +652,37 @@ input.oninput = () => {
   input.style.height = 'auto';
   input.style.height = Math.min(input.scrollHeight, 150) + 'px';
 };
+
+// Click to attach
+$('attach-btn').onclick = () => $('file-input').click();
+$('file-input').onchange = (e) => {
+  for (const file of e.target.files) handleAttachment(file);
+  e.target.value = '';
+};
+
+// Paste images/files
+input.addEventListener('paste', (e) => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.kind === 'file') {
+      e.preventDefault();
+      handleAttachment(item.getAsFile());
+    }
+  }
+});
+
+// Drop files
+const inputDock = $('input-dock');
+inputDock.addEventListener('dragover', (e) => { e.preventDefault(); inputDock.classList.add('drag-over'); });
+inputDock.addEventListener('dragleave', () => inputDock.classList.remove('drag-over'));
+inputDock.addEventListener('drop', (e) => {
+  e.preventDefault();
+  inputDock.classList.remove('drag-over');
+  for (const file of e.dataTransfer.files) {
+    handleAttachment(file);
+  }
+});
 
 /* ═══ Cost Init ═══ */
 (async () => {
