@@ -26,9 +26,6 @@
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
           </svg>
         </button>
-        <button id="notes-btn" class="strip-btn" title="MVP Notes" style="display:none" data-overlay="notes">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8m8 4H8"/></svg>
-        </button>
       </div>
       <div class="top-bar-right">
         <div class="mode-toggle" id="mode-toggle">
@@ -93,7 +90,7 @@
       <div id="status-list"></div>
     </div>
     <div class="overlay" id="overlay-notes">
-      <div class="overlay-header"><h3>MVP Notes</h3><button class="overlay-close">&times;</button></div>
+      <div class="overlay-header"><h3>Branch Summary</h3><button class="overlay-close">&times;</button></div>
       <div class="notes-area" id="notes-area">
         <textarea id="notes-editor" placeholder="MVP notes will appear here..."></textarea>
         <div class="notes-actions">
@@ -140,6 +137,9 @@
     <!-- Tabs + status indicators -->
     <div class="panel-tabs">
       <div class="tabs-left">
+        <button id="notes-btn" class="strip-btn" title="Branch Summary" style="display:none" data-overlay="notes">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8m8 4H8"/></svg>
+        </button>
         <span class="branch-badge" id="branch-badge" style="display:none"></span>
         <div class="health-dots" id="health-dots" title="Click for service status" style="cursor:pointer">
           <span class="h-dot" id="h-fe" title="Frontend"></span>
