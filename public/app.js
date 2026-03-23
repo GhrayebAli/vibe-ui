@@ -1,6 +1,6 @@
 import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, showDiffSummary, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion } from './components/chat.js';
 import { initPreview, refreshPreview, setDevice, navigatePreview } from './components/preview.js';
-import { initNotes, onNotesOpen } from './components/notes.js';
+import { initNotes, onNotesOpen, onNotesGenerated } from './components/notes.js';
 import { initStatus, checkHealth } from './components/status.js';
 import { initBudget, updateBudget } from './components/budget.js';
 import { initVisualEdit, toggleVisualEdit, deactivate as deactivateVisualEdit } from './components/visual-edit.js';
@@ -316,6 +316,10 @@ function handleMessage(msg) {
 
     case 'model_changed':
       addSystemMsg('Model: ' + msg.model);
+      break;
+
+    case 'notes_generated':
+      onNotesGenerated(msg.content);
       break;
 
     case 'branch_created':

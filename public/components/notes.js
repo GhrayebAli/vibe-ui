@@ -2,11 +2,13 @@ let editorEl = null;
 let getWs = null;
 let notesArea = null;
 let spinnerEl = null;
+let genBtnEl = null;
 let currentNoteBranch = null;
 
 export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
   editorEl = editor;
   getWs = wsGetter;
+  genBtnEl = genBtn;
   notesArea = editor.closest('.notes-area');
 
   // Create spinner element (hidden by default)
@@ -20,24 +22,11 @@ export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
     genBtn.textContent = 'Generating...';
     showSpinner(true);
 
-    // Send generate command via WebSocket with branch
+    // Send generate command via WebSocket — response comes back as notes_generated
     const ws = typeof getWs === 'function' ? getWs() : getWs;
     if (ws?.readyState === 1) {
       ws.send(JSON.stringify({ type: 'generate_mvp_notes', branch: currentNoteBranch }));
     }
-
-    // Poll for notes to appear
-    let attempts = 0;
-    const poll = setInterval(async () => {
-      attempts++;
-      const loaded = await loadNotes(currentNoteBranch);
-      if (loaded || attempts > 20) {
-        clearInterval(poll);
-        genBtn.disabled = false;
-        genBtn.textContent = 'Regenerate';
-        showSpinner(false);
-      }
-    }, 3000);
   };
 
   saveBtn.onclick = async () => {
@@ -68,6 +57,16 @@ export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
   };
 }
 
+// Called when notes_generated WebSocket message arrives
+export function onNotesGenerated(content) {
+  if (editorEl) editorEl.value = content;
+  if (genBtnEl) {
+    genBtnEl.disabled = false;
+    genBtnEl.textContent = 'Regenerate';
+  }
+  showSpinner(false);
+}
+
 // Call this when the notes overlay opens — pass current branch
 export function onNotesOpen(branch) {
   currentNoteBranch = branch || null;
@@ -86,9 +85,7 @@ export async function loadNotes(branch) {
     const data = await resp.json();
     if (data.content && data.content.trim()) {
       editorEl.value = data.content;
-      // Update button label to show notes can be refreshed
-      const genBtn = editorEl.closest('.notes-area')?.querySelector('.notes-gen, [class*="gen"]');
-      if (genBtn && genBtn.textContent === 'Generate') genBtn.textContent = 'Regenerate';
+      if (genBtnEl && genBtnEl.textContent === 'Generate') genBtnEl.textContent = 'Regenerate';
       return true;
     }
   } catch {}

@@ -175,7 +175,7 @@ export function handleWashmenWs(ws, sessionIds) {
         ws.send(JSON.stringify({ type: "system", text: "Service restart failed — try refreshing the Codespace" }));
       }
     } else if (msg.type === "generate_mvp_notes") {
-      // Gather git diffs server-side, then ask agent to summarize (no exploration needed)
+      // Generate notes via direct API call — no agent, no chat pollution
       const noteBranch = msg.branch || "main";
       const workspaceDir = getWorkspaceDir();
       let diffContext = "";
@@ -190,11 +190,38 @@ export function handleWashmenWs(ws, sessionIds) {
           }
         } catch { diffContext += `\n## ${repo}\n(no changes or not on a feature branch)\n`; }
       }
-      await handleChat({
-        ...msg,
-        type: "chat",
-        text: `Summarize what was built on branch "${noteBranch}" based on this git diff. Do NOT run any commands or read any files — all the info is below. Be concise.\n\n${diffContext}\n\nFormat: What was built, What works, What's left, Questions for engineers.`,
-      }, ws, sessionIds);
+
+      try {
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
+
+        const resp = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": apiKey,
+            "content-type": "application/json",
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 1024,
+            messages: [{
+              role: "user",
+              content: `Summarize what was built on branch "${noteBranch}". Be concise — 4 sections max.\n\n${diffContext}\n\nFormat:\n## What was built\n## What works\n## What's left\n## Questions for engineers`,
+            }],
+          }),
+        });
+        const data = await resp.json();
+        const notes = data.content?.[0]?.text || "No changes found on this branch.";
+
+        // Save to DB and send directly to notes panel
+        const { saveNotes } = await import("../db.js");
+        saveNotes(noteBranch, notes);
+        ws.send(JSON.stringify({ type: "notes_generated", branch: noteBranch, content: notes }));
+      } catch (e) {
+        console.error("[notes]", e.message);
+        ws.send(JSON.stringify({ type: "notes_generated", branch: noteBranch, content: `Error generating notes: ${e.message}` }));
+      }
     } else if (msg.type === "set_model") {
       if (currentQuery) {
         currentQuery.setModel(msg.model === "opus" ? "claude-opus-4-6" : "claude-sonnet-4-6");
