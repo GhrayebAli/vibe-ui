@@ -352,7 +352,8 @@ export function handleWashmenWs(ws, sessionIds) {
 
         // Log non-assistant events for debugging
         if (etype !== "assistant") {
-          console.log(`[agent] event type=${etype} sub=${esub} keys=${Object.keys(event).join(",")}`);
+          const extra = (etype === "system" && esub === "init") ? ` model=${event.model}` : "";
+          console.log(`[agent] event type=${etype} sub=${esub}${extra}`);
         }
 
         // Capture Claude session ID from init event and store it
