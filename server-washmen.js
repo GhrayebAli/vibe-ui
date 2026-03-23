@@ -248,7 +248,7 @@ app.post("/api/switch-branch", async (req, res) => {
 
       // Restart service if it has a port
       if (repo.port && repo.startCommand) {
-        try { execSync(`kill $(lsof -ti:${repo.port}) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+        try { execSync(`kill $(lsof -ti:${repo.port} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
         const logFile = `/tmp/${repo.name}.log`;
         spawn("bash", ["-c", `cd "${repo.path}" && ${repo.startCommand} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
         restarted.push(repo.port);
@@ -757,7 +757,7 @@ app.post("/api/restart-service", (req, res) => {
 
     // Kill existing process on the port, then start
     if (repo.port) {
-      try { execSync(`kill $(lsof -ti:${repo.port}) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+      try { execSync(`kill $(lsof -ti:${repo.port} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
     }
     const logFile = `/tmp/${repo.name}.log`;
     spawn("bash", ["-c", `cd "${workspaceDir}/${repo.name}" && ${repo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
@@ -774,7 +774,7 @@ app.post("/api/stop-service", (req, res) => {
     if (!port) return res.status(400).json({ error: "Missing port" });
     const vibePort = process.env.PORT || 4000;
     if (String(port) === String(vibePort)) return res.status(400).json({ error: "Cannot stop vibe-ui" });
-    try { execSync(`kill $(lsof -ti:${port}) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+    try { execSync(`kill $(lsof -ti:${port} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
