@@ -458,12 +458,16 @@ function updateCodeTab(path, content) {
   const codeContent = $('code-content');
   if (codePath) codePath.textContent = path || 'Select a file to view';
   if (codeContent && content) {
+    // Detect language from file extension for proper syntax coloring
+    const ext = (path || '').split('.').pop();
+    const langMap = { tsx: 'typescript', ts: 'typescript', jsx: 'javascript', js: 'javascript', json: 'json', css: 'css', scss: 'scss', md: 'markdown', html: 'html' };
+    const lang = langMap[ext] || '';
     codeContent.textContent = content;
-    codeContent.className = 'code-content';
+    codeContent.className = 'code-content' + (lang ? ' language-' + lang : '');
     try { hljs.highlightElement(codeContent); } catch {}
   }
   // Highlight active file in sidebar
-  document.querySelectorAll('.code-sidebar-file').forEach(f => {
+  document.querySelectorAll('.tree-file').forEach(f => {
     f.classList.toggle('active', f.dataset.path === path);
   });
 }
@@ -487,28 +491,102 @@ async function loadCodeFiles() {
     const sidebar = $('code-sidebar');
     if (!sidebar || !data.files) return;
 
+    // Build tree structure from flat file list
+    sidebar.innerHTML = '';
+
     // Group by repo
-    const groups = {};
+    const repos = {};
     for (const f of data.files) {
-      if (!groups[f.repo]) groups[f.repo] = [];
-      groups[f.repo].push(f);
+      if (!repos[f.repo]) repos[f.repo] = [];
+      repos[f.repo].push(f);
     }
 
-    sidebar.innerHTML = '';
-    for (const [repo, files] of Object.entries(groups)) {
-      const group = document.createElement('div');
-      group.className = 'code-sidebar-group';
-      group.innerHTML = '<div class="code-sidebar-label">' + repo.replace('mock-', '') + '</div>';
+    for (const [repoName, files] of Object.entries(repos)) {
+      // Build nested tree
+      const tree = {};
       for (const f of files) {
-        const item = document.createElement('div');
-        item.className = 'code-sidebar-file';
-        item.textContent = f.name;
-        item.dataset.path = f.path;
-        item.title = f.path;
-        item.onclick = () => loadCodeFile(f.path);
-        group.appendChild(item);
+        const parts = f.name.split('/');
+        let node = tree;
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          if (i === parts.length - 1) {
+            // File
+            if (!node.__files) node.__files = [];
+            node.__files.push({ name: part, path: f.path });
+          } else {
+            // Directory
+            if (!node[part]) node[part] = {};
+            node = node[part];
+          }
+        }
       }
-      sidebar.appendChild(group);
+
+      // Render tree recursively
+      function renderTree(node, container, depth) {
+        // Render directories first, then files
+        const dirs = Object.keys(node).filter(k => k !== '__files').sort();
+        const files = (node.__files || []).sort((a, b) => a.name.localeCompare(b.name));
+
+        for (const dirName of dirs) {
+          const dir = document.createElement('div');
+          dir.className = 'tree-dir';
+
+          const toggle = document.createElement('div');
+          toggle.className = 'tree-toggle';
+          toggle.style.paddingLeft = (depth * 12 + 4) + 'px';
+          toggle.innerHTML = '<span class="tree-arrow">▸</span><span class="tree-icon">📁</span> ' + dirName;
+          toggle.onclick = () => {
+            const isOpen = dir.classList.toggle('open');
+            toggle.querySelector('.tree-arrow').textContent = isOpen ? '▾' : '▸';
+            toggle.querySelector('.tree-icon').textContent = isOpen ? '📂' : '📁';
+          };
+
+          const children = document.createElement('div');
+          children.className = 'tree-children';
+          renderTree(node[dirName], children, depth + 1);
+
+          dir.appendChild(toggle);
+          dir.appendChild(children);
+          container.appendChild(dir);
+        }
+
+        for (const file of files) {
+          const item = document.createElement('div');
+          item.className = 'tree-file';
+          item.style.paddingLeft = (depth * 12 + 18) + 'px';
+          // File icon based on extension
+          const ext = file.name.split('.').pop();
+          const icons = { tsx: '⚛', ts: '🔷', js: '🟡', jsx: '⚛', json: '{}', css: '🎨', scss: '🎨', md: '📝' };
+          item.innerHTML = '<span class="tree-ficon">' + (icons[ext] || '📄') + '</span> ' + file.name;
+          item.dataset.path = file.path;
+          item.title = file.path;
+          item.onclick = () => {
+            sidebar.querySelectorAll('.tree-file').forEach(f => f.classList.remove('active'));
+            item.classList.add('active');
+            loadCodeFile(file.path);
+          };
+          container.appendChild(item);
+        }
+      }
+
+      const repoGroup = document.createElement('div');
+      repoGroup.className = 'tree-repo';
+
+      const repoHeader = document.createElement('div');
+      repoHeader.className = 'tree-repo-header';
+      repoHeader.innerHTML = '<span class="tree-arrow">▾</span> 📦 ' + repoName;
+      repoHeader.onclick = () => {
+        const isOpen = repoGroup.classList.toggle('collapsed');
+        repoHeader.querySelector('.tree-arrow').textContent = isOpen ? '▸' : '▾';
+      };
+
+      const repoChildren = document.createElement('div');
+      repoChildren.className = 'tree-children';
+      renderTree(tree, repoChildren, 1);
+
+      repoGroup.appendChild(repoHeader);
+      repoGroup.appendChild(repoChildren);
+      sidebar.appendChild(repoGroup);
     }
 
     // Auto-load first file
