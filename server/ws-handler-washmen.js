@@ -175,12 +175,25 @@ export function handleWashmenWs(ws, sessionIds) {
         ws.send(JSON.stringify({ type: "system", text: "Service restart failed — try refreshing the Codespace" }));
       }
     } else if (msg.type === "generate_mvp_notes") {
-      // Send a special prompt to the agent to generate notes for the current branch
+      // Gather git diffs server-side, then ask agent to summarize (no exploration needed)
       const noteBranch = msg.branch || "main";
+      const workspaceDir = getWorkspaceDir();
+      let diffContext = "";
+      for (const repo of getRepoNames()) {
+        try {
+          const log = execSync(`git -C "${workspaceDir}/${repo}" log --oneline main..HEAD 2>/dev/null || git -C "${workspaceDir}/${repo}" log --oneline master..HEAD 2>/dev/null`, { stdio: "pipe", timeout: 5000 }).toString().trim();
+          const diff = execSync(`git -C "${workspaceDir}/${repo}" diff main..HEAD --stat 2>/dev/null || git -C "${workspaceDir}/${repo}" diff master..HEAD --stat 2>/dev/null`, { stdio: "pipe", timeout: 5000 }).toString().trim();
+          if (log || diff) {
+            diffContext += `\n## ${repo}\nCommits:\n${log || "(no commits)"}\n\nFiles changed:\n${diff || "(none)"}\n`;
+          } else {
+            diffContext += `\n## ${repo}\n(no changes on this branch)\n`;
+          }
+        } catch { diffContext += `\n## ${repo}\n(no changes or not on a feature branch)\n`; }
+      }
       await handleChat({
         ...msg,
         type: "chat",
-        text: `Generate a summary of what was built on branch "${noteBranch}". Read the git log across all repos, examine the code changes, and provide: What was built, Why (problem it solves), What works, What doesn't work yet, Repos changed, New or modified API endpoints, Model changes, Questions for engineers. Output the summary as plain text — it will be saved as notes for this branch.`,
+        text: `Summarize what was built on branch "${noteBranch}" based on this git diff. Do NOT run any commands or read any files — all the info is below. Be concise.\n\n${diffContext}\n\nFormat: What was built, What works, What's left, Questions for engineers.`,
       }, ws, sessionIds);
     } else if (msg.type === "set_model") {
       if (currentQuery) {
