@@ -478,6 +478,9 @@ app.get("/api/console", (req, res) => {
         if (trimmed.match(/^[\s\-=~_.·•|\\/<>,'`^]+$/)) continue;
         // Skip bare log-level labels with no content (e.g. "info:" or "debug:" alone)
         if (trimmed.match(/^\s*(info|debug|verbose|silly|trace|error|warn):\s*$/i)) continue;
+        // Skip vibe-ui agent internal logs (tool calls, agent events) — not service errors
+        if (trimmed.startsWith("[tool]") || trimmed.startsWith("[agent]") || trimmed.startsWith("[session]") ||
+            trimmed.startsWith("[push]") || trimmed.startsWith("[context]") || trimmed.startsWith("[checkpoint]")) continue;
 
         const lower = trimmed.toLowerCase();
 
