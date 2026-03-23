@@ -44,28 +44,38 @@ function renderStatus(svcs) {
     `;
     const restartBtn = div.querySelector('.status-restart');
     if (restartBtn) {
-      restartBtn.onclick = () => {
-        fetch('/api/restart-service', {
+      restartBtn.onclick = async () => {
+        restartBtn.textContent = 'Restarting...';
+        restartBtn.disabled = true;
+        await fetch('/api/restart-service', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ service: svc.name }),
         });
-        restartBtn.textContent = 'Restarting...';
-        restartBtn.disabled = true;
-        setTimeout(() => checkHealth(), 5000);
+        // Poll until service is back up
+        for (let i = 0; i < 8; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          await checkHealth();
+          if (healthState[svc.name] === 'healthy') break;
+        }
       };
     }
     const stopBtn = div.querySelector('.status-stop');
     if (stopBtn) {
-      stopBtn.onclick = () => {
-        fetch('/api/stop-service', {
+      stopBtn.onclick = async () => {
+        stopBtn.textContent = 'Stopping...';
+        stopBtn.disabled = true;
+        await fetch('/api/stop-service', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ port: svc.port }),
         });
-        stopBtn.textContent = 'Stopping...';
-        stopBtn.disabled = true;
-        setTimeout(() => checkHealth(), 2000);
+        // Poll until service is actually down
+        for (let i = 0; i < 5; i++) {
+          await new Promise(r => setTimeout(r, 1000));
+          await checkHealth();
+          if (healthState[svc.name] !== 'healthy') break;
+        }
       };
     }
     listEl.appendChild(div);
