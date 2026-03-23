@@ -220,7 +220,6 @@ function undoToLastCheckpoint(currentBranch) {
 export function handleWashmenWs(ws, sessionIds) {
   let currentSessionId = null;
   let currentQuery = null;
-  let isFirstMessage = true;
 
   ws.on("message", async (raw) => {
     let msg;
@@ -300,26 +299,20 @@ export function handleWashmenWs(ws, sessionIds) {
       return;
     }
 
-    // Session resumption — look up stored Claude session ID
+    // Session resumption — always look up stored Claude session ID for existing sessions
     let claudeSessionIdToResume = null;
-    if (isFirstMessage && getSession(sessionId)) {
+    if (getSession(sessionId)) {
       try {
-        // Check if we have a Claude SDK session ID stored for this session
         const stored = getClaudeSessionId(sessionId, "");
         if (stored) {
           claudeSessionIdToResume = stored;
           console.log(`[context] Resuming Claude session: ${stored}`);
         } else {
-          console.log("[context] No Claude session ID stored — starting fresh with git context");
+          console.log("[context] No Claude session ID stored — starting fresh");
         }
       } catch (e) {
         console.error("[context]", e.message);
       }
-    }
-
-    // Mark first message processed
-    if (isFirstMessage) {
-      isFirstMessage = false;
     }
 
     // Save user message — skip for discover mode
