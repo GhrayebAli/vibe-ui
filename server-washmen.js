@@ -412,7 +412,10 @@ async function startBrowserConsoleListener() {
     // Playwright is installed in the workspace root, not in vibe-ui
     let chromium;
     try { ({ chromium } = await import("playwright")); }
-    catch { ({ chromium } = await import(`${getWorkspaceDir()}/node_modules/playwright/index.mjs`)); }
+    catch {
+      try { ({ chromium } = await import(`${getWorkspaceDir()}/vibe-ui/node_modules/playwright/index.mjs`)); }
+      catch { ({ chromium } = await import(`${getWorkspaceDir()}/node_modules/playwright/index.mjs`)); }
+    }
     const browser = await chromium.launch();
     const page = await browser.newPage();
 
@@ -479,8 +482,7 @@ app.get("/api/console", (req, res) => {
         // Skip bare log-level labels with no content (e.g. "info:" or "debug:" alone)
         if (trimmed.match(/^\s*(info|debug|verbose|silly|trace|error|warn):\s*$/i)) continue;
         // Skip vibe-ui agent internal logs (tool calls, agent events) — not service errors
-        if (trimmed.startsWith("[tool]") || trimmed.startsWith("[agent]") || trimmed.startsWith("[session]") ||
-            trimmed.startsWith("[push]") || trimmed.startsWith("[context]") || trimmed.startsWith("[checkpoint]")) continue;
+        if (trimmed.match(/^\[(tool|agent|session|push|context|checkpoint|console|workspace|code|inspect|screenshot|cost|db|switch|create-branch)\]/)) continue;
 
         const lower = trimmed.toLowerCase();
 
@@ -586,7 +588,10 @@ async function getInspectPage(targetPath) {
   if (!inspectBrowser) {
     let chromium;
     try { ({ chromium } = await import("playwright")); }
-    catch { ({ chromium } = await import(`${getWorkspaceDir()}/node_modules/playwright/index.mjs`)); }
+    catch {
+      try { ({ chromium } = await import(`${getWorkspaceDir()}/vibe-ui/node_modules/playwright/index.mjs`)); }
+      catch { ({ chromium } = await import(`${getWorkspaceDir()}/node_modules/playwright/index.mjs`)); }
+    }
     inspectBrowser = await chromium.launch();
     inspectPage = await inspectBrowser.newPage({ viewport: { width: 1280, height: 720 } });
     // Login by actually clicking the Login button (sets Redux state + Axios headers properly)
