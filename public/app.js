@@ -8,7 +8,7 @@ import { initVisualEdit, toggleVisualEdit, deactivate as deactivateVisualEdit } 
 
 /* ═══ DOM refs ═══ */
 const $ = id => document.getElementById(id);
-const chat = $('chat'), input = $('input'), sendBtn = $('send-btn');
+const chat = $('chat'), input = $('input'), sendBtn = $('send-btn'), stopBtn = $('stop-btn');
 const welcome = $('welcome'), starters = $('starters');
 const queue = $('queue');
 
@@ -256,6 +256,8 @@ function handleMessage(msg) {
       addAgentMsg(null, false); // finalize
       streaming = false;
       sendBtn.disabled = false;
+      sendBtn.style.display = 'flex';
+      stopBtn.style.display = 'none';
       updateBudget(msg.totalCost);
       // Detect follow-up questions in the response
       if (msg.text) {
@@ -308,6 +310,8 @@ function handleMessage(msg) {
       });
       streaming = false;
       sendBtn.disabled = false;
+      sendBtn.style.display = 'flex';
+      stopBtn.style.display = 'none';
       break;
 
     case 'undo_result':
@@ -343,6 +347,8 @@ function doSend(text) {
   addUserMsg(text);
   streaming = true;
   sendBtn.disabled = true;
+  sendBtn.style.display = 'none';
+  stopBtn.style.display = 'flex';
 
   ws.send(JSON.stringify({
     type: 'chat',
@@ -534,6 +540,11 @@ function formatTimeAgo(ts) {
 
 /* ═══ Input Events ═══ */
 sendBtn.onclick = send;
+stopBtn.onclick = () => {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'stop' }));
+  }
+};
 input.onkeydown = e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
 };

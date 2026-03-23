@@ -181,6 +181,9 @@ pre:hover .code-copy { opacity: 1; }
 .send-btn:hover { filter: brightness(1.15); transform: scale(1.05); }
 .send-btn:disabled { opacity: .25; cursor: not-allowed; transform: none; }
 .send-btn svg { width: 18px; height: 18px; }
+.stop-btn { width: 36px; height: 36px; border-radius: 50%; border: none; background: #ef4444; color: #fff; display: flex; align-items: center; justify-content: center; transition: all var(--transition); flex-shrink: 0; cursor: pointer; }
+.stop-btn:hover { filter: brightness(1.15); transform: scale(1.05); }
+.stop-btn svg { width: 16px; height: 16px; }
 .input-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
 .input-icons, .input-icons-right { display: flex; align-items: center; gap: 2px; }
 .input-icon-btn { height: 30px; border-radius: 6px; border: none; background: none; color: var(--text-muted); display: flex; align-items: center; gap: 5px; padding: 0 8px; font-size: 11px; font-family: var(--font); cursor: pointer; transition: all var(--transition); }

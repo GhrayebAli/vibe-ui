@@ -231,6 +231,16 @@ export function handleWashmenWs(ws, sessionIds) {
     }
 
     // Handle different message types
+    if (msg.type === "stop") {
+      if (currentQuery) {
+        try { currentQuery.close(); } catch {}
+        currentQuery = null;
+        ws.send(JSON.stringify({ type: "system", text: "Agent stopped." }));
+        ws.send(JSON.stringify({ type: "assistant_done", text: "", sessionId: currentSessionId, cost: 0, totalCost: 0 }));
+      }
+      return;
+    }
+
     if (msg.type === "chat") {
       await handleChat(msg, ws, sessionIds);
     } else if (msg.type === "undo") {
