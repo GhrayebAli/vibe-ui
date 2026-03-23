@@ -1,4 +1,4 @@
-import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, showDiffSummary, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion } from './components/chat.js';
+import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, showDiffSummary, showTurnCost, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion } from './components/chat.js';
 import { initPreview, refreshPreview, setDevice, navigatePreview } from './components/preview.js';
 import { initNotes, onNotesOpen, onNotesGenerated } from './components/notes.js';
 import { initStatus, checkHealth } from './components/status.js';
@@ -255,6 +255,7 @@ function handleMessage(msg) {
       hideThinking();
       hideActivity(); // Clear any stuck spinners from the turn
       addAgentMsg(null, false); // finalize
+      showTurnCost(msg.cost);
       streaming = false;
       sendBtn.disabled = false;
       sendBtn.style.display = 'flex';

@@ -55,6 +55,16 @@ export function addAgentMsg(text, streaming) {
   }
 }
 
+export function showTurnCost(cost) {
+  if (!cost || cost <= 0) return;
+  const div = document.createElement('div');
+  div.className = 'turn-cost';
+  div.textContent = `$${cost.toFixed(4)}`;
+  div.title = `This turn cost $${cost.toFixed(4)}`;
+  chatEl.appendChild(div);
+  scrollBottom();
+}
+
 export function addSystemMsg(text) {
   const div = document.createElement('div');
   div.className = 'msg msg-system';
