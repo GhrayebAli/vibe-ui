@@ -8,7 +8,7 @@ async function takeScreenshot() {
   try {
     const result = execSync(
       'node -e "const{chromium}=require(\'playwright\');(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1280,height:720}});await p.goto(\'http://localhost:3000\',{waitUntil:\'networkidle\',timeout:10000});await p.waitForTimeout(1000);const buf=await p.screenshot();await b.close();process.stdout.write(buf.toString(\'base64\'));})()"',
-      { cwd: "/workspaces/washmen-mvp-workspace", timeout: 20000, maxBuffer: 10 * 1024 * 1024 }
+      { cwd: "/workspaces/washmen-ops-workspace", timeout: 20000, maxBuffer: 10 * 1024 * 1024 }
     );
     return result.toString();
   } catch (e) {
@@ -76,7 +76,7 @@ function checkPreToolUse(toolName, toolInput) {
 
 // Create mvp branches across all repos
 function createMvpBranches(featureName) {
-  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
   const repos = ["mock-ops-frontend", "mock-api-gateway", "mock-core-service", "."];
   const branchName = `mvp/${featureName}`;
   const results = [];
@@ -101,7 +101,7 @@ function createMvpBranches(featureName) {
 
 // Create checkpoint tags across all repos
 function createCheckpoint(label) {
-  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
   const repos = ["mock-ops-frontend", "mock-api-gateway", "mock-core-service"];
 
   // Find next checkpoint number
@@ -127,7 +127,7 @@ function createCheckpoint(label) {
 
 // Undo to previous checkpoint
 function undoToLastCheckpoint() {
-  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
   const repos = ["mock-ops-frontend", "mock-api-gateway", "mock-core-service"];
   const results = [];
 
@@ -173,7 +173,7 @@ export function handleWashmenWs(ws, sessionIds) {
       ws.send(JSON.stringify({ type: "system", text: "Restarting services..." }));
       // Services are managed by the Codespace — send a signal to restart
       try {
-        const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+        const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
         execSync(`bash "${workspaceDir}/.devcontainer/start.sh" &`, { stdio: "pipe", timeout: 5000 });
         ws.send(JSON.stringify({ type: "system", text: "Services restart initiated" }));
       } catch {
@@ -184,7 +184,7 @@ export function handleWashmenWs(ws, sessionIds) {
       await handleChat({
         ...msg,
         type: "chat",
-        text: `Generate MVP_NOTES.md in the workspace root (/workspaces/washmen-mvp-workspace/MVP_NOTES.md). Read the git log across all repos, examine the code changes, and populate all sections: What was built, Why (problem it solves), What works, What doesn't work yet, Repos changed, New or modified API endpoints, Model changes, Hooks consumed, Questions for engineers.`,
+        text: `Generate MVP_NOTES.md in the workspace root (/workspaces/washmen-ops-workspace/MVP_NOTES.md). Read the git log across all repos, examine the code changes, and populate all sections: What was built, Why (problem it solves), What works, What doesn't work yet, Repos changed, New or modified API endpoints, Model changes, Hooks consumed, Questions for engineers.`,
       }, ws, sessionIds);
     } else if (msg.type === "set_model") {
       if (currentQuery) {
@@ -221,7 +221,7 @@ export function handleWashmenWs(ws, sessionIds) {
     let contextPrefix = "";
     if (isFirstMessage && getSession(sessionId)) {
       try {
-        const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+        const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
         const gitLogs = [];
         for (const repo of ["mock-ops-frontend", "mock-api-gateway", "mock-core-service"]) {
           try {
@@ -241,7 +241,7 @@ export function handleWashmenWs(ws, sessionIds) {
     // Onboarding: first message — check branch and create if needed
     if (isFirstMessage) {
       isFirstMessage = false;
-      const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+      const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
 
       // Find the first available repo to check branch
       let currentBranch = "master";
@@ -296,7 +296,7 @@ export function handleWashmenWs(ws, sessionIds) {
     addMessage(sessionId, "user", JSON.stringify({ text }));
 
     // Determine workspace directories
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
     const additionalDirs = [
       `${workspaceDir}/mock-ops-frontend`,
       `${workspaceDir}/mock-api-gateway`,

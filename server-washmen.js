@@ -116,7 +116,7 @@ app.get("/api/file", (req, res) => {
   try {
     const filePath = req.query.path;
     if (!filePath) return res.status(400).json({ error: "Missing path" });
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
     const fullPath = filePath.startsWith("/") ? filePath : join(workspaceDir, filePath);
     const content = readFileSync(fullPath, "utf8");
     res.json({ path: filePath, content });
@@ -127,7 +127,7 @@ app.get("/api/file", (req, res) => {
 
 // Project files API — list key files across repos
 app.get("/api/files", (_req, res) => {
-  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+  const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
   const files = [];
   const repos = [
     { name: "mock-ops-frontend", icon: "FE", key: ["src/App.tsx", "src/api/client.ts", "src/api/UserAPI.ts", "src/features/users/components/UsersList.tsx", "src/features/dashboard/components/Dashboard.tsx", "vite.config.ts"] },
@@ -161,7 +161,7 @@ async function startBrowserConsoleListener() {
     // Playwright is installed in the workspace root, not in vibe-ui
     let chromium;
     try { ({ chromium } = await import("playwright")); }
-    catch { ({ chromium } = await import("/workspaces/washmen-mvp-workspace/node_modules/playwright/index.mjs")); }
+    catch { ({ chromium } = await import("/workspaces/washmen-ops-workspace/node_modules/playwright/index.mjs")); }
     const browser = await chromium.launch();
     const page = await browser.newPage();
 
@@ -254,7 +254,7 @@ app.get("/api/console", (req, res) => {
 // Branch check
 app.get("/api/branch", (_req, res) => {
   try {
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
     const branch = execSync(`git -C "${workspaceDir}/mock-ops-frontend" rev-parse --abbrev-ref HEAD`, { stdio: "pipe" }).toString().trim();
     res.json({ branch });
   } catch {
@@ -265,7 +265,7 @@ app.get("/api/branch", (_req, res) => {
 // Notes API
 app.get("/api/notes", (_req, res) => {
   try {
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
     const content = readFileSync(join(workspaceDir, "MVP_NOTES.md"), "utf8");
     res.json({ content });
   } catch {
@@ -275,7 +275,7 @@ app.get("/api/notes", (_req, res) => {
 
 app.post("/api/notes", (req, res) => {
   try {
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
     writeFileSync(join(workspaceDir, "MVP_NOTES.md"), req.body.content || "");
     res.json({ ok: true });
   } catch (err) {
@@ -286,7 +286,7 @@ app.post("/api/notes", (req, res) => {
 // Checkpoints API
 app.get("/api/checkpoints", (_req, res) => {
   try {
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
     const tags = execSync(`git -C "${workspaceDir}/mock-ops-frontend" tag -l "checkpoint/*" --sort=-version:refname --format="%(refname:short)|%(creatordate:unix)|%(subject)"`, { stdio: "pipe" }).toString().trim();
     const checkpoints = tags.split("\n").filter(Boolean).map((line, i) => {
       const [name, ts, label] = line.split("|");
@@ -303,7 +303,7 @@ app.post("/api/restore", (req, res) => {
   const { checkpointId } = req.body;
   if (!checkpointId) return res.status(400).json({ error: "Missing checkpointId" });
   try {
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
     for (const repo of ["mock-ops-frontend", "mock-api-gateway", "mock-core-service"]) {
       try {
         execSync(`git -C "${workspaceDir}/${repo}" reset --hard "${checkpointId}"`, { stdio: "pipe" });
@@ -325,7 +325,7 @@ async function getInspectPage(targetPath) {
   if (!inspectBrowser) {
     let chromium;
     try { ({ chromium } = await import("playwright")); }
-    catch { ({ chromium } = await import("/workspaces/washmen-mvp-workspace/node_modules/playwright/index.mjs")); }
+    catch { ({ chromium } = await import("/workspaces/washmen-ops-workspace/node_modules/playwright/index.mjs")); }
     inspectBrowser = await chromium.launch();
     inspectPage = await inspectBrowser.newPage({ viewport: { width: 1280, height: 720 } });
     // Login by actually clicking the Login button (sets Redux state + Axios headers properly)
@@ -520,7 +520,7 @@ app.post("/api/inspect-element", async (req, res) => {
 // Restart service
 app.post("/api/restart-service", (req, res) => {
   try {
-    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-mvp-workspace";
+    const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
     const svc = req.body.service;
     if (svc === "frontend") {
       execSync(`cd "${workspaceDir}/mock-ops-frontend" && npx vite --host &`, { stdio: "pipe", timeout: 5000 });
