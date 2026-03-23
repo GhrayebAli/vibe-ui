@@ -41,12 +41,10 @@ input, textarea { font-family: var(--font); }
 .shell { display: flex; height: 100vh; width: 100vw; padding: 6px; gap: 2px; background: #0F1117; }
 
 /* ── Icon Strip ── */
-.icon-strip { width: 44px; background: var(--surface); display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 2px; flex-shrink: 0; z-index: 30; position: relative; border-radius: 12px; }
-.strip-btn { width: 34px; height: 34px; border-radius: var(--radius-sm); border: none; background: transparent; color: var(--text-dim); display: flex; align-items: center; justify-content: center; transition: all var(--transition); position: relative; }
+.strip-btn { width: 34px; height: 34px; border-radius: var(--radius-sm); border: none; background: transparent; color: var(--text-dim); display: flex; align-items: center; justify-content: center; transition: all var(--transition); position: relative; cursor: pointer; }
 .strip-btn:hover { background: var(--accent-soft); color: var(--accent); }
 .strip-btn.active { background: var(--accent-soft); color: var(--accent); }
 .strip-btn svg { width: 18px; height: 18px; }
-.strip-divider { width: 20px; height: 1px; background: var(--border); margin: 6px 0; }
 
 /* ── Left Panel ── */
 .left-panel { display: flex; flex-direction: column; background: var(--bg); min-height: 0; overflow: hidden; min-width: 280px; border-radius: 12px; }

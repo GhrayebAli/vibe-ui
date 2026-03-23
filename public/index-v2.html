@@ -15,20 +15,6 @@
 <body>
 <div class="shell">
 
-  <!-- Icon Strip -->
-  <div class="icon-strip">
-    <button class="strip-btn" data-overlay="history" title="History">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-    </button>
-    <button class="strip-btn" data-overlay="status" title="Status">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
-    </button>
-    <button class="strip-btn" data-overlay="notes" title="MVP Notes">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8m8 4H8"/></svg>
-    </button>
-    <div class="strip-divider"></div>
-  </div>
-
   <!-- Left Panel -->
   <div class="left-panel" id="left-panel" style="width:30%">
     <!-- Top Bar -->
@@ -39,6 +25,9 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
           </svg>
+        </button>
+        <button id="notes-btn" class="strip-btn" title="MVP Notes" style="display:none" data-overlay="notes">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8m8 4H8"/></svg>
         </button>
       </div>
       <div class="top-bar-right">
@@ -99,10 +88,6 @@
     </div>
 
     <!-- Overlays (slide over chat only) -->
-    <div class="overlay" id="overlay-history">
-      <div class="overlay-header"><h3>Version History</h3><button class="overlay-close">&times;</button></div>
-      <div id="history-list"></div>
-    </div>
     <div class="overlay" id="overlay-status">
       <div class="overlay-header"><h3>Service Status</h3><button class="overlay-close">&times;</button></div>
       <div id="status-list"></div>
@@ -156,7 +141,7 @@
     <div class="panel-tabs">
       <div class="tabs-left">
         <span class="branch-badge" id="branch-badge" style="display:none"></span>
-        <div class="health-dots">
+        <div class="health-dots" id="health-dots" title="Click for service status" style="cursor:pointer">
           <span class="h-dot" id="h-fe" title="Frontend"></span>
           <span class="h-dot" id="h-gw" title="Gateway"></span>
           <span class="h-dot" id="h-core" title="Core"></span>

@@ -88,8 +88,8 @@ function hideLanding() {
   // Restore mode toggle and model select
   $('mode-toggle').style.display = '';
   $('model-select').style.display = '';
-  // Show icon strip buttons
-  document.querySelectorAll('.strip-btn[data-overlay="history"], .strip-btn[data-overlay="notes"]').forEach(b => b.style.display = '');
+  // Show notes button in top bar
+  $('notes-btn').style.display = '';
 }
 
 function startDiscover() {
@@ -98,8 +98,8 @@ function startDiscover() {
   hideLanding();
   clearChat();
   addSystemMsg('Discovery mode — exploring the codebase on main (read-only)');
-  // Hide history/notes buttons (not applicable in discover)
-  document.querySelectorAll('.strip-btn[data-overlay="history"], .strip-btn[data-overlay="notes"]').forEach(b => b.style.display = 'none');
+  // Hide notes button (not applicable in discover)
+  $('notes-btn').style.display = 'none';
   // Set mode toggle to plan (closest to discover)
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'plan'));
 }
@@ -459,11 +459,33 @@ document.querySelectorAll('.strip-btn[data-overlay]').forEach(btn => {
   };
 });
 
+// Health dots click → open status overlay
+const healthDots = $('health-dots');
+if (healthDots) {
+  healthDots.onclick = () => {
+    const el = $('overlay-status');
+    if (activeOverlay === 'status') {
+      el.classList.remove('open');
+      activeOverlay = null;
+    } else {
+      if (activeOverlay) {
+        $('overlay-' + activeOverlay).classList.remove('open');
+        const prevBtn = document.querySelector(`[data-overlay="${activeOverlay}"]`);
+        if (prevBtn) prevBtn.classList.remove('active');
+      }
+      el.classList.add('open');
+      activeOverlay = 'status';
+      checkHealth();
+    }
+  };
+}
+
 document.querySelectorAll('.overlay-close').forEach(btn => {
   btn.onclick = () => {
     btn.closest('.overlay').classList.remove('open');
     if (activeOverlay) {
-      document.querySelector(`.strip-btn[data-overlay="${activeOverlay}"]`).classList.remove('active');
+      const prevBtn = document.querySelector(`[data-overlay="${activeOverlay}"]`);
+      if (prevBtn) prevBtn.classList.remove('active');
       activeOverlay = null;
     }
   };
