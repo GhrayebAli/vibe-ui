@@ -177,14 +177,22 @@
       <div style="flex:1;display:flex;flex-direction:column;min-width:0">
         <div class="code-path" id="code-path">Select a file to view</div>
         <div class="code-view" style="flex:1;overflow:auto">
-          <pre class="code-content" id="code-content"></pre>
+          <pre class="code-content"><code id="code-content"></code></pre>
         </div>
       </div>
     </div>
 
     <!-- Console Tab -->
     <div class="tab-content" id="tab-console" style="position:relative">
-      <button class="console-clear" id="console-clear">Clear</button>
+      <div class="console-toolbar">
+        <div class="console-filters">
+          <button class="console-filter-btn active" data-filter="all" onclick="setConsoleFilter('all')">All</button>
+          <button class="console-filter-btn" data-filter="error" onclick="setConsoleFilter('error')">Errors</button>
+          <button class="console-filter-btn" data-filter="warn" onclick="setConsoleFilter('warn')">Warnings</button>
+          <button class="console-filter-btn" data-filter="info" onclick="setConsoleFilter('info')">Info</button>
+        </div>
+        <button class="console-clear" id="console-clear">Clear</button>
+      </div>
       <div class="console-view" id="console-view"></div>
     </div>
   </div>

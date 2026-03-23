@@ -534,11 +534,10 @@ async function loadCodeFiles() {
           const toggle = document.createElement('div');
           toggle.className = 'tree-toggle';
           toggle.style.paddingLeft = (depth * 12 + 4) + 'px';
-          toggle.innerHTML = '<span class="tree-arrow">▸</span><span class="tree-icon">📁</span> ' + dirName;
+          toggle.innerHTML = '<span class="tree-arrow">▸</span><svg class="tree-svg" viewBox="0 0 16 16" fill="currentColor"><path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z"/></svg> ' + dirName;
           toggle.onclick = () => {
             const isOpen = dir.classList.toggle('open');
             toggle.querySelector('.tree-arrow').textContent = isOpen ? '▾' : '▸';
-            toggle.querySelector('.tree-icon').textContent = isOpen ? '📂' : '📁';
           };
 
           const children = document.createElement('div');
@@ -554,10 +553,11 @@ async function loadCodeFiles() {
           const item = document.createElement('div');
           item.className = 'tree-file';
           item.style.paddingLeft = (depth * 12 + 18) + 'px';
-          // File icon based on extension
+          // File icon — colored SVG by type
           const ext = file.name.split('.').pop();
-          const icons = { tsx: '⚛', ts: '🔷', js: '🟡', jsx: '⚛', json: '{}', css: '🎨', scss: '🎨', md: '📝' };
-          item.innerHTML = '<span class="tree-ficon">' + (icons[ext] || '📄') + '</span> ' + file.name;
+          const colors = { tsx: '#61dafb', ts: '#3178c6', js: '#f7df1e', jsx: '#61dafb', json: '#cb8742', css: '#563d7c', scss: '#c6538c', md: '#519aba', html: '#e44d26' };
+          const color = colors[ext] || 'var(--text-muted)';
+          item.innerHTML = `<svg class="tree-svg" viewBox="0 0 16 16" fill="${color}"><rect x="3" y="1" width="10" height="14" rx="1.5"/></svg> ${file.name}`;
           item.dataset.path = file.path;
           item.title = file.path;
           item.onclick = () => {
@@ -574,7 +574,7 @@ async function loadCodeFiles() {
 
       const repoHeader = document.createElement('div');
       repoHeader.className = 'tree-repo-header';
-      repoHeader.innerHTML = '<span class="tree-arrow">▾</span> 📦 ' + repoName;
+      repoHeader.innerHTML = `<span class="tree-arrow">▾</span><svg class="tree-svg" viewBox="0 0 16 16" fill="var(--accent)"><path d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5v-9z"/></svg> ${repoName}`;
       repoHeader.onclick = () => {
         const isOpen = repoGroup.classList.toggle('collapsed');
         repoHeader.querySelector('.tree-arrow').textContent = isOpen ? '▸' : '▾';
@@ -598,16 +598,89 @@ async function loadCodeFiles() {
 
 
 /* ═══ Console ═══ */
+const CONSOLE_MAX_ENTRIES = 500;
+let consoleFilter = 'all'; // 'all' | 'error' | 'warn' | 'info'
+let consoleUnread = 0;
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function addConsoleEntry(level, message) {
   const view = $('console-view');
   if (!view) return;
+
+  // Cap entries
+  while (view.children.length >= CONSOLE_MAX_ENTRIES) {
+    view.removeChild(view.firstChild);
+  }
+
   const entry = document.createElement('div');
   entry.className = 'console-entry';
+  entry.dataset.level = level;
   const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  entry.innerHTML = `<span class="ts">${ts}</span><span class="lvl ${level}">${level.toUpperCase()}</span><span class="msg">${message}</span>`;
+  entry.innerHTML = `<span class="ts">${ts}</span><span class="lvl ${level}">${level.toUpperCase()}</span><span class="msg">${escapeHtml(message)}</span>`;
+
+  // Apply current filter
+  if (consoleFilter !== 'all' && level !== consoleFilter) {
+    entry.style.display = 'none';
+  }
+
   view.appendChild(entry);
   view.scrollTop = view.scrollHeight;
+
+  // Update unread badge if console tab is not active
+  const consoleTab = document.querySelector('[data-tab="console"]');
+  if (consoleTab && !consoleTab.classList.contains('active')) {
+    consoleUnread++;
+    updateConsoleBadge();
+  }
 }
+
+function updateConsoleBadge() {
+  let badge = document.getElementById('console-badge');
+  const consoleTab = document.querySelector('[data-tab="console"]');
+  if (!consoleTab) return;
+  if (consoleUnread > 0) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.id = 'console-badge';
+      badge.className = 'console-badge';
+      consoleTab.appendChild(badge);
+    }
+    badge.textContent = consoleUnread > 99 ? '99+' : consoleUnread;
+    badge.style.display = '';
+  } else if (badge) {
+    badge.style.display = 'none';
+  }
+}
+
+function setConsoleFilter(filter) {
+  consoleFilter = filter;
+  // Update active filter button
+  document.querySelectorAll('.console-filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === filter);
+  });
+  // Show/hide entries
+  const view = $('console-view');
+  if (!view) return;
+  for (const entry of view.children) {
+    if (filter === 'all' || entry.dataset.level === filter) {
+      entry.style.display = '';
+    } else {
+      entry.style.display = 'none';
+    }
+  }
+}
+
+// Clear unread when switching to console tab
+document.addEventListener('click', (e) => {
+  const tab = e.target.closest('[data-tab="console"]');
+  if (tab) {
+    consoleUnread = 0;
+    updateConsoleBadge();
+  }
+});
 
 // Pipe tool activities to console
 const _origShowActivity = showActivity;
@@ -619,17 +692,24 @@ async function pollConsole() {
   try {
     const resp = await fetch('/api/console');
     const data = await resp.json();
-    if (data.entries) {
+    if (data.entries && data.entries.length > 0) {
       data.entries.forEach(e => addConsoleEntry(e.level, e.message));
     }
   } catch {}
 }
 setInterval(pollConsole, 5000);
 
-// Add initial console message
-setTimeout(() => {
-  addConsoleEntry('info', 'vibe-ui connected');
-  addConsoleEntry('info', 'Services: Frontend :3000, Gateway :1337, Core :2339');
+// Add initial console message — dynamically fetch service status
+setTimeout(async () => {
+  addConsoleEntry('info', 'vibe-ui console connected');
+  try {
+    const resp = await fetch('/api/service-health');
+    const data = await resp.json();
+    if (data.services) {
+      const summary = data.services.map(s => `${s.name} :${s.port} ${s.status === 'healthy' ? '✓' : '✗'}`).join(', ');
+      addConsoleEntry('info', `Services: ${summary}`);
+    }
+  } catch {}
 }, 1000);
 
 /* ═══ Init ═══ */

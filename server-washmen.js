@@ -41,12 +41,24 @@ const sessionIds = new Map();
 app.get("/api/health", (_req, res) => res.json({ status: "ok", service: "vibe-ui", port: 4000 }));
 
 // Service health check endpoint — checks all 3 services
+// Configurable via SERVICES env: "name:port:healthPath,..." e.g. "frontend:3000:/,api:1337:/health"
+// healthPath is optional (defaults to /health, use / for root-only check)
+const defaultServices = [
+  { name: "frontend", url: "http://localhost:3000", port: 3000 },
+  { name: "api-gateway", url: "http://localhost:1337/health", port: 1337 },
+  { name: "core-service", url: "http://localhost:2339/health", port: 2339 },
+];
+const configuredServices = process.env.SERVICES
+  ? process.env.SERVICES.split(",").map(s => {
+      const [name, port, healthPath] = s.trim().split(":");
+      const p = parseInt(port, 10);
+      const path = healthPath || "/health";
+      return { name: name.trim(), url: `http://localhost:${p}${path}`, port: p };
+    })
+  : defaultServices;
+
 app.get("/api/service-health", async (_req, res) => {
-  const services = [
-    { name: "frontend", url: "http://localhost:3000", port: 3000 },
-    { name: "api-gateway", url: "http://localhost:1337/health", port: 1337 },
-    { name: "core-service", url: "http://localhost:2339/health", port: 2339 },
-  ];
+  const services = configuredServices;
 
   const results = await Promise.all(
     services.map(async (svc) => {
@@ -184,6 +196,13 @@ app.get("/api/files", (_req, res) => {
 // Track last read position per log file to only return new lines
 const logPositions = {};
 
+// Configurable via LOG_SOURCES env: "name:file,name:file,..." e.g. "frontend:fe.log,api:api.log"
+// Defaults to the standard Washmen service set
+const defaultLogSources = [["frontend", "fe.log"], ["gateway", "gw.log"], ["core", "core.log"], ["vibe-ui", "vibe.log"]];
+const logSources = process.env.LOG_SOURCES
+  ? process.env.LOG_SOURCES.split(",").map(s => { const [n, f] = s.split(":"); return [n.trim(), f.trim()]; })
+  : defaultLogSources;
+
 // Browser console buffer — populated by a background Playwright listener
 const browserConsoleBuffer = [];
 let browserConsoleStarted = false;
@@ -242,7 +261,7 @@ app.get("/api/console", (req, res) => {
   const entries = [];
   const reset = req.query.reset === "true";
 
-  for (const [name, logFile] of [["frontend", "fe.log"], ["gateway", "gw.log"], ["core", "core.log"], ["vibe-ui", "vibe.log"]]) {
+  for (const [name, logFile] of logSources) {
     try {
       const path = `/tmp/${logFile}`;
       const log = readFileSync(path, "utf8");
@@ -255,25 +274,33 @@ app.get("/api/console", (req, res) => {
 
       for (const line of newLines) {
         const trimmed = line.trim();
-        if (!trimmed || trimmed.length < 5) continue;
+        if (!trimmed || trimmed.length < 3) continue;
 
-        // Skip Sails boilerplate — ASCII art, decoration, help text
-        if (trimmed.match(/^[\s\-=~_.·•|\\/<>,'`^]+$/) || trimmed.match(/^\s*(info|debug|error):\s*$/)) continue;
-        if (trimmed.match(/Sails\s|__---___|\.-.\.-.|-'.-==|`--'---/) ) continue;
-        if (trimmed.includes("sailsjs.com") || trimmed.includes("CTRL") || trimmed.includes("Troubleshooting")) continue;
-        if (trimmed.includes("Hold tight") || trimmed.includes("Auto-migrat") || trimmed.includes("session secret")) continue;
-        if (trimmed.match(/^\s*(v1\.\d|\/\|\\|,'|`--|Environment|Port\s|Local\s)/)) continue;
+        // Skip universal noise — pure decoration lines (dashes, equals, dots, ASCII art)
+        if (trimmed.match(/^[\s\-=~_.·•|\\/<>,'`^]+$/)) continue;
+        // Skip bare log-level labels with no content (e.g. "info:" or "debug:" alone)
+        if (trimmed.match(/^\s*(info|debug|verbose|silly|trace|error|warn):\s*$/i)) continue;
 
         const lower = trimmed.toLowerCase();
 
-        // Meaningful messages only
-        if (lower.includes("eaddrinuse") || lower.includes("enoent") || lower.includes("uncaught") || lower.includes("throw ") || lower.includes("fatal") || lower.includes("crash")) {
-          entries.push({ level: "error", message: `[${name}] ${trimmed}` });
-        } else if (lower.includes("deprecat") || lower.includes("warning:")) {
-          entries.push({ level: "warn", message: `[${name}] ${trimmed}` });
-        } else if (lower.includes("server lifted") || lower.includes("running on") || lower.includes("listening") || lower.includes("hook") || lower.includes("seed data") || lower.includes("migration complete")) {
-          entries.push({ level: "info", message: `[${name}] ${trimmed}` });
+        // Classify severity — broad pattern matching
+        let level = "info";
+        if (lower.includes("error") || lower.includes("err:") || lower.includes("eaddrinuse") || lower.includes("enoent") ||
+            lower.includes("eacces") || lower.includes("econnrefused") || lower.includes("uncaught") || lower.includes("unhandled") ||
+            lower.includes("throw ") || lower.includes("fatal") || lower.includes("crash") || lower.includes("failed") ||
+            lower.includes("typeerror") || lower.includes("referenceerror") || lower.includes("syntaxerror") || lower.includes("rangeerror") ||
+            lower.includes("cannot read prop") || lower.includes("is not defined") || lower.includes("is not a function") ||
+            lower.includes("module not found") || lower.includes("command failed") || lower.includes("exit code") ||
+            (lower.includes("missing") && (lower.includes("env") || lower.includes("variable") || lower.includes("module") || lower.includes("package"))) ||
+            (lower.includes("undefined") && (lower.includes("env") || lower.includes("variable") || lower.includes("config"))) ||
+            lower.match(/^\s*at\s+/) || lower.startsWith("error")) {
+          level = "error";
+        } else if (lower.includes("warn") || lower.includes("deprecat") || lower.includes("experimental") ||
+                   lower.includes("not recommended") || lower.includes("will be removed")) {
+          level = "warn";
         }
+
+        entries.push({ level, message: `[${name}] ${trimmed}` });
       }
     } catch {}
   }
