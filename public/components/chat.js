@@ -9,10 +9,14 @@ export function initChat(el) {
   chatEl = el;
 }
 
+function timeLabel() {
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 export function addUserMsg(text) {
   const div = document.createElement('div');
   div.className = 'msg msg-user';
-  div.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+  div.innerHTML = `<div class="bubble">${escapeHtml(text)}</div><span class="msg-time">${timeLabel()}</span>`;
   chatEl.appendChild(div);
   scrollBottom();
 }
@@ -37,7 +41,7 @@ export function addAgentMsg(text, streaming) {
   } else if (!streaming) {
     // Finalize
     if (text && !currentAgentBubble) {
-      // Single complete message
+      // Single complete message (e.g. loaded from history)
       const div = document.createElement('div');
       div.className = 'msg msg-agent';
       const bubble = document.createElement('div');
@@ -46,7 +50,18 @@ export function addAgentMsg(text, streaming) {
       addCopyButtons(bubble);
       bubble.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
       div.appendChild(bubble);
+      // Collapse long messages from history
+      maybeCollapse(bubble);
       chatEl.appendChild(div);
+    }
+    if (currentAgentBubble) {
+      // Collapse long streamed messages after finalization
+      maybeCollapse(currentAgentBubble);
+      // Add timestamp to the parent msg div
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'msg-time';
+      timeSpan.textContent = timeLabel();
+      currentAgentBubble.parentElement.appendChild(timeSpan);
     }
     currentAgentBubble = null;
     currentAgentText = '';
@@ -55,11 +70,29 @@ export function addAgentMsg(text, streaming) {
   }
 }
 
-export function showTurnCost(cost) {
+// Collapse long agent responses — show first ~4 lines with "Show more"
+function maybeCollapse(bubble) {
+  const COLLAPSE_THRESHOLD = 300; // chars
+  const text = bubble.textContent || '';
+  if (text.length < COLLAPSE_THRESHOLD) return;
+
+  bubble.classList.add('collapsed');
+  const toggle = document.createElement('button');
+  toggle.className = 'collapse-toggle';
+  toggle.textContent = 'Show more';
+  toggle.onclick = () => {
+    const isCollapsed = bubble.classList.toggle('collapsed');
+    toggle.textContent = isCollapsed ? 'Show more' : 'Show less';
+  };
+  bubble.parentElement.appendChild(toggle);
+}
+
+export function showTurnCost(cost, model) {
   if (!cost || cost <= 0) return;
+  const modelLabel = model ? ` \u00b7 ${model}` : '';
   const div = document.createElement('div');
   div.className = 'turn-cost';
-  div.textContent = `$${cost.toFixed(4)}`;
+  div.textContent = `$${cost.toFixed(4)}${modelLabel}`;
   div.title = `This turn cost $${cost.toFixed(4)}`;
   chatEl.appendChild(div);
   scrollBottom();
@@ -135,8 +168,6 @@ export function showActivity(tool, input) {
 }
 
 export function hideActivity() {
-  // Don't remove — keep the log visible during the turn
-  // Just remove the spinner
   if (activityEl) {
     const spinner = activityEl.querySelector('.activity-spinner');
     if (spinner) spinner.style.display = 'none';
@@ -145,7 +176,6 @@ export function hideActivity() {
 
 export function showDiffSummary(files) {
   if (!files || files.length === 0) return;
-  // Hide spinner before resetting activity element
   hideActivity();
   const div = document.createElement('div');
   div.className = 'diff-summary';
@@ -158,7 +188,7 @@ export function showDiffSummary(files) {
   `;
   div.querySelector('.diff-header').onclick = () => div.classList.toggle('expanded');
   chatEl.appendChild(div);
-  activityEl = null; // Reset for next turn
+  activityEl = null;
   scrollBottom();
 }
 
@@ -169,7 +199,6 @@ export function clearChat() {
   activityLog = [];
 }
 
-// Inline screenshot
 export function addScreenshot(base64, caption) {
   const div = document.createElement('div');
   div.className = 'msg-screenshot';
@@ -181,25 +210,20 @@ export function addScreenshot(base64, caption) {
   scrollBottom();
 }
 
-// Follow-up question detection and rendering
 export function detectAndRenderQuestion(text, onAnswer) {
-  // Detect question patterns
   const lines = text.split('\n');
   const questionLine = lines.find(l => l.trim().endsWith('?'));
   if (!questionLine) return false;
 
-  // Check for numbered options (1. option, 2. option)
   const options = [];
   const optionRegex = /^\s*(\d+)[.)]\s+(.+)/;
   const yesNoRegex = /\b(yes|no)\b.*\bor\b.*\b(yes|no)\b/i;
-  const choiceRegex = /\b(option [A-D]|choice \d|alternative \d)\b/i;
 
   for (const line of lines) {
     const match = line.match(optionRegex);
     if (match) options.push(match[2].trim());
   }
 
-  // Yes/No question
   const isYesNo = yesNoRegex.test(text) || text.match(/\?\s*$/) && options.length === 0 && text.match(/\bshould\b|\bwould you\b|\bdo you\b|\bwant\b/i);
 
   if (options.length === 0 && !isYesNo) return false;
@@ -257,7 +281,7 @@ function addCopyButtons(container) {
     btn.textContent = 'Copy';
     btn.onclick = () => {
       const text = pre.textContent.replace(/Copy(ed!)?/, '').trim();
-      try { navigator.clipboard.writeText(text); } catch { /* fallback */ const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
+      try { navigator.clipboard.writeText(text); } catch { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
       btn.textContent = 'Copied!';
       btn.classList.add('copied');
       setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);

@@ -255,7 +255,7 @@ function handleMessage(msg) {
       hideThinking();
       hideActivity(); // Clear any stuck spinners from the turn
       addAgentMsg(null, false); // finalize
-      showTurnCost(msg.cost);
+      showTurnCost(msg.cost, model);
       streaming = false;
       sendBtn.disabled = false;
       sendBtn.style.display = 'flex';
