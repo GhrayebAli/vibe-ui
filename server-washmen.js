@@ -767,6 +767,18 @@ app.post("/api/restart-service", (req, res) => {
   }
 });
 
+// Stop service by killing process on port
+app.post("/api/stop-service", (req, res) => {
+  try {
+    const port = req.body.port;
+    if (!port) return res.status(400).json({ error: "Missing port" });
+    try { execSync(`kill $(lsof -ti:${port}) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // WebSocket handling
 wss.on("connection", (ws) => {
   handleWashmenWs(ws, sessionIds);

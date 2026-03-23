@@ -10,7 +10,7 @@ export async function checkHealth() {
     const resp = await fetch('/api/service-health');
     const data = await resp.json();
 
-    // Update header dots dynamically — first service gets h-fe, rest get h-gw, h-core, h-svc3, etc.
+    // Update header dots dynamically
     const dotIds = ['h-fe', 'h-gw', 'h-core', 'h-svc3', 'h-svc4', 'h-svc5'];
     data.services.forEach((svc, i) => {
       healthState[svc.name] = svc.status;
@@ -18,7 +18,6 @@ export async function checkHealth() {
       if (dot) dot.className = 'h-dot ' + (svc.status === 'healthy' ? 'ok' : 'err');
     });
 
-    // Update overlay if open
     if (listEl) renderStatus(data.services);
   } catch {}
 }
@@ -37,7 +36,10 @@ function renderStatus(svcs) {
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span class="status-svc-badge ${healthy ? 'running' : 'down'}">${healthy ? 'Running' : 'Down'}</span>
-        ${!healthy ? '<button class="status-restart" data-svc="' + svc.name + '">Restart</button>' : ''}
+        ${healthy
+          ? '<button class="status-stop" data-svc="' + svc.name + '" data-port="' + svc.port + '">Stop</button>'
+          : '<button class="status-restart" data-svc="' + svc.name + '">Restart</button>'
+        }
       </div>
     `;
     const restartBtn = div.querySelector('.status-restart');
@@ -51,6 +53,19 @@ function renderStatus(svcs) {
         restartBtn.textContent = 'Restarting...';
         restartBtn.disabled = true;
         setTimeout(() => checkHealth(), 5000);
+      };
+    }
+    const stopBtn = div.querySelector('.status-stop');
+    if (stopBtn) {
+      stopBtn.onclick = () => {
+        fetch('/api/stop-service', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ port: svc.port }),
+        });
+        stopBtn.textContent = 'Stopping...';
+        stopBtn.disabled = true;
+        setTimeout(() => checkHealth(), 2000);
       };
     }
     listEl.appendChild(div);

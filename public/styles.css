@@ -372,7 +372,8 @@ pre:hover .code-copy { opacity: 1; }
 .status-svc-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
 .status-svc-badge.running { background: var(--green-soft); color: var(--green); }
 .status-svc-badge.down { background: var(--red-soft); color: var(--red); }
-.status-restart { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim); font-size: 11px; padding: 4px 10px; cursor: pointer; }
+.status-restart, .status-stop { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim); font-size: 11px; padding: 4px 10px; cursor: pointer; }
+.status-stop:hover { color: #ef4444; border-color: #ef4444; }
 
 /* Notes overlay */
 .notes-area { padding: 14px; }
