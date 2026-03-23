@@ -32,10 +32,11 @@
           <button class="mode-btn" data-mode="plan">Plan</button>
           <button class="mode-btn active" data-mode="build">Build</button>
         </div>
-        <select class="model-select" id="model-select">
-          <option value="sonnet">Sonnet</option>
-          <option value="opus">Opus</option>
-        </select>
+        <div class="model-picker" id="model-picker">
+          <button class="model-chip active" data-model="haiku" title="Fast &amp; cheap — quick edits, bug fixes">Haiku</button>
+          <button class="model-chip" data-model="sonnet" title="Balanced — features, refactoring">Sonnet</button>
+          <button class="model-chip" data-model="opus" title="Most capable — complex architecture, multi-file changes">Opus</button>
+        </div>
       </div>
     </div>
 

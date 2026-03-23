@@ -225,7 +225,8 @@ export function handleWashmenWs(ws, sessionIds) {
       }
     } else if (msg.type === "set_model") {
       if (currentQuery) {
-        currentQuery.setModel(msg.model === "opus" ? "claude-opus-4-6" : "claude-sonnet-4-6");
+        const modelMap = { opus: "claude-opus-4-6", sonnet: "claude-sonnet-4-6", haiku: "claude-haiku-4-5-20251001" };
+        currentQuery.setModel(modelMap[msg.model] || "claude-haiku-4-5-20251001");
         ws.send(JSON.stringify({ type: "model_changed", model: msg.model }));
       }
     }
@@ -234,7 +235,8 @@ export function handleWashmenWs(ws, sessionIds) {
   async function handleChat(msg, ws, sessionIds) {
     let text = msg.text || msg.prompt || "";
     const sessionId = msg.sessionId || currentSessionId || crypto.randomUUID();
-    const model = msg.model === "opus" ? "claude-opus-4-6" : "claude-sonnet-4-6";
+    const modelMap = { opus: "claude-opus-4-6", sonnet: "claude-sonnet-4-6", haiku: "claude-haiku-4-5-20251001" };
+    const model = modelMap[msg.model] || "claude-haiku-4-5-20251001";
     const mode = msg.mode || "build";
     currentSessionId = sessionId;
 

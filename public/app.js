@@ -12,7 +12,7 @@ const welcome = $('welcome'), starters = $('starters');
 const queue = $('queue');
 
 /* ═══ State ═══ */
-let ws, sid = null, streaming = false, model = 'sonnet', mode = 'build';
+let ws, sid = null, streaming = false, model = 'haiku', mode = 'build';
 let hasSent = false;
 let promptQueue = [];
 let currentBranch = 'main';
@@ -42,7 +42,7 @@ async function showLanding() {
   $('notes-btn').style.display = 'none';
   // Hide mode toggle and model select on landing (not relevant yet)
   $('mode-toggle').style.display = 'none';
-  $('model-select').style.display = 'none';
+  $('model-picker').style.display = 'none';
 
   try {
     const resp = await fetch('/api/workspace');
@@ -88,7 +88,7 @@ function hideLanding() {
   $('home-btn').style.display = '';
   // Restore mode toggle and model select
   $('mode-toggle').style.display = '';
-  $('model-select').style.display = '';
+  $('model-picker').style.display = '';
   // Notes button shown dynamically when branch has changes
 }
 
@@ -402,13 +402,17 @@ $('mode-toggle').onclick = e => {
     : 'Describe what you want to build...';
 };
 
-/* ═══ Model Select ═══ */
-$('model-select').onchange = e => {
-  model = e.target.value;
-  if (ws?.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'set_model', model }));
-  }
-};
+/* ═══ Model Picker ═══ */
+document.querySelectorAll('.model-chip').forEach(chip => {
+  chip.onclick = () => {
+    document.querySelectorAll('.model-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    model = chip.dataset.model;
+    if (ws?.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'set_model', model }));
+    }
+  };
+});
 
 /* ═══ Resize Handle ═══ */
 {
