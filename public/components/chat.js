@@ -135,6 +135,8 @@ export function hideActivity() {
 
 export function showDiffSummary(files) {
   if (!files || files.length === 0) return;
+  // Hide spinner before resetting activity element
+  hideActivity();
   const div = document.createElement('div');
   div.className = 'diff-summary';
   let filesHtml = files.map(f =>
