@@ -143,6 +143,7 @@ function createMvpBranches(featureName) {
 export function handleWashmenWs(ws, sessionIds) {
   let currentSessionId = null;
   let currentQuery = null;
+  let hasResumedSession = false; // Only resume once per session, not every turn
 
   ws.on("message", async (raw) => {
     let msg;
@@ -238,6 +239,8 @@ export function handleWashmenWs(ws, sessionIds) {
     const modelMap = { opus: "claude-opus-4-6", sonnet: "claude-sonnet-4-6", haiku: "claude-haiku-4-5-20251001" };
     const model = modelMap[msg.model] || "claude-haiku-4-5-20251001";
     const mode = msg.mode || "build";
+    // Reset resume flag if session changed (user switched branches)
+    if (sessionId !== currentSessionId) hasResumedSession = false;
     currentSessionId = sessionId;
 
     // Plan mode — instruct agent to only plan, not execute
@@ -261,14 +264,16 @@ export function handleWashmenWs(ws, sessionIds) {
       return;
     }
 
-    // Session resumption — always look up stored Claude session ID for existing sessions
+    // Session resumption — only on first turn of a resumed session, not every turn
+    // Subsequent turns are part of the same query() session and don't need replay
     let claudeSessionIdToResume = null;
-    if (getSession(sessionId)) {
+    if (!hasResumedSession && getSession(sessionId)) {
       try {
         const stored = getClaudeSessionId(sessionId, "");
         if (stored) {
           claudeSessionIdToResume = stored;
-          console.log(`[context] Resuming Claude session: ${stored}`);
+          hasResumedSession = true;
+          console.log(`[context] Resuming Claude session: ${stored} (first turn only)`);
         } else {
           console.log("[context] No Claude session ID stored — starting fresh");
         }
