@@ -4,12 +4,33 @@ let notesArea = null;
 let spinnerEl = null;
 let genBtnEl = null;
 let currentNoteBranch = null;
+let saveTimer = null;
+
+function autoSave() {
+  if (!editorEl || !currentNoteBranch) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      await fetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branch: currentNoteBranch, content: editorEl.value }),
+      });
+    } catch {}
+  }, 800);
+}
 
 export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
   editorEl = editor;
   getWs = wsGetter;
   genBtnEl = genBtn;
   notesArea = editor.closest('.notes-area');
+
+  // Hide save button — auto-save on edit
+  if (saveBtn) saveBtn.style.display = 'none';
+
+  // Auto-save on every keystroke (debounced)
+  editor.oninput = autoSave;
 
   // Create spinner element (hidden by default)
   spinnerEl = document.createElement('div');
@@ -22,31 +43,9 @@ export function initNotes(editor, genBtn, saveBtn, copyBtn, wsGetter) {
     genBtn.textContent = 'Generating...';
     showSpinner(true);
 
-    // Send generate command via WebSocket — response comes back as notes_generated
     const ws = typeof getWs === 'function' ? getWs() : getWs;
     if (ws?.readyState === 1) {
       ws.send(JSON.stringify({ type: 'generate_mvp_notes', branch: currentNoteBranch }));
-    }
-  };
-
-  saveBtn.onclick = async () => {
-    try {
-      const resp = await fetch('/api/notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ branch: currentNoteBranch, content: editorEl.value }),
-      });
-      if (resp.ok) {
-        saveBtn.textContent = 'Saved!';
-        saveBtn.style.background = 'var(--green)';
-      } else {
-        saveBtn.textContent = 'Error';
-        saveBtn.style.background = 'var(--red)';
-      }
-      setTimeout(() => { saveBtn.textContent = 'Save'; saveBtn.style.background = ''; }, 2000);
-    } catch {
-      saveBtn.textContent = 'Error';
-      setTimeout(() => { saveBtn.textContent = 'Save'; }, 2000);
     }
   };
 
@@ -65,9 +64,11 @@ export function onNotesGenerated(content) {
     genBtnEl.textContent = 'Regenerate';
   }
   showSpinner(false);
+  // Auto-save the generated notes
+  autoSave();
 }
 
-// Call this when the notes overlay opens — pass current branch
+// Call this when the notes overlay opens
 export function onNotesOpen(branch) {
   currentNoteBranch = branch || null;
   loadNotes(branch);
