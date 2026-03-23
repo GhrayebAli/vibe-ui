@@ -20,7 +20,7 @@ const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 // Serve new Lovable-style UI as default
 app.get("/", (_req, res) => res.sendFile(join(__dirname, "public", "index-v2.html")));

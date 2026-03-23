@@ -110,8 +110,9 @@ input, textarea { font-family: var(--font); }
 .attach-preview { max-width: 200px; max-height: 120px; border-radius: 8px; margin-bottom: 6px; }
 .msg-attachments { display: flex; gap: 6px; justify-content: flex-end; margin-bottom: 4px; }
 .drag-over { outline: 2px dashed var(--accent); outline-offset: -2px; border-radius: var(--radius-lg); }
-.attach-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; display: flex; align-items: center; flex-shrink: 0; }
+.attach-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 42px; }
 .attach-btn:hover { color: var(--accent); }
+.attach-btn svg { width: 16px; height: 16px; }
 .msg-error { border: 1px solid var(--red); border-radius: var(--radius-lg); padding: 12px; background: var(--red-soft); margin-bottom: 12px; }
 .msg-error .err-text { color: var(--red); font-size: 13px; margin-bottom: 8px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; }
 .msg-error .fix-btn { background: var(--red); color: #fff; border: none; border-radius: var(--radius-pill); padding: 5px 14px; font-size: 12px; font-weight: 500; }
