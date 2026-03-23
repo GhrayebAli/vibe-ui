@@ -26,6 +26,9 @@ import {
   addCost,
   getTotalCost,
   updateSessionTitle,
+  updateClaudeSessionId,
+  getClaudeSessionId,
+  setClaudeSession,
   saveNotes,
 } from "../db.js";
 
@@ -252,21 +255,17 @@ export function handleWashmenWs(ws, sessionIds) {
       return;
     }
 
-    // Lazy context rebuild — on first prompt of resumed session
-    let contextPrefix = "";
+    // Session resumption — look up stored Claude session ID
+    let claudeSessionIdToResume = null;
     if (isFirstMessage && getSession(sessionId)) {
       try {
-        const workspaceDir = getWorkspaceDir();
-        const gitLogs = [];
-        for (const repo of getRepoNames()) {
-          try {
-            const log = execSync(`git -C "${workspaceDir}/${repo}" log --oneline -5 2>/dev/null`, { stdio: "pipe" }).toString().trim();
-            if (log) gitLogs.push(`${repo}:\n${log}`);
-          } catch {}
-        }
-        if (gitLogs.length > 0) {
-          contextPrefix = `[Context from previous session — recent git history across repos:\n${gitLogs.join("\n\n")}\n\nContinue from where we left off.]\n\n`;
-          console.log("[context] Prepended git history context for resumed session");
+        // Check if we have a Claude SDK session ID stored for this session
+        const stored = getClaudeSessionId(sessionId, "");
+        if (stored) {
+          claudeSessionIdToResume = stored;
+          console.log(`[context] Resuming Claude session: ${stored}`);
+        } else {
+          console.log("[context] No Claude session ID stored — starting fresh with git context");
         }
       } catch (e) {
         console.error("[context]", e.message);
@@ -292,15 +291,13 @@ export function handleWashmenWs(ws, sessionIds) {
     const additionalDirs = getAdditionalDirs();
 
     try {
-      const q = query({
-        prompt: contextPrefix + text,
-        options: {
-          model,
-          tools: { type: "preset", preset: "claude_code" },
-          cwd: workspaceDir,
-          additionalDirectories: additionalDirs,
-          settingSources: ["project"],
-          allowedTools: (mode === "plan" || mode === "discover")
+      const queryOptions = {
+        model,
+        tools: { type: "preset", preset: "claude_code" },
+        cwd: workspaceDir,
+        additionalDirectories: additionalDirs,
+        settingSources: ["project"],
+        allowedTools: (mode === "plan" || mode === "discover")
             ? ["Read", "Glob", "Grep"]  // Plan/Discover mode: read-only tools
             : ["Read", "Edit", "Write", "Bash", "Glob", "Grep", "WebFetch", "Agent"],
           hooks: {
@@ -323,7 +320,17 @@ export function handleWashmenWs(ws, sessionIds) {
               },
             }],
           },
-        },
+      };
+
+      // Resume previous Claude session if available
+      if (claudeSessionIdToResume) {
+        queryOptions.resume = claudeSessionIdToResume;
+        console.log(`[agent] Resuming session ${claudeSessionIdToResume}`);
+      }
+
+      const q = query({
+        prompt: text,
+        options: queryOptions,
       });
 
       currentQuery = q;
@@ -348,6 +355,17 @@ export function handleWashmenWs(ws, sessionIds) {
         // Log non-assistant events for debugging
         if (etype !== "assistant") {
           console.log(`[agent] event type=${etype} sub=${esub} keys=${Object.keys(event).join(",")}`);
+        }
+
+        // Capture Claude session ID from init event and store it
+        if (etype === "system" && esub === "init" && event.session_id) {
+          try {
+            updateClaudeSessionId(sessionId, event.session_id);
+            setClaudeSession(sessionId, "", event.session_id);
+            console.log(`[session] Stored Claude session ID: ${event.session_id} for session ${sessionId}`);
+          } catch (e) {
+            console.error("[session] Failed to store Claude session ID:", e.message);
+          }
         }
 
         // Tool use events — detect from assistant message content blocks
