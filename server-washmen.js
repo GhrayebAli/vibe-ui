@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync, readdirSync, existsSync } from "fs";
 import { execSync } from "child_process";
 dotenv.config();
 
@@ -125,38 +125,58 @@ app.get("/api/file", (req, res) => {
   }
 });
 
-// Project files API — list key files across repos
+// Project files API — dynamically discover files from workspace repos
 app.get("/api/files", (_req, res) => {
   const workspaceDir = process.env.WORKSPACE_DIR || "/workspaces/washmen-ops-workspace";
   const files = [];
-  const repos = [
-    { name: "ops-frontend", icon: "FE", key: [
-      "src/app/App.tsx", "src/app/authSlice.ts",
-      "src/api/api.ts", "src/cognitoConfig.ts",
-      "src/auth/authCallback.tsx", "src/auth/authUtils.ts",
-      "src/features/customers/customer.module.tsx",
-      "src/features/customers/customerList/customerListPage.tsx",
-      "src/features/orders/predispatchDropoffs/predispatchDropoffsMain.tsx",
-      "src/features/dashboard/drivers/components/dashboardHeader.tsx",
-      "src/features/settings/settings.module.tsx",
-    ]},
-    { name: "api-gateway", icon: "GW", key: [
-      "config/routes.js", "config/policies.js", "config/bootstrap.js", "config/custom.js",
-      "api/controllers/auth/callback.js", "api/controllers/auth/logout.js",
-      "api/controllers/customer/deactivate.js",
-      "api/controllers/order/get.js", "api/controllers/order/list.js",
-      "api/policies/isAuthenticated.js", "api/dtos/index.js",
-    ]},
-  ];
-  for (const repo of repos) {
-    for (const f of repo.key) {
+  const ignore = ["node_modules", ".git", ".yarn", "dist", "build", ".cache", ".tmp", "coverage", "vibe-ui"];
+  const extensions = [".js", ".ts", ".tsx", ".jsx", ".json", ".css", ".scss", ".md"];
+  const maxDepth = 4;
+  const maxFilesPerRepo = 50;
+
+  // Find all repo directories (top-level dirs that have a package.json or .git)
+  try {
+    const entries = readdirSync(workspaceDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || ignore.includes(entry.name) || entry.name.startsWith(".")) continue;
+      const repoPath = join(workspaceDir, entry.name);
+      // Check if it's a project (has package.json or .git)
       try {
-        const full = join(workspaceDir, repo.name, f);
-        readFileSync(full); // just check existence
-        files.push({ path: `${repo.name}/${f}`, repo: repo.name, icon: repo.icon, name: f });
-      } catch {}
+        const hasPackageJson = existsSync(join(repoPath, "package.json"));
+        const hasGit = existsSync(join(repoPath, ".git"));
+        if (!hasPackageJson && !hasGit) continue;
+      } catch { continue; }
+
+      // Walk the repo to find source files
+      const repoFiles = [];
+      function walk(dir, depth) {
+        if (depth > maxDepth || repoFiles.length >= maxFilesPerRepo) return;
+        try {
+          const items = readdirSync(dir, { withFileTypes: true });
+          for (const item of items) {
+            if (ignore.includes(item.name) || item.name.startsWith(".")) continue;
+            const fullPath = join(dir, item.name);
+            if (item.isDirectory()) {
+              walk(fullPath, depth + 1);
+            } else if (extensions.some(ext => item.name.endsWith(ext))) {
+              const relativePath = fullPath.replace(repoPath + "/", "");
+              repoFiles.push({ path: `${entry.name}/${relativePath}`, repo: entry.name, name: relativePath });
+            }
+          }
+        } catch {}
+      }
+      walk(repoPath, 0);
+
+      // Sort: config files first, then src files
+      repoFiles.sort((a, b) => {
+        const aIsConfig = a.name.startsWith("config/") || a.name.includes("package.json") ? 0 : 1;
+        const bIsConfig = b.name.startsWith("config/") || b.name.includes("package.json") ? 0 : 1;
+        return aIsConfig - bIsConfig || a.name.localeCompare(b.name);
+      });
+
+      files.push(...repoFiles);
     }
-  }
+  } catch {}
   res.json({ files });
 });
 
