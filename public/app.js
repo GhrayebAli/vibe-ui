@@ -39,6 +39,7 @@ async function showLanding() {
   chat.style.display = 'none';
   inputDock.style.display = 'none';
   homeBtn.style.display = 'none';
+  $('notes-btn').style.display = 'none';
   // Hide mode toggle and model select on landing (not relevant yet)
   $('mode-toggle').style.display = 'none';
   $('model-select').style.display = 'none';
