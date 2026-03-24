@@ -138,6 +138,7 @@ pre:hover .code-copy { opacity: 1; }
 .activity-current:hover { background: var(--surface2); }
 .activity-spinner { width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse-highlight { 0%, 100% { background: transparent; } 50% { background: var(--accent-soft); color: var(--accent); } }
 .activity-chevron { margin-left: auto; font-size: 10px; transition: transform var(--transition); }
 .activity-feed.expanded .activity-chevron { transform: rotate(180deg); }
 .activity-log { display: none; max-height: 200px; overflow-y: auto; border-top: 1px solid var(--border); }

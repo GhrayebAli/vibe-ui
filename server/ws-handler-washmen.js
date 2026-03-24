@@ -31,6 +31,17 @@ import {
 } from "../db.js";
 
 const DAILY_BUDGET = 20; // $20/day
+const PER_QUERY_BUDGET = 2; // $2 per query — prevents runaway turns
+
+const DEFAULT_MODEL = "claude-sonnet-4-6";
+const MODEL_MAP = { opus: "claude-opus-4-6", sonnet: "claude-sonnet-4-6", haiku: "claude-haiku-4-5-20251001" };
+
+// System prompts for each mode — enforced via SDK systemPrompt, not text injection
+const PLAN_SYSTEM_PROMPT = `You are in PLAN MODE. You must NOT edit any files, run any commands, or make any code changes. You must NOT use Edit, Write, or Bash tools. Only use Read, Glob, and Grep to understand the codebase. Answer questions and create plans — never execute them.`;
+
+const PLAN_FIRST_TURN_APPEND = `\n\nRespond with a structured plan:\n1. What needs to change across each layer (frontend, API gateway, core service)\n2. Which specific files will be modified\n3. What the changes will look like\n4. Any risks or considerations`;
+
+const DISCOVER_SYSTEM_PROMPT = `You are in DISCOVERY MODE, exploring the codebase on the main branch. You must NOT edit any files or run commands that modify files. Only use Read, Glob, and Grep to explore and explain the codebase. Answer questions about architecture, patterns, and implementation details.`;
 
 // PreToolUse guardrail patterns
 const BLOCKED_BASH_PATTERNS = [
@@ -226,8 +237,7 @@ export function handleWashmenWs(ws, sessionIds) {
       }
     } else if (msg.type === "set_model") {
       if (currentQuery) {
-        const modelMap = { opus: "claude-opus-4-6", sonnet: "claude-sonnet-4-6", haiku: "claude-haiku-4-5-20251001" };
-        currentQuery.setModel(modelMap[msg.model] || "claude-haiku-4-5-20251001");
+        currentQuery.setModel(MODEL_MAP[msg.model] || DEFAULT_MODEL);
         ws.send(JSON.stringify({ type: "model_changed", model: msg.model }));
       }
     }
@@ -236,21 +246,27 @@ export function handleWashmenWs(ws, sessionIds) {
   async function handleChat(msg, ws, sessionIds) {
     let text = msg.text || msg.prompt || "";
     const sessionId = msg.sessionId || currentSessionId || crypto.randomUUID();
-    const modelMap = { opus: "claude-opus-4-6", sonnet: "claude-sonnet-4-6", haiku: "claude-haiku-4-5-20251001" };
-    const model = modelMap[msg.model] || "claude-haiku-4-5-20251001";
+    const model = MODEL_MAP[msg.model] || DEFAULT_MODEL;
     const mode = msg.mode || "build";
     // Reset resume flag if session changed (user switched branches)
     if (sessionId !== currentSessionId) hasResumedSession = false;
     currentSessionId = sessionId;
 
-    // Plan mode — instruct agent to only plan, not execute
+    // Build system prompt based on mode
+    let systemPrompt = undefined;
     if (mode === "plan") {
-      text = `PLAN MODE — Do NOT edit any files, do NOT run any commands, do NOT make any code changes. Only analyze and create a plan.\n\n${text}\n\nRespond with a structured plan:\n1. What needs to change across each layer (frontend, API gateway, core service)\n2. Which specific files will be modified\n3. What the changes will look like\n4. Any risks or considerations\n\nDo NOT write any code. Do NOT use Edit, Write, or Bash tools. Only use Read and Glob to understand the codebase, then respond with the plan.`;
-    }
-
-    // Discover mode — read-only exploration
-    if (mode === "discover") {
-      text = `DISCOVERY MODE — You are exploring the codebase on the main branch. Do NOT edit any files. Do NOT run any commands that modify files. Only use Read, Glob, and Grep to explore and explain the codebase. Answer questions about architecture, patterns, and implementation details.\n\n${text}`;
+      const isFirstTurn = !hasResumedSession && !getSession(sessionId);
+      systemPrompt = {
+        type: "preset",
+        preset: "claude_code",
+        append: isFirstTurn ? PLAN_SYSTEM_PROMPT + PLAN_FIRST_TURN_APPEND : PLAN_SYSTEM_PROMPT,
+      };
+    } else if (mode === "discover") {
+      systemPrompt = {
+        type: "preset",
+        preset: "claude_code",
+        append: DISCOVER_SYSTEM_PROMPT,
+      };
     }
 
     // Check daily budget
@@ -302,30 +318,36 @@ export function handleWashmenWs(ws, sessionIds) {
         cwd: workspaceDir,
         additionalDirectories: additionalDirs,
         settingSources: ["project"],
+        thinking: { type: "adaptive" },
+        maxBudgetUsd: PER_QUERY_BUDGET,
         allowedTools: (mode === "plan" || mode === "discover")
             ? ["Read", "Glob", "Grep"]  // Plan/Discover mode: read-only tools
             : ["Read", "Edit", "Write", "Bash", "Glob", "Grep", "WebFetch", "Agent"],
-          hooks: {
-            PreToolUse: [{
-              matcher: ".*",
-              callback: (toolName, toolInput) => {
-                const check = checkPreToolUse(toolName, toolInput);
-                if (!check.allowed) {
-                  return { behavior: "deny", message: check.reason };
-                }
-                // Log tool activity
-                ws.send(JSON.stringify({ type: "tool_activity", tool: toolName, input: toolInput }));
-                return { behavior: "allow" };
-              },
-            }],
-            PostToolUse: [{
-              matcher: ".*",
-              callback: (toolName, toolResponse) => {
-                ws.send(JSON.stringify({ type: "tool_complete", tool: toolName }));
-              },
-            }],
-          },
+        hooks: {
+          PreToolUse: [{
+            matcher: ".*",
+            callback: (toolName, toolInput) => {
+              const check = checkPreToolUse(toolName, toolInput);
+              if (!check.allowed) {
+                return { behavior: "deny", message: check.reason };
+              }
+              ws.send(JSON.stringify({ type: "tool_activity", tool: toolName, input: toolInput }));
+              return { behavior: "allow" };
+            },
+          }],
+          PostToolUse: [{
+            matcher: ".*",
+            callback: (toolName, toolResponse) => {
+              ws.send(JSON.stringify({ type: "tool_complete", tool: toolName }));
+            },
+          }],
+        },
       };
+
+      // Use systemPrompt for mode constraints (more authoritative than text injection)
+      if (systemPrompt) {
+        queryOptions.systemPrompt = systemPrompt;
+      }
 
       // Resume previous Claude session if available
       if (claudeSessionIdToResume) {
@@ -386,19 +408,11 @@ export function handleWashmenWs(ws, sessionIds) {
               fullText += block.text;
               ws.send(JSON.stringify({ type: "assistant_chunk", text: block.text, sessionId }));
             }
-            // Tool use block — send activity
+            // Tool use block — track file changes (guardrail runs in PreToolUse hook)
             if (block.type === "tool_use") {
               const toolName = block.name || "unknown";
               const toolInput = block.input || {};
               console.log(`[tool] ${toolName}: ${JSON.stringify(toolInput).slice(0, 100)}`);
-
-              // Guardrail check
-              const check = checkPreToolUse(toolName, toolInput);
-              if (!check.allowed) {
-                console.log(`[guardrail] BLOCKED: ${check.reason}`);
-              }
-
-              ws.send(JSON.stringify({ type: "tool_activity", tool: toolName, input: toolInput }));
 
               // Track file changes and reads
               if (toolInput.file_path) {
@@ -526,10 +540,6 @@ export function handleWashmenWs(ws, sessionIds) {
         ws.send(JSON.stringify({ type: "thinking_done", sessionId }));
       }
 
-      if (!gotFirstChunk) {
-        ws.send(JSON.stringify({ type: "thinking_done", sessionId }));
-      }
-
       currentQuery = null;
     } catch (err) {
       console.error("[agent] Error:", err.message, err.stack?.split("\n").slice(0, 3).join("\n"));
@@ -544,10 +554,9 @@ export function handleWashmenWs(ws, sessionIds) {
     }
   }
 
+  // Don't kill the query on WS disconnect — let it finish so the session
+  // remains resumable. Claude Code CLI doesn't abort on terminal disconnect.
   ws.on("close", () => {
-    if (currentQuery) {
-      try { currentQuery.close(); } catch {}
-      currentQuery = null;
-    }
+    console.log("[ws] Client disconnected" + (currentQuery ? " — agent still running, session will be resumable" : ""));
   });
 }

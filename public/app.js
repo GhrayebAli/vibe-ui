@@ -395,6 +395,19 @@ function handleMessage(msg) {
 function doSend(text) {
   if (!text.trim() && pendingAttachments.length === 0) return;
 
+  // Intercept build-intent messages in plan mode
+  if (mode === 'plan' && /\b(build|implement|execute|create|code|start building|do it|make it|go ahead)\b/i.test(text)) {
+    addSystemMsg('You\'re in Plan mode — switch to Build mode to start implementing.');
+    // Highlight the Build button briefly
+    const buildBtn = document.querySelector('.mode-btn[data-mode="build"]');
+    if (buildBtn) {
+      buildBtn.style.animation = 'none';
+      buildBtn.offsetHeight; // reflow
+      buildBtn.style.animation = 'pulse-highlight .6s ease 2';
+    }
+    return;
+  }
+
   // Deactivate visual edit mode
   deactivateVisualEdit();
 
