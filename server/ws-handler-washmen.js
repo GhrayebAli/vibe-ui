@@ -31,7 +31,7 @@ import {
   setClaudeSession,
 } from "../db.js";
 
-const DAILY_BUDGET = 20; // $20/day
+const DAILY_BUDGET = 30; // $30/day
 const PER_QUERY_BUDGET = 5; // $5 per query — enough for complex features, catches runaway loops
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
