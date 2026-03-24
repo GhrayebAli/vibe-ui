@@ -1,15 +1,39 @@
 import { Router } from "express";
 import { exec, execFile } from "child_process";
-import { homedir } from "os";
+import { resolve } from "path";
+import { getWorkspaceDir } from "../workspace-config.js";
 
 const router = Router();
+
+const ALLOWED_COMMANDS = [
+  /^git\s+(status|log|diff|branch|show)/,
+  /^ls\b/,
+  /^cat\b/,
+  /^head\b/,
+  /^tail\b/,
+  /^wc\b/,
+  /^find\b/,
+  /^grep\b/,
+];
 
 router.post("/", (req, res) => {
   const { command, cwd } = req.body;
   if (!command) return res.status(400).json({ error: "command is required" });
 
+  // Whitelist check
+  if (!ALLOWED_COMMANDS.some(p => p.test(command))) {
+    return res.status(403).json({ error: "Command not allowed" });
+  }
+
+  // Validate cwd is within workspace
+  const workspaceDir = getWorkspaceDir();
+  const resolvedCwd = resolve(cwd || workspaceDir);
+  if (!resolvedCwd.startsWith(resolve(workspaceDir))) {
+    return res.status(403).json({ error: "cwd outside workspace" });
+  }
+
   const execOpts = {
-    cwd: cwd || homedir(),
+    cwd: resolvedCwd,
     timeout: 30000,
     maxBuffer: 512 * 1024,
   };
