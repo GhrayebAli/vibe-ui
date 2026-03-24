@@ -101,7 +101,7 @@ input, textarea { font-family: var(--font); }
 .turn-cost { color: var(--text-muted); font-size: 10px; opacity: 0.7; margin-left: auto; flex-shrink: 0; white-space: nowrap; }
 .msg-time { display: block; font-size: 10px; color: var(--text-muted); opacity: 0.4; margin-top: 2px; }
 .msg-user { flex-direction: column; align-items: flex-end; }
-.msg-agent .bubble.collapsed { max-height: 150px; overflow: hidden; position: relative; mask-image: linear-gradient(to bottom, #000 50%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, #000 50%, transparent 100%); }
+.msg-agent .bubble.collapsed, .msg-user .bubble.collapsed { max-height: 150px; overflow: hidden; position: relative; mask-image: linear-gradient(to bottom, #000 50%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, #000 50%, transparent 100%); }
 .collapse-toggle { background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 4px 0; font-family: var(--font); opacity: 0.8; }
 .collapse-toggle:hover { opacity: 1; text-decoration: underline; }
 .attachment-bar { display: flex; gap: 6px; padding: 8px 12px 4px; flex-wrap: wrap; }

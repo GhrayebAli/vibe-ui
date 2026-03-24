@@ -19,6 +19,7 @@ export function addUserMsg(text, attachHtml) {
   div.className = 'msg msg-user';
   div.innerHTML = `${attachHtml ? `<div class="msg-attachments">${attachHtml}</div>` : ''}<div class="bubble">${escapeHtml(text)}</div><span class="msg-time">${timeLabel()}</span>`;
   chatEl.appendChild(div);
+  maybeCollapse(div.querySelector('.bubble'));
   scrollBottom();
 }
 
