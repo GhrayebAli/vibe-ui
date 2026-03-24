@@ -85,7 +85,8 @@ async function showLanding() {
       } else if (b.local === false) {
         meta = 'remote';
       }
-      item.innerHTML = `<span class="landing-branch-name">${escapeHtml(b.name)}</span><span class="landing-branch-meta">${meta}</span>`;
+      const title = b.session?.title || '';
+      item.innerHTML = `<span class="landing-branch-name">${escapeHtml(b.name)}</span>${title ? `<span class="landing-branch-title">${escapeHtml(title)}</span>` : ''}<span class="landing-branch-meta">${meta}</span>`;
       item.onclick = () => resumeBranch(b);
       branchList.appendChild(item);
     }

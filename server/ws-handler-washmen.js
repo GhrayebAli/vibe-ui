@@ -30,6 +30,7 @@ import {
   updateClaudeSessionId,
   getClaudeSessionId,
   setClaudeSession,
+  updateSessionTitle,
 } from "../db.js";
 
 const DAILY_BUDGET = 30; // $30/day
@@ -364,6 +365,7 @@ export function handleWashmenWs(ws, sessionIds) {
     // Save user message — skip for discover mode
     if (mode !== "discover" && !getSession(sessionId)) {
       createSession(sessionId, null, text.slice(0, 50), "", branch);
+      updateSessionTitle(sessionId, text.slice(0, 80));
     } else if (mode !== "discover") {
       touchSession(sessionId);
     }

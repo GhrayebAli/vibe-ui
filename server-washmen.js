@@ -226,7 +226,7 @@ app.get("/api/workspace", (_req, res) => {
             name,
             local: true,
             lastActivity: ts ? new Date(parseInt(ts) * 1000).toISOString() : null,
-            session: session ? { id: session.id, messageCount: msgCount, lastUsedAt: session.last_used_at } : null,
+            session: session ? { id: session.id, messageCount: msgCount, lastUsedAt: session.last_used_at, title: session.title || session.project_name || null } : null,
           });
         }
       } catch {}
