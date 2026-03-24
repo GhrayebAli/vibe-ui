@@ -154,8 +154,10 @@ export function showActivity(tool, input) {
       <div class="activity-log"></div>
     `;
     activityEl.querySelector('.activity-current').onclick = () => activityEl.classList.toggle('expanded');
-    chatEl.appendChild(activityEl);
   }
+
+  // Always keep activity feed at the bottom of chat
+  chatEl.appendChild(activityEl);
 
   // Ensure spinner is visible (hideActivity may have hidden it)
   const spinner = activityEl.querySelector('.activity-spinner');
