@@ -248,6 +248,7 @@ export function loadMessages(msgs) {
       const text = parsed.text || '';
       if (m.role === 'user') addUserMsg(text);
       else if (m.role === 'assistant') addAgentMsg(text, false);
+      else if (m.role === 'result') showTurnCost(parsed.cost_usd, parsed.model);
       else addSystemMsg(text);
     } catch {
       if (m.role === 'user') addUserMsg(m.content);
