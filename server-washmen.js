@@ -7,7 +7,6 @@ import { createHash, randomUUID } from "crypto";
 dotenv.config();
 
 const AUTH_TOKEN = process.env.VIBE_AUTH_TOKEN || randomUUID();
-console.log(`[auth] Token: ${AUTH_TOKEN}`);
 
 import express from "express";
 import { createServer } from "http";
@@ -332,8 +331,9 @@ app.post("/api/switch-branch", async (req, res) => {
     const leavingBranch = existsSync(currentBranchFile) ? readFileSync(currentBranchFile, "utf-8").trim() : null;
     if (leavingBranch && leavingBranch !== branch && leavingBranch.startsWith("mvp/")) {
       const repoPath = join(workspaceDir, configRepos[0]?.name);
-      const diffStat = execSync(`git -C "${repoPath}" diff main..HEAD --stat 2>/dev/null`, { stdio: "pipe", timeout: 5000 }).toString().trim();
-      const logSummary = execSync(`git -C "${repoPath}" log main..HEAD --oneline 2>/dev/null`, { stdio: "pipe", timeout: 5000 }).toString().trim();
+      const defBranch = detectDefaultBranch(discoverRepos());
+      const diffStat = execSync(`git -C "${repoPath}" diff ${defBranch}..HEAD --stat 2>/dev/null`, { stdio: "pipe", timeout: 5000 }).toString().trim();
+      const logSummary = execSync(`git -C "${repoPath}" log ${defBranch}..HEAD --oneline 2>/dev/null`, { stdio: "pipe", timeout: 5000 }).toString().trim();
       if (diffStat || logSummary) {
         const notes = `## Auto-generated summary\n\n### Commits\n${logSummary || 'None'}\n\n### Changes\n${diffStat || 'None'}`;
         saveNotes(leavingBranch, notes);

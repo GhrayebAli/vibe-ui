@@ -38,9 +38,9 @@ export function sanitizePort(port) {
  * Validate a workspace.json dev command against an allowlist.
  */
 const ALLOWED_DEV_PATTERNS = [
-  /^(npm|yarn|pnpm)\s+(run\s+)?(dev|start|serve)$/,
-  /^node\s+[\w\-\.\/]+\.m?js$/,
-  /^npx\s+[\w\-@\/]+$/,
+  /^(npm|yarn|pnpm)\s+(run\s+)?(dev|start|serve)([\s:].*)?$/,
+  /^node\s+[\w\-\.\/]+\.m?js(\s+.*)?$/,
+  /^npx\s+[\w\-@\/]+(\s+.*)?$/,
   /^nodemon\s+/,
 ];
 

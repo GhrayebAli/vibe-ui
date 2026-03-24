@@ -20,6 +20,11 @@ router.post("/", (req, res) => {
   const { command, cwd } = req.body;
   if (!command) return res.status(400).json({ error: "command is required" });
 
+  // Reject shell metacharacters that could chain commands
+  if (/[;|&`$(){}]/.test(command)) {
+    return res.status(403).json({ error: "Command not allowed: shell metacharacters detected" });
+  }
+
   // Whitelist check
   if (!ALLOWED_COMMANDS.some(p => p.test(command))) {
     return res.status(403).json({ error: "Command not allowed" });

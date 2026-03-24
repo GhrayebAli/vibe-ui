@@ -72,7 +72,6 @@ const BLOCKED_BASH_PATTERNS = [
   /\breboot\b/i,
   /\bshutdown\b/i,
   /\bnc\s+-l/i,
-  /\benv\b/,
   /\bprintenv\b/,
   /\/etc\//,
   /\/proc\//,
@@ -94,7 +93,6 @@ const BLOCKED_FILE_PATTERNS = [
   /credentials/i,
   /secrets?\./i,
   /\.pem$/i, /\.key$/i,
-  /package\.json$/i,
   /workspace\.json$/i,
 ];
 

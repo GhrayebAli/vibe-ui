@@ -492,7 +492,7 @@ export function searchSessions(query, limit = 20, projectPath) {
   return stmts.searchSessionsAll.all(pattern, pattern, limit);
 }
 
-export function undoLastTurn(sessionId) {
+export const undoLastTurn = db.transaction((sessionId) => {
   const lastAssistant = db.prepare(
     "SELECT id FROM messages WHERE session_id = ? AND role = 'assistant' ORDER BY created_at DESC LIMIT 1"
   ).get(sessionId);
@@ -505,7 +505,7 @@ export function undoLastTurn(sessionId) {
     db.prepare(`DELETE FROM messages WHERE id IN (${ids.map(() => '?').join(',')})`).run(...ids);
   }
   return ids.length;
-}
+});
 
 export const deleteSession = db.transaction((id) => {
   db.prepare("DELETE FROM claude_sessions WHERE session_id = ?").run(id);

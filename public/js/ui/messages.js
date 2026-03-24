@@ -86,7 +86,6 @@ function renderChatImages(images, container) {
   container.appendChild(strip);
 }
 
-let _assistantRenderPending = false;
 export function appendAssistantText(text, pane) {
   pane = pane || getPane(null);
   if (!pane.currentAssistantMsg) {
@@ -100,17 +99,18 @@ export function appendAssistantText(text, pane) {
   }
   pane.currentAssistantMsg.dataset.raw =
     (pane.currentAssistantMsg.dataset.raw || "") + text;
-  if (!_assistantRenderPending) {
-    _assistantRenderPending = true;
+  if (!pane._renderPending) {
+    pane._renderPending = true;
+    const currentPane = pane;
     requestAnimationFrame(() => {
-      if (pane.currentAssistantMsg) {
-        pane.currentAssistantMsg.innerHTML = renderMarkdown(pane.currentAssistantMsg.dataset.raw || "");
-        highlightCodeBlocks(pane.currentAssistantMsg);
-        addCopyButtons(pane.currentAssistantMsg);
-        renderMermaidBlocks(pane.currentAssistantMsg);
-        scrollToBottom(pane);
+      if (currentPane.currentAssistantMsg) {
+        currentPane.currentAssistantMsg.innerHTML = renderMarkdown(currentPane.currentAssistantMsg.dataset.raw || "");
+        highlightCodeBlocks(currentPane.currentAssistantMsg);
+        addCopyButtons(currentPane.currentAssistantMsg);
+        renderMermaidBlocks(currentPane.currentAssistantMsg);
+        scrollToBottom(currentPane);
       }
-      _assistantRenderPending = false;
+      currentPane._renderPending = false;
     });
   }
 
