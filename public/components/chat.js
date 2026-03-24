@@ -105,14 +105,34 @@ function maybeCollapse(bubble) {
   bubble.parentElement.appendChild(toggle);
 }
 
+let currentTurnFooter = null;
+
+function ensureTurnFooter() {
+  if (!currentTurnFooter) {
+    currentTurnFooter = document.createElement('div');
+    currentTurnFooter.className = 'turn-footer';
+    chatEl.appendChild(currentTurnFooter);
+  }
+  return currentTurnFooter;
+}
+
+export function finalizeTurnFooter() {
+  currentTurnFooter = null;
+}
+
+export function getTurnFooter() {
+  return ensureTurnFooter();
+}
+
 export function showTurnCost(cost, model) {
   if (!cost || cost <= 0) return;
+  const footer = ensureTurnFooter();
   const modelLabel = model ? ` \u00b7 ${model}` : '';
-  const div = document.createElement('div');
-  div.className = 'turn-cost';
-  div.textContent = `$${cost.toFixed(4)}${modelLabel}`;
-  div.title = `This turn cost $${cost.toFixed(4)}`;
-  chatEl.appendChild(div);
+  const span = document.createElement('span');
+  span.className = 'turn-cost';
+  span.textContent = `$${cost.toFixed(4)}${modelLabel}`;
+  span.title = `This turn cost $${cost.toFixed(4)}`;
+  footer.appendChild(span);
   scrollBottom();
 }
 
@@ -202,6 +222,7 @@ export function hideActivity() {
 export function showDiffSummary(files) {
   if (!files || files.length === 0) return;
   hideActivity();
+  const footer = ensureTurnFooter();
   const div = document.createElement('div');
   div.className = 'diff-summary';
   let filesHtml = files.map(f =>
@@ -212,7 +233,7 @@ export function showDiffSummary(files) {
     <div class="diff-files">${filesHtml}</div>
   `;
   div.querySelector('.diff-header').onclick = () => div.classList.toggle('expanded');
-  chatEl.appendChild(div);
+  footer.prepend(div);
   activityEl = null;
   scrollBottom();
 }
@@ -222,6 +243,7 @@ export function clearChat() {
   currentAgentBubble = null;
   currentAgentText = '';
   activityLog = [];
+  currentTurnFooter = null;
 }
 
 export function addScreenshot(base64, caption) {
@@ -246,9 +268,18 @@ export function loadMessages(msgs) {
     try {
       const parsed = JSON.parse(m.content);
       const text = parsed.text || '';
-      if (m.role === 'user') addUserMsg(text);
-      else if (m.role === 'assistant') addAgentMsg(text, false);
-      else if (m.role === 'result') showTurnCost(parsed.cost_usd, parsed.model);
+      if (m.role === 'user') {
+        finalizeTurnFooter();
+        addUserMsg(text);
+      } else if (m.role === 'assistant') addAgentMsg(text, false);
+      else if (m.role === 'result') {
+        showTurnCost(parsed.cost_usd, parsed.model);
+        finalizeTurnFooter();
+      } else if (m.role === 'event') {
+        if (parsed.type === 'file_diff') showDiffSummary(parsed.files);
+        else if (parsed.type === 'system') addSystemMsg(parsed.text);
+        else if (parsed.type === 'screenshot') addScreenshot(parsed.image, parsed.caption);
+      }
       else addSystemMsg(text);
     } catch {
       if (m.role === 'user') addUserMsg(m.content);

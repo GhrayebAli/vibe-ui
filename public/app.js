@@ -1,4 +1,4 @@
-import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, showDiffSummary, showTurnCost, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion } from './components/chat.js';
+import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, showDiffSummary, showTurnCost, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion, getTurnFooter, finalizeTurnFooter } from './components/chat.js';
 import { initPreview, refreshPreview, setDevice, navigatePreview } from './components/preview.js';
 import { initNotes, onNotesOpen, onNotesGenerated } from './components/notes.js';
 import { initStatus, checkHealth } from './components/status.js';
@@ -339,14 +339,15 @@ function handleMessage(msg) {
       hideThinking();
       hideActivity(); // Clear any stuck spinners from the turn
       addAgentMsg(null, false); // finalize
+      finalizeTurnFooter(); // close any previous turn footer
+      // Add undo button only when files were changed
+      if (sid && msg.filesChanged > 0) attachUndoButton();
       showTurnCost(msg.cost, model);
       streaming = false;
       sendBtn.disabled = false;
       sendBtn.style.display = 'flex';
       stopBtn.style.display = 'none';
       updateBudget(msg.totalCost);
-      // Add undo button only when files were changed
-      if (sid && msg.filesChanged > 0) attachUndoButton();
       // Detect follow-up questions in the response
       if (msg.text) {
         detectAndRenderQuestion(msg.text, (answer) => doSend(answer));
@@ -438,6 +439,7 @@ function handleMessage(msg) {
 /* ═══ Send ═══ */
 function doSend(text) {
   if (!text.trim() && pendingAttachments.length === 0) return;
+  finalizeTurnFooter();
 
   // Intercept build-intent messages in plan mode
   if (mode === 'plan' && /\b(build|implement|execute|create|code|start building|do it|make it|go ahead)\b/i.test(text)) {
@@ -640,9 +642,8 @@ function attachUndoButton() {
   // Remove any existing undo buttons first
   chat.querySelectorAll('.undo-btn').forEach(b => b.remove());
 
-  const allMsgs = chat.querySelectorAll('.msg-agent');
-  const lastMsg = allMsgs[allMsgs.length - 1];
-  if (!lastMsg || !sid) return;
+  if (!sid) return;
+  const footer = getTurnFooter();
 
   const undoBtn = document.createElement('button');
   undoBtn.className = 'undo-btn';
@@ -678,7 +679,7 @@ function attachUndoButton() {
       addSystemMsg('Undo failed: ' + err.message);
     }
   };
-  lastMsg.appendChild(undoBtn);
+  footer.prepend(undoBtn);
 }
 
 /* ═══ Undo Confirmation ═══ */
