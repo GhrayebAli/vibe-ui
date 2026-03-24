@@ -280,11 +280,31 @@ export function detectAndRenderQuestion(text, onAnswer) {
   return false;
 }
 
+function flushToolBatch(batch) {
+  if (batch.length === 0) return;
+  const timeline = document.createElement('div');
+  timeline.className = 'activity-timeline collapsed';
+  const items = batch.map(t => `<span class="timeline-item">${t.icon} ${t.label}</span>`).join(' \u2192 ');
+  timeline.innerHTML = `<button class="timeline-toggle">Activity (${batch.length} tool${batch.length !== 1 ? 's' : ''})</button><div class="timeline-items">${items}</div>`;
+  timeline.querySelector('.timeline-toggle').onclick = () => timeline.classList.toggle('collapsed');
+  chatEl.appendChild(timeline);
+}
+
 export function loadMessages(msgs) {
+  let toolBatch = [];
   msgs.forEach(m => {
     try {
       const parsed = JSON.parse(m.content);
       const text = parsed.text || '';
+      const isToolEvent = m.role === 'event' && parsed.type === 'tool_activity';
+      if (isToolEvent) {
+        const { icon, label } = getToolLabel(parsed.tool, parsed.input);
+        toolBatch.push({ icon, label });
+        return;
+      }
+      // Flush any pending tool batch before rendering other message types
+      flushToolBatch(toolBatch);
+      toolBatch = [];
       if (m.role === 'user') {
         finalizeTurnFooter();
         addUserMsg(text);
@@ -296,7 +316,6 @@ export function loadMessages(msgs) {
         if (parsed.type === 'file_diff') showDiffSummary(parsed.files);
         else if (parsed.type === 'system') addSystemMsg(parsed.text);
         else if (parsed.type === 'screenshot') addScreenshot(parsed.image, parsed.caption);
-        else if (parsed.type === 'tool_activity') addToolIndicator(parsed.tool, parsed.input);
       }
       else addSystemMsg(text);
     } catch {
@@ -304,6 +323,8 @@ export function loadMessages(msgs) {
       else addAgentMsg(m.content, false);
     }
   });
+  // Flush any remaining tool batch
+  flushToolBatch(toolBatch);
 }
 
 function addCopyButtons(container) {
