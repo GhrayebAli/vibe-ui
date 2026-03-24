@@ -411,6 +411,20 @@ pre:hover .code-copy { opacity: 1; }
 .notes-spinner.hidden { display: none; }
 .notes-spin-icon { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
 
+/* ── Switch Progress Overlay ── */
+.switch-progress { position: absolute; inset: 0; z-index: 10; background: var(--bg); display: flex; align-items: center; justify-content: center; animation: fadeIn .3s ease; }
+.switch-progress-inner { display: flex; flex-direction: column; align-items: center; gap: 20px; max-width: 320px; width: 100%; padding: 24px; }
+.switch-progress-spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+.switch-progress-title { font-size: 16px; font-weight: 600; color: var(--text); text-align: center; }
+.switch-progress-steps { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.switch-step { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-dim); transition: color .2s ease; }
+.switch-step-icon { width: 18px; height: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.switch-step-icon .step-dot { width: 6px; height: 6px; background: var(--border); border-radius: 50%; }
+.switch-step-icon .step-spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+.switch-step-icon .step-check { color: var(--green); font-size: 14px; line-height: 1; }
+.switch-step.active { color: var(--text); }
+.switch-step.done { color: var(--green); }
+
 /* ── Landing Screen ── */
 .landing { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 24px 16px; gap: 20px; animation: fadeIn .3s ease; }
 .landing-header { text-align: center; }
