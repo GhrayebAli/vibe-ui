@@ -89,8 +89,11 @@ export function createChatPane(chatId, index) {
     _autocompleteIndex: -1,
   };
 
-  paneSendBtn.addEventListener("click", () => sendMessage(state));
-  paneStopBtn.addEventListener("click", () => stopGeneration(state));
+  const controller = new AbortController();
+  const signal = controller.signal;
+
+  paneSendBtn.addEventListener("click", () => sendMessage(state), { signal });
+  paneStopBtn.addEventListener("click", () => stopGeneration(state), { signal });
 
   textarea.addEventListener("keydown", (e) => {
     if (handleAutocompleteKeydown(e, state)) return;
@@ -98,13 +101,15 @@ export function createChatPane(chatId, index) {
       e.preventDefault();
       sendMessage(state);
     }
-  });
+  }, { signal });
 
   textarea.addEventListener("input", () => {
     textarea.style.height = "auto";
     textarea.style.height = Math.min(textarea.scrollHeight, 80) + "px";
     handleSlashAutocomplete(state);
-  });
+  }, { signal });
+
+  state.abortController = controller;
 
   return { container, state };
 }
@@ -144,6 +149,11 @@ export function enterParallelMode() {
 export function exitParallelMode() {
   setState("parallelMode", false);
   $.toggleParallelBtn.checked = false;
+
+  // Clean up event listeners from all panes
+  for (const pane of panes.values()) {
+    pane.abortController?.abort();
+  }
 
   const grid = document.getElementById("chat-grid");
   const savedChatArea = getState("savedChatArea");
