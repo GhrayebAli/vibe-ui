@@ -182,10 +182,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-brand"><span>W</span>ashmen Ops</div>
-      <div class="health">
-        <div class="health-item"><span class="hd" id="h-fe"></span>FE</div>
-        <div class="health-item"><span class="hd" id="h-gw"></span>GW</div>
-        <div class="health-item"><span class="hd" id="h-core"></span>Core</div>
+      <div class="health" id="health-dots">
       </div>
     </div>
     <div class="topbar-right">
@@ -434,7 +431,7 @@ function send(t) { if (!t.trim() || streaming) return; addMsg('user',t); streami
 
 /* ═══ Health ═══ */
 async function checkHealth() {
-  try { const d = await (await fetch('/api/service-health')).json(); d.services.forEach(s => { const id = s.name==='api-gateway'?'h-gw':s.name==='core-service'?'h-core':'h-fe'; const el = $(id); if(el) el.className = 'hd '+(s.status==='healthy'?'ok':'err'); }); } catch {}
+  try { const d = await (await fetch('/api/service-health')).json(); const c = document.getElementById('health-dots'); if(c && d.services) { c.innerHTML=''; d.services.forEach(s => { const ok=s.status==='healthy'; const item=document.createElement('div'); item.className='health-item'; item.innerHTML=`<span class="hd ${ok?'ok':'err'}"></span>${s.name}`; c.appendChild(item); }); } } catch {}
 }
 setInterval(checkHealth, 15000);
 
