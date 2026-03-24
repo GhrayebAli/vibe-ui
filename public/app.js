@@ -341,45 +341,7 @@ function handleMessage(msg) {
       stopBtn.style.display = 'none';
       updateBudget(msg.totalCost);
       // Add undo button
-      if (sid) {
-        const allMsgs = chat.querySelectorAll('.msg');
-        const lastMsg = allMsgs[allMsgs.length - 1];
-        if (lastMsg) {
-          const undoBtn = document.createElement('button');
-          undoBtn.className = 'undo-btn';
-          undoBtn.innerHTML = '\u21A9 Undo';
-          undoBtn.onclick = async () => {
-            undoBtn.disabled = true;
-            undoBtn.textContent = 'Checking\u2026';
-            try {
-              const preview = await fetch(`/api/sessions/${sid}/undo-preview`).then(r => r.json());
-              if (!preview.ok) {
-                undoBtn.innerHTML = '\u21A9 Undo';
-                undoBtn.disabled = false;
-                addSystemMsg(preview.error || 'Nothing to undo');
-                return;
-              }
-              showUndoConfirmation(preview, async () => {
-                undoBtn.textContent = 'Reverting\u2026';
-                const data = await fetch(`/api/sessions/${sid}/undo`, { method: 'POST' }).then(r => r.json());
-                clearChat();
-                if (data.messages?.length > 0) loadMessages(data.messages);
-                refreshPreview();
-                const reverted = data.revertResults?.filter(r => r.status === 'reverted').length || 0;
-                addSystemMsg(`Undo complete \u2014 reverted ${reverted} repo${reverted !== 1 ? 's' : ''}`);
-              }, () => {
-                undoBtn.innerHTML = '\u21A9 Undo';
-                undoBtn.disabled = false;
-              });
-            } catch (err) {
-              undoBtn.innerHTML = '\u21A9 Undo';
-              undoBtn.disabled = false;
-              addSystemMsg('Undo failed: ' + err.message);
-            }
-          };
-          lastMsg.appendChild(undoBtn);
-        }
-      }
+      if (sid) attachUndoButton();
       // Detect follow-up questions in the response
       if (msg.text) {
         detectAndRenderQuestion(msg.text, (answer) => doSend(answer));
@@ -666,6 +628,52 @@ document.querySelectorAll('.model-chip').forEach(chip => {
       document.body.style.userSelect = '';
     }
   };
+}
+
+/* ═══ Undo ═══ */
+function attachUndoButton() {
+  // Remove any existing undo buttons first
+  chat.querySelectorAll('.undo-btn').forEach(b => b.remove());
+
+  const allMsgs = chat.querySelectorAll('.msg-agent');
+  const lastMsg = allMsgs[allMsgs.length - 1];
+  if (!lastMsg || !sid) return;
+
+  const undoBtn = document.createElement('button');
+  undoBtn.className = 'undo-btn';
+  undoBtn.innerHTML = '\u21A9 Undo';
+  undoBtn.onclick = async () => {
+    undoBtn.disabled = true;
+    undoBtn.textContent = 'Checking\u2026';
+    try {
+      const preview = await fetch(`/api/sessions/${sid}/undo-preview`).then(r => r.json());
+      if (!preview.ok) {
+        undoBtn.innerHTML = '\u21A9 Undo';
+        undoBtn.disabled = false;
+        addSystemMsg(preview.error || 'Nothing to undo');
+        return;
+      }
+      showUndoConfirmation(preview, async () => {
+        undoBtn.textContent = 'Reverting\u2026';
+        const data = await fetch(`/api/sessions/${sid}/undo`, { method: 'POST' }).then(r => r.json());
+        clearChat();
+        if (data.messages?.length > 0) loadMessages(data.messages);
+        refreshPreview();
+        const reverted = data.revertResults?.filter(r => r.status === 'reverted').length || 0;
+        addSystemMsg(`Undo complete \u2014 reverted ${reverted} repo${reverted !== 1 ? 's' : ''}`);
+        // Re-attach undo to the new last message so user can keep undoing
+        attachUndoButton();
+      }, () => {
+        undoBtn.innerHTML = '\u21A9 Undo';
+        undoBtn.disabled = false;
+      });
+    } catch (err) {
+      undoBtn.innerHTML = '\u21A9 Undo';
+      undoBtn.disabled = false;
+      addSystemMsg('Undo failed: ' + err.message);
+    }
+  };
+  lastMsg.appendChild(undoBtn);
 }
 
 /* ═══ Undo Confirmation ═══ */
