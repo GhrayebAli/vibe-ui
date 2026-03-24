@@ -64,11 +64,11 @@ async function showLanding() {
     budgetEl.textContent = `$${workspaceData.budget.spent.toFixed(2)} / $${workspaceData.budget.limit} budget today`;
   }
 
-  // Populate resume branches
+  // Populate resume branches — show all mvp/* branches (local + remote)
   const resumeCard = $('landing-resume');
   const branchList = $('branch-list');
   const resumeCount = $('resume-count');
-  const branches = (workspaceData.branches || []).filter(b => b.session);
+  const branches = workspaceData.branches || [];
 
   if (branches.length > 0) {
     resumeCard.style.display = 'flex';
@@ -79,7 +79,12 @@ async function showLanding() {
       item.className = 'landing-branch-item';
       // Highlight the currently active branch
       if (b.name === currentBranch) item.classList.add('landing-branch-active');
-      const meta = b.session ? formatTimeAgo(b.session.lastUsedAt) : (b.lastActivity ? 'no session' : '');
+      let meta = '';
+      if (b.session) {
+        meta = formatTimeAgo(b.session.lastUsedAt);
+      } else if (b.local === false) {
+        meta = 'remote';
+      }
       item.innerHTML = `<span class="landing-branch-name">${escapeHtml(b.name)}</span><span class="landing-branch-meta">${meta}</span>`;
       item.onclick = () => resumeBranch(b);
       branchList.appendChild(item);

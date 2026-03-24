@@ -183,28 +183,60 @@ app.get("/api/workspace", (_req, res) => {
       } catch {}
     }
 
-    // List mvp/* branches from first repo
+    // List mvp/* branches from first repo (local + remote)
     const branches = [];
+    const seenBranches = new Set();
     if (repos.length > 0) {
+      const repoPath = repos[0].path;
+      // Fetch latest remote refs
+      try { execSync(`git -C "${repoPath}" fetch origin --prune 2>/dev/null`, { stdio: "pipe", timeout: 10000 }); } catch {}
+
+      // Local branches
       try {
         const branchList = execSync(
-          `git -C "${repos[0].path}" branch --list "mvp/*" --format="%(refname:short)|%(committerdate:unix)"`,
+          `git -C "${repoPath}" branch --list "mvp/*" --format="%(refname:short)|%(committerdate:unix)"`,
           { stdio: "pipe" }
         ).toString().trim();
         for (const line of branchList.split("\n").filter(Boolean)) {
           const [name, ts] = line.split("|");
+          seenBranches.add(name);
           const session = getSessionByBranch(name);
           const msgCount = session ? getDb().prepare("SELECT COUNT(*) as c FROM messages WHERE session_id = ?").get(session.id)?.c || 0 : 0;
           branches.push({
             name,
+            local: true,
             lastActivity: ts ? new Date(parseInt(ts) * 1000).toISOString() : null,
             session: session ? { id: session.id, messageCount: msgCount, lastUsedAt: session.last_used_at } : null,
           });
         }
       } catch {}
+
+      // Remote-only branches (not yet checked out locally)
+      try {
+        const remoteBranches = execSync(
+          `git -C "${repoPath}" branch -r --list "origin/mvp/*" --format="%(refname:short)|%(committerdate:unix)"`,
+          { stdio: "pipe" }
+        ).toString().trim();
+        for (const line of remoteBranches.split("\n").filter(Boolean)) {
+          const [ref, ts] = line.split("|");
+          const name = ref.replace("origin/", "");
+          if (seenBranches.has(name)) continue;
+          seenBranches.add(name);
+          branches.push({
+            name,
+            local: false,
+            lastActivity: ts ? new Date(parseInt(ts) * 1000).toISOString() : null,
+            session: null,
+          });
+        }
+      } catch {}
     }
-    // Sort by most recent activity
-    branches.sort((a, b) => (b.session?.lastUsedAt || 0) - (a.session?.lastUsedAt || 0));
+    // Sort by most recent activity — prefer session lastUsedAt, fall back to git committerdate
+    branches.sort((a, b) => {
+      const aTime = a.session?.lastUsedAt || (a.lastActivity ? new Date(a.lastActivity).getTime() / 1000 : 0);
+      const bTime = b.session?.lastUsedAt || (b.lastActivity ? new Date(b.lastActivity).getTime() / 1000 : 0);
+      return bTime - aTime;
+    });
 
     const totalCost = getTotalCost();
     res.json({
