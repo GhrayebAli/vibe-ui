@@ -86,8 +86,21 @@ async function showLanding() {
       } else if (b.local === false) {
         meta = 'remote';
       }
-      const title = b.session?.title || '';
-      item.innerHTML = `<span class="landing-branch-name">${escapeHtml(b.name)}</span>${title ? `<span class="landing-branch-title">${escapeHtml(title)}</span>` : ''}<span class="landing-branch-meta">${meta}</span>`;
+      const stats = [];
+      if (b.commitCount) stats.push(`${b.commitCount} commit${b.commitCount > 1 ? 's' : ''}`);
+      if (b.filesChanged) stats.push(`${b.filesChanged} file${b.filesChanged > 1 ? 's' : ''}`);
+      const statsHtml = stats.length ? `<span class="landing-branch-stats">${stats.join(' · ')}</span>` : '';
+      const commitHtml = b.lastCommitMsg ? `<span class="landing-branch-commit">${escapeHtml(b.lastCommitMsg)}</span>` : '';
+      item.innerHTML = `
+        <div class="landing-branch-info">
+          <span class="landing-branch-name">${escapeHtml(b.name)}</span>
+          ${commitHtml}
+        </div>
+        <div class="landing-branch-right">
+          ${statsHtml}
+          <span class="landing-branch-meta">${meta}</span>
+        </div>
+      `;
       item.onclick = () => resumeBranch(b);
       branchList.appendChild(item);
     }

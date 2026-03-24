@@ -218,11 +218,33 @@ app.get("/api/workspace", (_req, res) => {
           seenBranches.add(name);
           const session = getSessionByBranch(name);
           const msgCount = session ? getDb().prepare("SELECT COUNT(*) as c FROM messages WHERE session_id = ?").get(session.id)?.c || 0 : 0;
+          let commitCount = 0, lastCommitMsg = '', filesChanged = 0;
+          try {
+            commitCount = parseInt(execSync(
+              `git -C "${repoPath}" rev-list --count ${sanitizeBranchName(defaultBranch)}..${sanitizeBranchName(name)}`,
+              { stdio: "pipe" }
+            ).toString().trim()) || 0;
+          } catch {}
+          try {
+            lastCommitMsg = execSync(
+              `git -C "${repoPath}" log -1 --pretty=%s ${sanitizeBranchName(name)}`,
+              { stdio: "pipe" }
+            ).toString().trim().slice(0, 100);
+          } catch {}
+          try {
+            filesChanged = execSync(
+              `git -C "${repoPath}" diff --name-only ${sanitizeBranchName(defaultBranch)}..${sanitizeBranchName(name)}`,
+              { stdio: "pipe" }
+            ).toString().trim().split("\n").filter(Boolean).length;
+          } catch {}
           branches.push({
             name,
             local: true,
             lastActivity: ts ? new Date(parseInt(ts) * 1000).toISOString() : null,
             session: session ? { id: session.id, messageCount: msgCount, lastUsedAt: session.last_used_at, title: session.title || session.project_name || null } : null,
+            commitCount,
+            lastCommitMsg,
+            filesChanged,
           });
         }
       } catch (e) { console.warn("[workspace] local branch listing failed:", e.message); }
