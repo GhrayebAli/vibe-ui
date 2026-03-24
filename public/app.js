@@ -792,7 +792,7 @@ inputDock.addEventListener('drop', (e) => {
 (async () => {
   try {
     const data = await (await fetch('/api/cost')).json();
-    updateBudget(data.totalCost);
+    updateBudget(data.totalCost, data.dailyBudget);
   } catch {}
 })();
 
