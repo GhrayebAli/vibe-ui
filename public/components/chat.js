@@ -166,7 +166,7 @@ export function hideThinking() {
   if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
 }
 
-export function showActivity(tool, input) {
+function getToolLabel(tool, input) {
   const icons = { Bash: '\u2699', Edit: '\u270E', Write: '\u270E', Read: '\uD83D\uDCC4', Glob: '\uD83D\uDD0D', Grep: '\uD83D\uDD0D', Agent: '\uD83E\uDD16', WebFetch: '\uD83C\uDF10' };
   const icon = icons[tool] || '\u26A1';
   const label = tool === 'Bash' ? (input?.command || '').slice(0, 70) :
@@ -176,6 +176,19 @@ export function showActivity(tool, input) {
     tool === 'Grep' ? 'Searching ' + (input?.pattern || '') :
     tool === 'Agent' ? (input?.description || 'Running sub-agent') :
     tool;
+  return { icon, label };
+}
+
+function addToolIndicator(tool, input) {
+  const { icon, label } = getToolLabel(tool, input);
+  const div = document.createElement('div');
+  div.className = 'tool-indicator-history';
+  div.textContent = `${icon} ${label}`;
+  chatEl.appendChild(div);
+}
+
+export function showActivity(tool, input) {
+  const { icon, label } = getToolLabel(tool, input);
 
   activityLog.push({ icon, label, ts: Date.now() });
 
@@ -282,6 +295,7 @@ export function loadMessages(msgs) {
         if (parsed.type === 'file_diff') showDiffSummary(parsed.files);
         else if (parsed.type === 'system') addSystemMsg(parsed.text);
         else if (parsed.type === 'screenshot') addScreenshot(parsed.image, parsed.caption);
+        else if (parsed.type === 'tool_activity') addToolIndicator(parsed.tool, parsed.input);
       }
       else addSystemMsg(text);
     } catch {

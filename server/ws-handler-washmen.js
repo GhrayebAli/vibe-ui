@@ -411,6 +411,7 @@ export function handleWashmenWs(ws, sessionIds) {
                 };
               }
               try { getDb().prepare("INSERT INTO activity_events (session_id, event_type, tool, input_summary) VALUES (?, ?, ?, ?)").run(sessionId, "tool_start", toolName, JSON.stringify(toolInput).slice(0, 200)); } catch {}
+              pendingEvents.push({ type: "tool_activity", tool: toolName, input: toolInput });
               if (ws.readyState === 1) {
                 ws.send(JSON.stringify({ type: "tool_activity", tool: toolName, input: toolInput }));
               }
@@ -646,7 +647,9 @@ export function handleWashmenWs(ws, sessionIds) {
               pushBranch(branch);
               const pushMsg = `Pushed ${branch} to origin`;
               if (wsOpen) ws.send(JSON.stringify({ type: "system", text: pushMsg }));
-              pendingEvents.push({ type: "system", text: pushMsg });
+              if (mode !== "discover") {
+                try { addMessage(sessionId, "event", JSON.stringify({ type: "system", text: pushMsg })); } catch (e) { console.error("[db] event:", e.message); }
+              }
             } catch (e) { console.log("[push] post-change push failed:", e.message); }
           }
         }
