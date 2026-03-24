@@ -4,17 +4,22 @@
 # Usage:
 #   bash create-workspace.sh \
 #     --name "My Workspace" \
+#     --owner GhrayebAli \
 #     --dir ./my-workspace \
 #     --github-org MyOrg \
-#     --repo https://github.com/MyOrg/frontend:3000:frontend:npm \
+#     --repo https://github.com/MyOrg/frontend:3000:frontend:npm:my-frontend \
 #     --repo https://github.com/MyOrg/api:1337:backend:npm \
-#     --env frontend:.env:"KEY=value\nKEY2=value2"
+#     --env-file my-frontend:.env:/path/to/.env.example
 #
 # Repo format: <git-url>:<port>:<type>:<packageManager>:<localName>
 #   - port: the port the service runs on
 #   - type: "frontend" or "backend"
 #   - packageManager: "npm" or "yarn" (default: npm)
 #   - localName: folder name to clone into (default: repo name from URL)
+#
+# Env files: auto-detected from .env.example in each repo.
+#   Override with: --env-file <repo-name>:<env-filename>:<local-path>
+#   Example: --env-file ops-frontend:.env:/path/to/my.env
 #
 # After running, follow the printed instructions to push and create the codespace.
 
@@ -35,7 +40,7 @@ while [[ $# -gt 0 ]]; do
     --dir) WORKSPACE_DIR="$2"; shift 2;;
     --github-org) GIT_ORGS+=("$2"); shift 2;;
     --repo) REPOS+=("$2"); shift 2;;
-    --env) ENV_FILES+=("$2"); shift 2;;
+    --env-file) ENV_FILES+=("$2"); shift 2;;
     *) echo "Unknown option: $1"; exit 1;;
   esac
 done
@@ -118,8 +123,70 @@ PORTS_JSON="    \"4000\": { \"label\": \"vibe-ui\", \"onAutoForward\": \"silent\
 $PORTS_JSON"
 PORTS_JSON=$(echo "$PORTS_JSON" | sed '$ s/,$//')
 
+# ── Auto-detect .env files from repos ──
+ENV_FILES_JSON="{}"
+TMPDIR_CLONE=$(mktemp -d)
+
+for repo_spec in "${REPOS[@]}"; do
+  url=$(echo "$repo_spec" | sed 's|\(https\{0,1\}://[^:]*\).*|\1|')
+  remaining=$(echo "$repo_spec" | sed "s|^${url}||; s|^:||")
+  IFS=':' read -r _port _type _pm localname <<< "$remaining"
+  repo_name=${localname:-$(basename "$url" .git)}
+
+  # Check for --env-file overrides first
+  HAS_OVERRIDE=false
+  for env_spec in "${ENV_FILES[@]}"; do
+    env_repo=$(echo "$env_spec" | cut -d: -f1)
+    if [ "$env_repo" = "$repo_name" ]; then
+      HAS_OVERRIDE=true
+      env_filename=$(echo "$env_spec" | cut -d: -f2)
+      env_path=$(echo "$env_spec" | cut -d: -f3-)
+      if [ -f "$env_path" ]; then
+        content=$(cat "$env_path" | jq -Rs .)
+        ENV_FILES_JSON=$(echo "$ENV_FILES_JSON" | jq --arg repo "$repo_name" --arg file "$env_filename" --argjson content "$content" '.[$repo][$file] = ($content | ltrimstr("\"") | rtrimstr("\""))')
+        echo "Added env file: $repo_name/$env_filename (from $env_path)"
+      fi
+    fi
+  done
+
+  if [ "$HAS_OVERRIDE" = "true" ]; then continue; fi
+
+  # Clone repo temporarily to scan for .env files
+  echo "Scanning $repo_name for .env files..."
+  CLONE_DIR="$TMPDIR_CLONE/$repo_name"
+  git clone "$url" "$CLONE_DIR" --depth 1 --quiet 2>/dev/null || continue
+
+  # Look for .env.example, .env.sample, .env.development, .env.local.example
+  for envfile in .env.example .env.sample .env.development.example .env.local.example; do
+    if [ -f "$CLONE_DIR/$envfile" ]; then
+      # Map example files to their target: .env.example -> .env, .env.development.example -> .env.development
+      target=$(echo "$envfile" | sed 's/\.example$//; s/\.sample$//')
+      content=$(cat "$CLONE_DIR/$envfile" | jq -Rs .)
+      ENV_FILES_JSON=$(echo "$ENV_FILES_JSON" | jq --arg repo "$repo_name" --arg file "$target" --argjson content "$content" '.[$repo][$file] = ($content | ltrimstr("\"") | rtrimstr("\""))')
+      echo "Found $repo_name/$envfile → $target"
+    fi
+  done
+done
+
+# Clean up temp clones
+rm -rf "$TMPDIR_CLONE"
+
+# Check if any envFiles were found
+HAS_ENV_FILES=$(echo "$ENV_FILES_JSON" | jq 'length > 0')
+
 # ── Write workspace.json ──
-cat > "$WORKSPACE_DIR/workspace.json" << WEOF
+if [ "$HAS_ENV_FILES" = "true" ]; then
+  cat > "$WORKSPACE_DIR/workspace.json" << WEOF
+{
+  "name": "$WORKSPACE_NAME",
+  "repos": $REPOS_JSON,
+  "gitOrgs": $GIT_ORGS_JSON,
+  "previewPath": "/",
+  "envFiles": $ENV_FILES_JSON
+}
+WEOF
+else
+  cat > "$WORKSPACE_DIR/workspace.json" << WEOF
 {
   "name": "$WORKSPACE_NAME",
   "repos": $REPOS_JSON,
@@ -127,6 +194,7 @@ cat > "$WORKSPACE_DIR/workspace.json" << WEOF
   "previewPath": "/"
 }
 WEOF
+fi
 
 # ── Write devcontainer.json ──
 cat > "$WORKSPACE_DIR/.devcontainer/devcontainer.json" << DEOF
