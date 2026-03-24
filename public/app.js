@@ -87,8 +87,10 @@ async function showLanding() {
         meta = 'remote';
       }
       const details = [];
-      if (b.commitCount) details.push(`${b.commitCount} commit${b.commitCount > 1 ? 's' : ''}`);
-      if (b.filesChanged) details.push(`${b.filesChanged} file${b.filesChanged > 1 ? 's' : ''}`);
+      const commits = b.commitCount || 0;
+      const files = b.filesChanged || 0;
+      details.push(`${commits} commit${commits !== 1 ? 's' : ''}`);
+      details.push(`${files} file${files !== 1 ? 's' : ''}`);
       if (b.cost > 0) details.push(`$${b.cost.toFixed(2)}`);
       if (meta) details.push(meta);
       item.innerHTML = `
