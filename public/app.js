@@ -91,12 +91,14 @@ async function showLanding() {
       if (b.filesChanged) stats.push(`${b.filesChanged} file${b.filesChanged > 1 ? 's' : ''}`);
       const statsHtml = stats.length ? `<span class="landing-branch-stats">${stats.join(' · ')}</span>` : '';
       const commitHtml = b.lastCommitMsg ? `<span class="landing-branch-commit">${escapeHtml(b.lastCommitMsg)}</span>` : '';
+      const costHtml = b.cost > 0 ? `<span class="landing-branch-cost">$${b.cost.toFixed(2)}</span>` : '';
       item.innerHTML = `
         <div class="landing-branch-info">
           <span class="landing-branch-name">${escapeHtml(b.name)}</span>
           ${commitHtml}
         </div>
         <div class="landing-branch-right">
+          ${costHtml}
           ${statsHtml}
           <span class="landing-branch-meta">${meta}</span>
         </div>

@@ -12,7 +12,7 @@ console.log(`[auth] Token: ${AUTH_TOKEN}`);
 import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
-import { getDb, createSession, getSession, addMessage, addCost, getTotalCost, getSessionByBranch, getNotes, saveNotes } from "./db.js";
+import { getDb, createSession, getSession, addMessage, addCost, getTotalCost, getSessionByBranch, getNotes, saveNotes, getBranchCosts } from "./db.js";
 import { handleWashmenWs } from "./server/ws-handler-washmen.js";
 import { loadWorkspaceConfig, getWorkspaceDir, getConfig, getFrontendRepo, getFrontendPort, getServicesConfig, getRepoNames, getClientConfig } from "./server/workspace-config.js";
 import { sanitizeBranchName, sanitizePort, validateDevCommand } from "./server/sanitize.js";
@@ -202,6 +202,14 @@ app.get("/api/workspace", (_req, res) => {
     // List mvp/* branches from first repo (local + remote)
     const branches = [];
     const seenBranches = new Set();
+    // Build cost-per-branch lookup
+    const branchCostMap = {};
+    try {
+      for (const row of getBranchCosts()) {
+        branchCostMap[row.branch] = row.total_cost;
+      }
+    } catch {}
+
     if (repos.length > 0) {
       const repoPath = repos[0].path;
       // Fetch latest remote refs
@@ -245,6 +253,7 @@ app.get("/api/workspace", (_req, res) => {
             commitCount,
             lastCommitMsg,
             filesChanged,
+            cost: branchCostMap[name] || 0,
           });
         }
       } catch (e) { console.warn("[workspace] local branch listing failed:", e.message); }

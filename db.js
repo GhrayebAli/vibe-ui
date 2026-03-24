@@ -301,6 +301,13 @@ const stmts = {
     `SELECT s.*, ${MODE_CASE}
      FROM sessions s WHERE (s.title LIKE ? OR s.project_name LIKE ?) ORDER BY s.pinned DESC, s.last_used_at DESC LIMIT ?`
   ),
+  getBranchCosts: db.prepare(
+    `SELECT s.branch, COALESCE(SUM(c.cost_usd), 0) AS total_cost
+     FROM costs c
+     JOIN sessions s ON c.session_id = s.id
+     WHERE s.branch IS NOT NULL
+     GROUP BY s.branch`
+  ),
   getSessionCosts: db.prepare(
     `SELECT s.id, s.title, s.project_name, s.last_used_at,
             COALESCE(SUM(c.cost_usd), 0) AS total_cost,
@@ -491,6 +498,10 @@ export function saveNotes(branch, content) {
     INSERT INTO branch_notes (branch, content, updated_at) VALUES (?, ?, unixepoch())
     ON CONFLICT(branch) DO UPDATE SET content = excluded.content, updated_at = unixepoch()
   `).run(branch, content);
+}
+
+export function getBranchCosts() {
+  return stmts.getBranchCosts.all();
 }
 
 export function getSessionCosts(projectPath) {

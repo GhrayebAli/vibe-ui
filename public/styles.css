@@ -510,6 +510,7 @@ pre:hover .code-copy { opacity: 1; }
 .landing-branch-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
 .landing-branch-commit { font-size: 11px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
 .landing-branch-stats { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+.landing-branch-cost { font-size: 10px; color: var(--accent); font-weight: 500; font-family: var(--mono); }
 .landing-branch-meta { font-size: 11px; color: var(--text-muted); }
 .landing-build-row { display: flex; gap: 8px; margin-top: 8px; }
 .landing-input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; color: var(--text); font-size: 12px; font-family: var(--font); outline: none; transition: border-color var(--transition); }
