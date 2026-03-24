@@ -338,20 +338,37 @@ export function handleWashmenWs(ws, sessionIds) {
         hooks: {
           PreToolUse: [{
             matcher: ".*",
-            callback: (toolName, toolInput) => {
+            hooks: [async (input, toolUseId, { signal }) => {
+              const toolName = input.tool_name;
+              const toolInput = input.tool_input || {};
               const check = checkPreToolUse(toolName, toolInput);
               if (!check.allowed) {
-                return { behavior: "deny", message: check.reason };
+                console.log(`[guardrail] BLOCKED: ${check.reason}`);
+                return {
+                  decision: "block",
+                  reason: check.reason,
+                  hookSpecificOutput: {
+                    hookEventName: "PreToolUse",
+                    permissionDecision: "deny",
+                    permissionDecisionReason: check.reason,
+                  },
+                };
               }
-              ws.send(JSON.stringify({ type: "tool_activity", tool: toolName, input: toolInput }));
-              return { behavior: "allow" };
-            },
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: "tool_activity", tool: toolName, input: toolInput }));
+              }
+              return {};
+            }],
           }],
           PostToolUse: [{
             matcher: ".*",
-            callback: (toolName, toolResponse) => {
-              ws.send(JSON.stringify({ type: "tool_complete", tool: toolName }));
-            },
+            hooks: [async (input, toolUseId, { signal }) => {
+              const toolName = input.tool_name;
+              if (ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: "tool_complete", tool: toolName }));
+              }
+              return {};
+            }],
           }],
         },
       };
