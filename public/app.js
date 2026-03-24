@@ -218,13 +218,10 @@ async function resumeBranch(branch) {
 
   if (branch.session) {
     sid = branch.session.id;
-    // Only reload messages if we actually switched (skipped means same branch, chat already loaded from DB)
-    if (!wasSkipped) {
-      try {
-        const msgs = await (await fetch(`/api/sessions/${sid}/messages`)).json();
-        if (msgs.length > 0) loadMessages(msgs);
-      } catch {}
-    }
+    try {
+      const msgs = await (await fetch(`/api/sessions/${sid}/messages`)).json();
+      if (msgs.length > 0) loadMessages(msgs);
+    } catch {}
     addSystemMsg(`Resumed ${branch.name}`);
     // Show notes button — branch has prior work
     $('notes-btn').style.display = '';
