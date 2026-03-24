@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import { join, dirname } from "path";
+import { join, dirname, resolve, sep } from "path";
 import { fileURLToPath } from "url";
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync, mkdirSync } from "fs";
 import { execSync, spawn } from "child_process";
@@ -429,14 +429,17 @@ app.get("/api/sessions/:id/messages", (req, res) => {
   res.json(messages);
 });
 
-// File read API — for Code tab
+// File read API — for Code tab (restricted to workspace)
 app.get("/api/file", (req, res) => {
   try {
     const filePath = req.query.path;
     if (!filePath) return res.status(400).json({ error: "Missing path" });
     const workspaceDir = getWorkspaceDir();
-    const fullPath = filePath.startsWith("/") ? filePath : join(workspaceDir, filePath);
-    const content = readFileSync(fullPath, "utf8");
+    const resolved = resolve(workspaceDir, filePath);
+    if (!resolved.startsWith(resolve(workspaceDir) + sep) && resolved !== resolve(workspaceDir)) {
+      return res.status(403).json({ error: "Access denied: path outside workspace" });
+    }
+    const content = readFileSync(resolved, "utf8");
     res.json({ path: filePath, content });
   } catch (err) {
     res.status(404).json({ error: err.message });
