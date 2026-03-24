@@ -521,13 +521,23 @@ app.get("/api/sessions/:id/undo-preview", (req, res) => {
     const repos = getRepoNames();
     const commits = [];
 
+    // Get last user message timestamp to scope which commits belong to this turn
+    const lastUser = getDb().prepare(
+      "SELECT created_at FROM messages WHERE session_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 1"
+    ).get(req.params.id);
+    const turnStart = lastUser?.created_at || 0;
+
     for (const repo of repos) {
       const repoDir = join(workspaceDir, repo);
       try {
         const lastMsg = execSync(`git -C "${repoDir}" log -1 --pretty=%s`, { stdio: "pipe" }).toString().trim();
         if (lastMsg === "auto: checkpoint") {
-          const files = execSync(`git -C "${repoDir}" diff --name-only HEAD~1..HEAD`, { stdio: "pipe" }).toString().trim().split("\n").filter(Boolean);
-          commits.push({ repo, filesChanged: files });
+          const commitTs = parseInt(execSync(`git -C "${repoDir}" log -1 --format=%ct`, { stdio: "pipe" }).toString().trim()) || 0;
+          // Only include if this commit happened during/after the last user message (this turn)
+          if (commitTs >= turnStart) {
+            const files = execSync(`git -C "${repoDir}" diff --name-only HEAD~1..HEAD`, { stdio: "pipe" }).toString().trim().split("\n").filter(Boolean);
+            commits.push({ repo, filesChanged: files });
+          }
         }
       } catch {}
     }
@@ -559,15 +569,26 @@ app.post("/api/sessions/:id/undo", async (req, res) => {
     const repos = getRepoNames();
     const revertResults = [];
 
+    // Get last user message timestamp to scope which commits belong to this turn
+    const lastUser = getDb().prepare(
+      "SELECT created_at FROM messages WHERE session_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 1"
+    ).get(req.params.id);
+    const turnStart = lastUser?.created_at || 0;
+
     for (const repo of repos) {
       const repoDir = join(workspaceDir, repo);
       try {
         const lastMsg = execSync(`git -C "${repoDir}" log -1 --pretty=%s`, { stdio: "pipe" }).toString().trim();
         if (lastMsg === "auto: checkpoint") {
-          const files = execSync(`git -C "${repoDir}" diff --name-only HEAD~1..HEAD`, { stdio: "pipe" }).toString().trim();
-          execSync(`git -C "${repoDir}" reset --hard HEAD~1`, { stdio: "pipe", timeout: 10000 });
-          try { execSync(`git -C "${repoDir}" push --force origin "${sanitizeBranchName(branch)}"`, { stdio: "pipe", timeout: 30000 }); } catch {}
-          revertResults.push({ repo, status: "reverted", files: files.split("\n").filter(Boolean) });
+          const commitTs = parseInt(execSync(`git -C "${repoDir}" log -1 --format=%ct`, { stdio: "pipe" }).toString().trim()) || 0;
+          if (commitTs >= turnStart) {
+            const files = execSync(`git -C "${repoDir}" diff --name-only HEAD~1..HEAD`, { stdio: "pipe" }).toString().trim();
+            execSync(`git -C "${repoDir}" reset --hard HEAD~1`, { stdio: "pipe", timeout: 10000 });
+            try { execSync(`git -C "${repoDir}" push --force origin "${sanitizeBranchName(branch)}"`, { stdio: "pipe", timeout: 30000 }); } catch {}
+            revertResults.push({ repo, status: "reverted", files: files.split("\n").filter(Boolean) });
+          } else {
+            revertResults.push({ repo, status: "skipped" });
+          }
         } else {
           revertResults.push({ repo, status: "skipped" });
         }
