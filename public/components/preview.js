@@ -3,6 +3,7 @@ let wrap = null;
 let loader = null;
 let urlInput = null;
 let baseUrl = '';
+let retryTimer = null;
 
 export function initPreview(url) {
   frame = document.getElementById('preview-frame');
@@ -14,28 +15,70 @@ export function initPreview(url) {
   urlInput.value = url.replace(/^https?:\/\//, '');
 
   frame.onload = () => {
-    loader.classList.add('hidden');
-    // Try to read the current path from the iframe
+    // Check if the iframe actually loaded content (not an error page)
+    let loaded = false;
     try {
-      const path = frame.contentWindow.location.pathname;
-      if (path && path !== '/') {
-        urlInput.value = urlInput.value.split('/')[0] + path;
-      }
-    } catch {}
+      // If we can read the iframe and it has a body with content, it's loaded
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      loaded = doc && doc.body && doc.body.innerHTML.length > 0;
+    } catch {
+      // Cross-origin — assume loaded if onload fired
+      loaded = true;
+    }
+
+    if (loaded) {
+      clearRetry();
+      loader.classList.add('hidden');
+      try {
+        const path = frame.contentWindow.location.pathname;
+        if (path && path !== '/') {
+          urlInput.value = urlInput.value.split('/')[0] + path;
+        }
+      } catch {}
+    }
   };
 
   frame.onerror = () => {
-    loader.classList.add('hidden');
+    // Don't hide loader on error — retry will handle it
   };
 
   // Start loading
   frame.src = url;
 }
 
+function clearRetry() {
+  if (retryTimer) { clearInterval(retryTimer); retryTimer = null; }
+}
+
 export function refreshPreview() {
   if (!frame) return;
+  clearRetry();
   loader.classList.remove('hidden');
-  frame.src = frame.src;
+
+  // Poll until the service responds, then load the iframe
+  let attempts = 0;
+  const maxAttempts = 30; // 30s max
+  retryTimer = setInterval(async () => {
+    attempts++;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      const resp = await fetch('/api/service-health');
+      clearTimeout(timeout);
+      const data = await resp.json();
+      const allHealthy = data.services && data.services.every(s => s.status === 'healthy');
+      if (allHealthy) {
+        clearRetry();
+        frame.src = frame.src;
+        return;
+      }
+    } catch {}
+    if (attempts >= maxAttempts) {
+      clearRetry();
+      // Give up waiting, try loading anyway
+      frame.src = frame.src;
+    }
+  }, 1000);
 }
 
 export function setDevice(device) {
@@ -45,6 +88,7 @@ export function setDevice(device) {
 
 export function navigatePreview(url) {
   if (!frame) return;
+  clearRetry();
   loader.classList.remove('hidden');
   frame.src = url;
   urlInput.value = url.replace(/^https?:\/\//, '');

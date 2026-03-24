@@ -170,6 +170,18 @@ app.get("/api/workspace", (_req, res) => {
   try {
     const repos = discoverRepos();
     const defaultBranch = detectDefaultBranch(repos);
+    const workspaceDir = getWorkspaceDir();
+
+    // Detect currently active branch from .active-branch file or git HEAD
+    let activeBranch = null;
+    try {
+      activeBranch = readFileSync(join(workspaceDir, ".active-branch"), "utf-8").trim();
+    } catch {}
+    if (!activeBranch && repos.length > 0) {
+      try {
+        activeBranch = execSync(`git -C "${repos[0].path}" rev-parse --abbrev-ref HEAD`, { stdio: "pipe" }).toString().trim();
+      } catch {}
+    }
 
     // List mvp/* branches from first repo
     const branches = [];
@@ -197,6 +209,7 @@ app.get("/api/workspace", (_req, res) => {
     const totalCost = getTotalCost();
     res.json({
       defaultBranch,
+      activeBranch,
       repos,
       branches,
       budget: { spent: totalCost, limit: 20, remaining: Math.max(0, 20 - totalCost) },
@@ -213,6 +226,22 @@ app.post("/api/switch-branch", async (req, res) => {
 
   const workspaceDir = getWorkspaceDir();
   const configRepos = getConfig().repos;
+
+  // Check if already on this branch — skip the entire switch cycle
+  let alreadyOnBranch = true;
+  for (const cfgRepo of configRepos) {
+    try {
+      const current = execSync(`git -C "${join(workspaceDir, cfgRepo.name)}" rev-parse --abbrev-ref HEAD`, { stdio: "pipe" }).toString().trim();
+      if (current !== branch) { alreadyOnBranch = false; break; }
+    } catch { alreadyOnBranch = false; break; }
+  }
+
+  if (alreadyOnBranch) {
+    // Save active branch (in case .active-branch was missing)
+    try { writeFileSync(join(workspaceDir, ".active-branch"), branch); } catch {}
+    return res.json({ ok: true, branch, switched: [], installed: [], restarted: [], skipped: true });
+  }
+
   const switched = [];
   const installed = [];
   const restarted = [];
@@ -283,9 +312,25 @@ app.post("/api/switch-branch", async (req, res) => {
     writeFileSync(join(workspaceDir, ".active-branch"), branch);
   } catch {}
 
-  // Wait for services to start
+  // Poll for services to be healthy instead of hardcoded wait
   wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: 'services-ready', status: 'active' });
-  await new Promise(r => setTimeout(r, 3000));
+  const maxWait = 30000, pollInterval = 1000;
+  const startTime = Date.now();
+  while (Date.now() - startTime < maxWait) {
+    await new Promise(r => setTimeout(r, pollInterval));
+    const allHealthy = await Promise.all(
+      configuredServices.map(async (svc) => {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 2000);
+          const resp = await fetch(svc.url, { signal: controller.signal });
+          clearTimeout(timeout);
+          return resp.ok;
+        } catch { return false; }
+      })
+    );
+    if (allHealthy.every(Boolean)) break;
+  }
   wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: 'services-ready', status: 'done' });
   wsBroadcast({ type: 'switch_progress', phase: 'complete', branch });
 

@@ -53,6 +53,11 @@ async function showLanding() {
     return;
   }
 
+  // Track the server-reported active branch
+  if (workspaceData.activeBranch) {
+    currentBranch = workspaceData.activeBranch;
+  }
+
   // Budget
   const budgetEl = $('landing-budget');
   if (budgetEl && workspaceData.budget) {
@@ -72,6 +77,8 @@ async function showLanding() {
     for (const b of branches) {
       const item = document.createElement('div');
       item.className = 'landing-branch-item';
+      // Highlight the currently active branch
+      if (b.name === currentBranch) item.classList.add('landing-branch-active');
       const meta = b.session ? formatTimeAgo(b.session.lastUsedAt) : (b.lastActivity ? 'no session' : '');
       item.innerHTML = `<span class="landing-branch-name">${escapeHtml(b.name)}</span><span class="landing-branch-meta">${meta}</span>`;
       item.onclick = () => resumeBranch(b);
@@ -154,8 +161,10 @@ function startDiscover() {
 }
 
 async function resumeBranch(branch) {
+  hideLanding();
   clearChat();
 
+  let wasSkipped = false;
   try {
     const resp = await fetch('/api/switch-branch', {
       method: 'POST',
@@ -164,6 +173,7 @@ async function resumeBranch(branch) {
     });
     const result = await resp.json();
     if (!result.ok) throw new Error(result.error || 'Switch failed');
+    wasSkipped = result.skipped;
   } catch (e) {
     hideSwitchProgress();
     addErrorMsg(`Failed to switch branch: ${e.message}`);
@@ -188,7 +198,8 @@ async function resumeBranch(branch) {
     addSystemMsg(`Switched to ${branch.name} — no previous session found`);
   }
 
-  refreshPreview();
+  // Only refresh preview if we actually switched branches; if skipped, preview is already loaded
+  if (!wasSkipped) refreshPreview();
 }
 
 async function startNewFeature() {
