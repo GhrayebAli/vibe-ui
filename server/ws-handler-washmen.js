@@ -1,6 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import crypto from "crypto";
 import { execSync, spawn } from "child_process";
+import { hostname } from "os";
 import { readFileSync } from "fs";
 import { getWorkspaceDir, getConfig, getRepoNames, getFrontendRepo, getFrontendPort, getAdditionalDirs } from "./workspace-config.js";
 import { sanitizeBranchName } from "./sanitize.js";
@@ -364,7 +365,8 @@ export function handleWashmenWs(ws, sessionIds) {
 
     // Save user message — skip for discover mode
     if (mode !== "discover" && !getSession(sessionId)) {
-      createSession(sessionId, null, text.slice(0, 50), "", branch);
+      const codespaceId = process.env.CODESPACE_NAME || hostname();
+      createSession(sessionId, null, text.slice(0, 50), "", branch, codespaceId);
       updateSessionTitle(sessionId, text.slice(0, 80));
     } else if (mode !== "discover") {
       touchSession(sessionId);

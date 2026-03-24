@@ -79,6 +79,7 @@ try { db.exec(`ALTER TABLE messages ADD COLUMN workflow_step_label TEXT DEFAULT 
 try { db.exec(`ALTER TABLE sessions ADD COLUMN summary TEXT DEFAULT NULL`); } catch { /* exists */ }
 // Branch name for session-branch linking
 try { db.exec(`ALTER TABLE sessions ADD COLUMN branch TEXT DEFAULT NULL`); } catch { /* exists */ }
+try { db.exec(`ALTER TABLE sessions ADD COLUMN codespace_id TEXT DEFAULT NULL`); } catch { /* exists */ }
 // Todo archive
 try { db.exec(`ALTER TABLE todos ADD COLUMN archived INTEGER DEFAULT 0`); } catch { /* exists */ }
 // Todo priority (0=none, 1=low, 2=medium, 3=high)
@@ -236,8 +237,8 @@ const MODE_CASE = `
 // Prepared statements
 const stmts = {
   createSession: db.prepare(
-    `INSERT OR IGNORE INTO sessions (id, claude_session_id, project_name, project_path, branch)
-     VALUES (?, ?, ?, ?, ?)`
+    `INSERT OR IGNORE INTO sessions (id, claude_session_id, project_name, project_path, branch, codespace_id)
+     VALUES (?, ?, ?, ?, ?, ?)`
   ),
   updateClaudeSessionId: db.prepare(
     `UPDATE sessions SET claude_session_id = ? WHERE id = ?`
@@ -394,8 +395,8 @@ const stmts = {
   ),
 };
 
-export function createSession(id, claudeSessionId, projectName, projectPath, branch = null) {
-  stmts.createSession.run(id, claudeSessionId, projectName, projectPath, branch);
+export function createSession(id, claudeSessionId, projectName, projectPath, branch = null, codespaceId = null) {
+  stmts.createSession.run(id, claudeSessionId, projectName, projectPath, branch, codespaceId);
 }
 
 export function updateClaudeSessionId(id, claudeSessionId) {
