@@ -1,6 +1,7 @@
 let chatEl = null;
 let currentAgentBubble = null;
 let currentAgentText = '';
+let renderPending = false;
 let thinkingEl = null;
 let activityEl = null;
 let activityLog = [];
@@ -34,10 +35,18 @@ export function addAgentMsg(text, streaming) {
       currentAgentText = '';
     }
     currentAgentText += text;
-    currentAgentBubble.innerHTML = marked.parse(currentAgentText);
-    addCopyButtons(currentAgentBubble);
-    currentAgentBubble.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
-    scrollBottom();
+    if (!renderPending) {
+      renderPending = true;
+      requestAnimationFrame(() => {
+        if (currentAgentBubble) {
+          currentAgentBubble.innerHTML = marked.parse(currentAgentText);
+          addCopyButtons(currentAgentBubble);
+          currentAgentBubble.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+          scrollBottom();
+        }
+        renderPending = false;
+      });
+    }
   } else if (!streaming) {
     // Finalize
     if (text && !currentAgentBubble) {

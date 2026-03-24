@@ -86,6 +86,7 @@ function renderChatImages(images, container) {
   container.appendChild(strip);
 }
 
+let _assistantRenderPending = false;
 export function appendAssistantText(text, pane) {
   pane = pane || getPane(null);
   if (!pane.currentAssistantMsg) {
@@ -97,15 +98,21 @@ export function appendAssistantText(text, pane) {
     pane.messagesDiv.appendChild(div);
     pane.currentAssistantMsg = content;
   }
-  pane.currentAssistantMsg.innerHTML = renderMarkdown(
-    (pane.currentAssistantMsg.dataset.raw || "") + text
-  );
   pane.currentAssistantMsg.dataset.raw =
     (pane.currentAssistantMsg.dataset.raw || "") + text;
-  highlightCodeBlocks(pane.currentAssistantMsg);
-  addCopyButtons(pane.currentAssistantMsg);
-  renderMermaidBlocks(pane.currentAssistantMsg);
-  scrollToBottom(pane);
+  if (!_assistantRenderPending) {
+    _assistantRenderPending = true;
+    requestAnimationFrame(() => {
+      if (pane.currentAssistantMsg) {
+        pane.currentAssistantMsg.innerHTML = renderMarkdown(pane.currentAssistantMsg.dataset.raw || "");
+        highlightCodeBlocks(pane.currentAssistantMsg);
+        addCopyButtons(pane.currentAssistantMsg);
+        renderMermaidBlocks(pane.currentAssistantMsg);
+        scrollToBottom(pane);
+      }
+      _assistantRenderPending = false;
+    });
+  }
 
   // Update streaming token counter
   let count = getState("streamingCharCount") + text.length;
