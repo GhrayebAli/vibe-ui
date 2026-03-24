@@ -228,6 +228,7 @@ async function resumeBranch(branch) {
     // Show notes button — branch has prior work
     $('notes-btn').style.display = '';
   } else {
+    sid = null;
     addSystemMsg(`Switched to ${branch.name} — no previous session found`);
   }
 

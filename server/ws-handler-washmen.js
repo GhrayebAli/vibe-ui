@@ -278,7 +278,7 @@ export function handleWashmenWs(ws, sessionIds) {
 
   async function handleChat(msg, ws, sessionIds) {
     let text = msg.text || msg.prompt || "";
-    const sessionId = msg.sessionId || currentSessionId || crypto.randomUUID();
+    let sessionId = msg.sessionId || currentSessionId || crypto.randomUUID();
     const model = MODEL_MAP[msg.model] || DEFAULT_MODEL;
     const mode = msg.mode || "build";
     currentSessionId = sessionId;
@@ -363,12 +363,23 @@ export function handleWashmenWs(ws, sessionIds) {
     }
 
     // Save user message — skip for discover mode
-    if (mode !== "discover" && !getSession(sessionId)) {
-      const codespaceId = process.env.CODESPACE_NAME || hostname();
-      createSession(sessionId, null, text.slice(0, 50), "", branch, codespaceId);
-      updateSessionTitle(sessionId, text.slice(0, 80));
-    } else if (mode !== "discover") {
-      touchSession(sessionId);
+    if (mode !== "discover") {
+      const existing = getSession(sessionId);
+      if (!existing) {
+        const codespaceId = process.env.CODESPACE_NAME || hostname();
+        createSession(sessionId, null, text.slice(0, 50), "", branch, codespaceId);
+        updateSessionTitle(sessionId, text.slice(0, 80));
+      } else if (existing.branch !== branch && branch) {
+        // Session exists but branch changed — create a new session for this branch
+        const newId = crypto.randomUUID();
+        const codespaceId = process.env.CODESPACE_NAME || hostname();
+        createSession(newId, null, text.slice(0, 50), "", branch, codespaceId);
+        updateSessionTitle(newId, text.slice(0, 80));
+        sessionId = newId;
+        currentSessionId = newId;
+      } else {
+        touchSession(sessionId);
+      }
     }
     if (mode !== "discover") {
       addMessage(sessionId, "user", JSON.stringify({ text }));
