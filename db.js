@@ -496,14 +496,29 @@ export const undoLastTurn = db.transaction((sessionId) => {
   const lastAssistant = db.prepare(
     "SELECT id FROM messages WHERE session_id = ? AND role = 'assistant' ORDER BY created_at DESC LIMIT 1"
   ).get(sessionId);
+  const lastResult = db.prepare(
+    "SELECT id FROM messages WHERE session_id = ? AND role = 'result' ORDER BY created_at DESC LIMIT 1"
+  ).get(sessionId);
   const lastUser = db.prepare(
     "SELECT id FROM messages WHERE session_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 1"
   ).get(sessionId);
 
-  const ids = [lastAssistant?.id, lastUser?.id].filter(Boolean);
+  const ids = [lastAssistant?.id, lastResult?.id, lastUser?.id].filter(Boolean);
   if (ids.length > 0) {
     db.prepare(`DELETE FROM messages WHERE id IN (${ids.map(() => '?').join(',')})`).run(...ids);
   }
+
+  // Clean up activity events from the undone turn
+  const lastRemaining = db.prepare(
+    "SELECT created_at FROM messages WHERE session_id = ? ORDER BY created_at DESC LIMIT 1"
+  ).get(sessionId);
+  if (lastRemaining) {
+    db.prepare("DELETE FROM activity_events WHERE session_id = ? AND created_at > ?")
+      .run(sessionId, lastRemaining.created_at);
+  } else {
+    db.prepare("DELETE FROM activity_events WHERE session_id = ?").run(sessionId);
+  }
+
   return ids.length;
 });
 

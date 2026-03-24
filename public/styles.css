@@ -566,6 +566,24 @@ pre:hover .code-copy { opacity: 1; }
 .timeline-items { font-size: 10px; color: var(--text-dim); padding: 4px 0; line-height: 1.6; word-break: break-all; }
 .timeline-item { white-space: nowrap; }
 
-/* ═══ Undo Button ═══ */
-.undo-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); padding: 2px 10px; border-radius: var(--radius-pill); font-size: 11px; cursor: pointer; margin-top: 4px; font-family: var(--font); }
+/* ═══ Undo ═══ */
+.undo-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); padding: 4px 12px; border-radius: var(--radius-pill); font-size: 11px; cursor: pointer; margin-top: 6px; font-family: var(--font); transition: all 0.15s; }
 .undo-btn:hover { border-color: var(--accent); color: var(--text); }
+.undo-btn:disabled { opacity: 0.5; cursor: wait; }
+
+.undo-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999; animation: fadeIn 0.15s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.undo-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 16px 48px rgba(0,0,0,0.5); }
+.undo-header { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.undo-desc { font-size: 12px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.5; }
+.undo-repos { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.undo-repo { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+.undo-repo-name { font-size: 11px; font-weight: 600; font-family: var(--mono); color: var(--text); display: block; margin-bottom: 3px; }
+.undo-repo-files { font-size: 10px; color: var(--text-muted); font-family: var(--mono); }
+.undo-no-changes { font-size: 12px; color: var(--text-muted); font-style: italic; margin-bottom: 12px; }
+.undo-summary { font-size: 11px; color: var(--text-dim); margin-bottom: 16px; }
+.undo-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.undo-cancel-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 7px 16px; border-radius: var(--radius-pill); font-size: 12px; cursor: pointer; font-family: var(--font); }
+.undo-cancel-btn:hover { border-color: var(--accent); color: var(--text); }
+.undo-confirm-btn { background: #dc3545; border: none; color: #fff; padding: 7px 16px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 600; cursor: pointer; font-family: var(--font); }
+.undo-confirm-btn:hover { background: #c62828; }

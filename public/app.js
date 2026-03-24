@@ -347,12 +347,35 @@ function handleMessage(msg) {
         if (lastMsg) {
           const undoBtn = document.createElement('button');
           undoBtn.className = 'undo-btn';
-          undoBtn.textContent = 'Undo';
+          undoBtn.innerHTML = '\u21A9 Undo';
           undoBtn.onclick = async () => {
-            const resp = await fetch(`/api/sessions/${sid}/undo`, { method: 'POST' });
-            const data = await resp.json();
-            clearChat();
-            if (data.messages?.length > 0) loadMessages(data.messages);
+            undoBtn.disabled = true;
+            undoBtn.textContent = 'Checking\u2026';
+            try {
+              const preview = await fetch(`/api/sessions/${sid}/undo-preview`).then(r => r.json());
+              if (!preview.ok) {
+                undoBtn.innerHTML = '\u21A9 Undo';
+                undoBtn.disabled = false;
+                addSystemMsg(preview.error || 'Nothing to undo');
+                return;
+              }
+              showUndoConfirmation(preview, async () => {
+                undoBtn.textContent = 'Reverting\u2026';
+                const data = await fetch(`/api/sessions/${sid}/undo`, { method: 'POST' }).then(r => r.json());
+                clearChat();
+                if (data.messages?.length > 0) loadMessages(data.messages);
+                refreshPreview();
+                const reverted = data.revertResults?.filter(r => r.status === 'reverted').length || 0;
+                addSystemMsg(`Undo complete \u2014 reverted ${reverted} repo${reverted !== 1 ? 's' : ''}`);
+              }, () => {
+                undoBtn.innerHTML = '\u21A9 Undo';
+                undoBtn.disabled = false;
+              });
+            } catch (err) {
+              undoBtn.innerHTML = '\u21A9 Undo';
+              undoBtn.disabled = false;
+              addSystemMsg('Undo failed: ' + err.message);
+            }
           };
           lastMsg.appendChild(undoBtn);
         }
@@ -643,6 +666,35 @@ document.querySelectorAll('.model-chip').forEach(chip => {
       document.body.style.userSelect = '';
     }
   };
+}
+
+/* ═══ Undo Confirmation ═══ */
+function showUndoConfirmation(preview, onConfirm, onCancel) {
+  const overlay = document.createElement('div');
+  overlay.className = 'undo-overlay';
+
+  const fileCount = preview.commits.reduce((sum, c) => sum + c.filesChanged.length, 0);
+  const repoItems = preview.commits
+    .filter(c => c.filesChanged.length > 0)
+    .map(c => `<div class="undo-repo"><span class="undo-repo-name">${escapeHtml(c.repo)}</span><span class="undo-repo-files">${c.filesChanged.map(f => escapeHtml(f.split('/').pop())).join(', ')}</span></div>`).join('');
+
+  overlay.innerHTML = `
+    <div class="undo-modal">
+      <div class="undo-header">Undo last turn?</div>
+      <div class="undo-desc">This will revert file changes and remove the last message pair.</div>
+      ${repoItems ? `<div class="undo-repos">${repoItems}</div>` : '<div class="undo-no-changes">No file changes to revert</div>'}
+      ${fileCount ? `<div class="undo-summary">${fileCount} file${fileCount > 1 ? 's' : ''} across ${preview.commits.length} repo${preview.commits.length > 1 ? 's' : ''} will be reverted</div>` : ''}
+      <div class="undo-actions">
+        <button class="undo-cancel-btn">Cancel</button>
+        <button class="undo-confirm-btn">Undo</button>
+      </div>
+    </div>
+  `;
+
+  overlay.querySelector('.undo-cancel-btn').onclick = () => { overlay.remove(); onCancel(); };
+  overlay.querySelector('.undo-confirm-btn').onclick = () => { overlay.remove(); onConfirm(); };
+  overlay.onclick = (e) => { if (e.target === overlay) { overlay.remove(); onCancel(); } };
+  document.body.appendChild(overlay);
 }
 
 /* ═══ Overlays ═══ */

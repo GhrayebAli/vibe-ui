@@ -507,10 +507,85 @@ app.get("/api/sessions/:id/timeline", (req, res) => {
   res.json(events);
 });
 
-app.post("/api/sessions/:id/undo", (req, res) => {
-  const deleted = undoLastTurn(req.params.id);
-  const messages = getDb().prepare("SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC").all(req.params.id);
-  res.json({ ok: true, deleted, messages });
+app.get("/api/sessions/:id/undo-preview", (req, res) => {
+  try {
+    const session = getSession(req.params.id);
+    if (!session) return res.json({ ok: false, error: "Session not found" });
+
+    const branch = session.branch;
+    if (!branch || branch === "main" || branch === "master") {
+      return res.json({ ok: false, error: "Cannot undo on main/master" });
+    }
+
+    const workspaceDir = getWorkspaceDir();
+    const repos = getRepoNames();
+    const commits = [];
+
+    for (const repo of repos) {
+      const repoDir = join(workspaceDir, repo);
+      try {
+        const lastMsg = execSync(`git -C "${repoDir}" log -1 --pretty=%s`, { stdio: "pipe" }).toString().trim();
+        if (lastMsg === "auto: checkpoint") {
+          const files = execSync(`git -C "${repoDir}" diff --name-only HEAD~1..HEAD`, { stdio: "pipe" }).toString().trim().split("\n").filter(Boolean);
+          commits.push({ repo, filesChanged: files });
+        }
+      } catch {}
+    }
+
+    // Get last assistant message preview
+    const lastAssistant = getDb().prepare(
+      "SELECT content FROM messages WHERE session_id = ? AND role = 'assistant' ORDER BY created_at DESC LIMIT 1"
+    ).get(req.params.id);
+    let preview = '';
+    try { preview = JSON.parse(lastAssistant?.content || '{}').text || ''; } catch { preview = lastAssistant?.content || ''; }
+
+    res.json({ ok: true, commits, messagePreview: preview.slice(0, 200), branch });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.post("/api/sessions/:id/undo", async (req, res) => {
+  try {
+    const session = getSession(req.params.id);
+    if (!session) return res.status(404).json({ error: "Session not found" });
+
+    const branch = session.branch;
+    if (!branch || branch === "main" || branch === "master") {
+      return res.status(400).json({ error: "Cannot undo on main/master" });
+    }
+
+    const workspaceDir = getWorkspaceDir();
+    const repos = getRepoNames();
+    const revertResults = [];
+
+    for (const repo of repos) {
+      const repoDir = join(workspaceDir, repo);
+      try {
+        const lastMsg = execSync(`git -C "${repoDir}" log -1 --pretty=%s`, { stdio: "pipe" }).toString().trim();
+        if (lastMsg === "auto: checkpoint") {
+          const files = execSync(`git -C "${repoDir}" diff --name-only HEAD~1..HEAD`, { stdio: "pipe" }).toString().trim();
+          execSync(`git -C "${repoDir}" reset --hard HEAD~1`, { stdio: "pipe", timeout: 10000 });
+          try { execSync(`git -C "${repoDir}" push --force origin "${sanitizeBranchName(branch)}"`, { stdio: "pipe", timeout: 30000 }); } catch {}
+          revertResults.push({ repo, status: "reverted", files: files.split("\n").filter(Boolean) });
+        } else {
+          revertResults.push({ repo, status: "skipped" });
+        }
+      } catch (e) {
+        revertResults.push({ repo, status: "error", error: e.message });
+      }
+    }
+
+    const deleted = undoLastTurn(req.params.id);
+    const messages = getDb().prepare("SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC").all(req.params.id);
+
+    // Broadcast to refresh preview
+    wsBroadcast({ type: "system", text: "Undo complete — files reverted." });
+
+    res.json({ ok: true, deleted, revertResults, messages });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // File read API — for Code tab (restricted to workspace)
