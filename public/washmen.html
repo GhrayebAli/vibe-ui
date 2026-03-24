@@ -424,7 +424,7 @@ function copyBtns(el) {
 }
 
 /* ═══ Cost ═══ */
-function updateCost(c) { if (c == null) return; const p = Math.min(c/20*100,100); costTxt.textContent = '$'+c.toFixed(2); costFill.style.width = p+'%'; costFill.className = 'cost-bar-fill'+(p>80?' crit':p>50?' warn':''); }
+function updateCost(c) { if (c == null) return; const p = Math.min(c/30*100,100); costTxt.textContent = '$'+c.toFixed(2); costFill.style.width = p+'%'; costFill.className = 'cost-bar-fill'+(p>80?' crit':p>50?' warn':''); }
 
 /* ═══ Send ═══ */
 function send(t) { if (!t.trim() || streaming) return; addMsg('user',t); streaming = true; sendBtn.disabled = true; ws.send(JSON.stringify({type:'chat',text:t,sessionId:sid,model})); input.value=''; input.style.height='auto'; }

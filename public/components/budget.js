@@ -1,6 +1,6 @@
 let fillEl = null;
 let amountEl = null;
-const DAILY_BUDGET = 20;
+const DAILY_BUDGET = 30;
 
 export function initBudget(fill, amount) {
   fillEl = fill;
