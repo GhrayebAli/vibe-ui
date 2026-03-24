@@ -10,10 +10,11 @@
 #     --repo https://github.com/MyOrg/api:1337:backend:npm \
 #     --env frontend:.env:"KEY=value\nKEY2=value2"
 #
-# Repo format: <git-url>:<port>:<type>:<packageManager>
+# Repo format: <git-url>:<port>:<type>:<packageManager>:<localName>
 #   - port: the port the service runs on
 #   - type: "frontend" or "backend"
 #   - packageManager: "npm" or "yarn" (default: npm)
+#   - localName: folder name to clone into (default: repo name from URL)
 #
 # After running, follow the printed instructions to push and create the codespace.
 
@@ -56,13 +57,13 @@ PORTS_JSON=""
 FRONTEND_PORT=""
 
 for repo_spec in "${REPOS[@]}"; do
-  IFS=':' read -r url port type pm <<< "$(echo "$repo_spec" | sed 's|https://|https:|' | sed 's|http://|http:|' | sed 's|https:|https://|; s|http:|http://|' | awk -F: '{url=$1":"$2":"$3; port=$4; type=$5; pm=$6; print url"|"port"|"type"|"pm}')"
-  # Re-parse properly
-  url=$(echo "$repo_spec" | sed 's|\(https\?://[^:]*\).*|\1|')
-  rest=$(echo "$repo_spec" | sed "s|${url}:*||")
-  IFS=':' read -r port type pm <<< "$rest"
+  # Parse: https://github.com/Org/repo:port:type:pm
+  # Parse: url:port:type:pm:localname
+  url=$(echo "$repo_spec" | sed 's|\(https\{0,1\}://[^:]*\).*|\1|')
+  remaining=$(echo "$repo_spec" | sed "s|^${url}||; s|^:||")
+  IFS=':' read -r port type pm localname <<< "$remaining"
 
-  repo_name=$(basename "$url" .git)
+  repo_name=${localname:-$(basename "$url" .git)}
   port=${port:-0}
   type=${type:-backend}
   pm=${pm:-npm}
@@ -247,7 +248,7 @@ EXEOF
 
 # ── start-codespace.sh ──
 # Detect GitHub org/user from first repo URL
-FIRST_ORG=$(echo "${REPOS[0]}" | sed 's|https\?://github.com/\([^/]*\)/.*|\1|')
+FIRST_ORG=$(echo "${REPOS[0]}" | sed 's|.*github\.com/\([^/]*\)/.*|\1|')
 
 cat > "$WORKSPACE_DIR/start-codespace.sh" << CSEOF
 #!/bin/bash
