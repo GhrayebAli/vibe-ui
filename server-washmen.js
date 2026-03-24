@@ -3,8 +3,11 @@ import { join, dirname, resolve, sep } from "path";
 import { fileURLToPath } from "url";
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync, mkdirSync } from "fs";
 import { execSync, spawn } from "child_process";
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 dotenv.config();
+
+const AUTH_TOKEN = process.env.VIBE_AUTH_TOKEN || randomUUID();
+console.log(`[auth] Token: ${AUTH_TOKEN}`);
 
 import express from "express";
 import { createServer } from "http";
@@ -23,11 +26,27 @@ const wss = new WebSocketServer({ server, path: "/ws" });
 
 app.use(express.json({ limit: "10mb" }));
 
-// Serve new Lovable-style UI as default
-app.get("/", (_req, res) => res.sendFile(join(__dirname, "public", "index-v2.html")));
-// Keep old UI accessible
-app.get("/v1", (_req, res) => res.sendFile(join(__dirname, "public", "washmen.html")));
+// Serve new Lovable-style UI as default (with embedded auth token)
+app.get("/", (_req, res) => {
+  let html = readFileSync(join(__dirname, "public", "index-v2.html"), "utf8");
+  html = html.replace("</head>", `<script>window.__VIBE_TOKEN="${AUTH_TOKEN}";(function(){const _f=window.fetch;window.fetch=function(u,o){o=o||{};o.headers=new Headers(o.headers||{});o.headers.set("X-Vibe-Token",window.__VIBE_TOKEN);return _f.call(this,u,o);}})();</script></head>`);
+  res.send(html);
+});
+// Keep old UI accessible (with embedded auth token)
+app.get("/v1", (_req, res) => {
+  let html = readFileSync(join(__dirname, "public", "washmen.html"), "utf8");
+  html = html.replace("</head>", `<script>window.__VIBE_TOKEN="${AUTH_TOKEN}";(function(){const _f=window.fetch;window.fetch=function(u,o){o=o||{};o.headers=new Headers(o.headers||{});o.headers.set("X-Vibe-Token",window.__VIBE_TOKEN);return _f.call(this,u,o);}})();</script></head>`);
+  res.send(html);
+});
 app.use(express.static(join(__dirname, "public"), { etag: false, maxAge: 0 }));
+
+// Auth middleware for all /api/* routes
+function requireAuth(req, res, next) {
+  const token = req.headers["x-vibe-token"] || req.query.token;
+  if (token !== AUTH_TOKEN) return res.status(401).json({ error: "Unauthorized" });
+  next();
+}
+app.use("/api", requireAuth);
 
 // Serve workspace config to browser
 app.get("/api/workspace-config", (_req, res) => res.json(getClientConfig()));
@@ -1020,8 +1039,14 @@ function wsBroadcast(data) {
   wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
 }
 
-// WebSocket handling
-wss.on("connection", (ws) => {
+// WebSocket handling (with auth)
+wss.on("connection", (ws, req) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const token = url.searchParams.get("token");
+  if (token !== AUTH_TOKEN) {
+    ws.close(4001, "Unauthorized");
+    return;
+  }
   handleWashmenWs(ws, sessionIds);
 });
 

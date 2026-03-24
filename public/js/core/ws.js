@@ -19,7 +19,7 @@ function getBackoffDelay() {
 
 export function connectWebSocket() {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  const ws = new WebSocket(`${protocol}//${location.host}/ws`);
+  const ws = new WebSocket(`${protocol}//${location.host}/ws?token=${window.__VIBE_TOKEN}`);
   setState("ws", ws);
 
   ws.onopen = () => {

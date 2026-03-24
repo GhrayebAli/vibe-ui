@@ -355,7 +355,7 @@ $('model-pill').onclick = e => {
 /* ═══ WebSocket ═══ */
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  ws = new WebSocket(`${proto}//${location.host}/ws?token=${window.__VIBE_TOKEN}`);
   ws.onopen = () => { checkHealth(); loadStarters(); loadSessions(); loadHistory(); };
   ws.onmessage = e => handle(JSON.parse(e.data));
   ws.onclose = () => setTimeout(connect, 2000);
