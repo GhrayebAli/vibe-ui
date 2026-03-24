@@ -225,9 +225,12 @@ export function showDiffSummary(files) {
   const footer = ensureTurnFooter();
   const div = document.createElement('div');
   div.className = 'diff-summary';
-  let filesHtml = files.map(f =>
-    `<div class="diff-file"><span class="fname">${f.name}</span><span class="fstat"><span class="plus">+${f.additions || 0}</span> <span class="minus">-${f.deletions || 0}</span></span></div>`
-  ).join('');
+  let filesHtml = files.map(f => {
+    const shortName = f.name.split('/').pop();
+    const hasStats = (f.additions || 0) > 0 || (f.deletions || 0) > 0;
+    const statHtml = hasStats ? `<span class="fstat"><span class="plus">+${f.additions}</span> <span class="minus">-${f.deletions}</span></span>` : '';
+    return `<div class="diff-file"><span class="fname" title="${escapeHtml(f.name)}">${escapeHtml(shortName)}</span>${statHtml}</div>`;
+  }).join('');
   div.innerHTML = `
     <div class="diff-header"><span class="chevron">\u25BC</span> ${files.length} file${files.length > 1 ? 's' : ''} changed</div>
     <div class="diff-files">${filesHtml}</div>
