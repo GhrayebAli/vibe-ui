@@ -9,7 +9,8 @@
 #     --github-org MyOrg \
 #     --repo https://github.com/MyOrg/frontend:3000:frontend:npm:my-frontend \
 #     --repo https://github.com/MyOrg/api:1337:backend:npm \
-#     --env-file my-frontend:.env:/path/to/.env.example
+#     --env-file my-frontend:.env:/path/to/.env.example \
+#     --vpn-config /path/to/vpnconfig.ovpn.template
 #
 # Repo format: <git-url>:<port>:<type>:<packageManager>:<localName>
 #   - port: the port the service runs on
@@ -21,6 +22,10 @@
 #   Override with: --env-file <repo-name>:<env-filename>:<local-path>
 #   Example: --env-file ops-frontend:.env:/path/to/my.env
 #
+# VPN: provide --vpn-config with a .ovpn template file containing
+#   __VPN_PRIVATE_KEY__ placeholder. The private key is injected at
+#   startup from the VPN_PRIVATE_KEY Codespace secret.
+#
 # After running, follow the printed instructions to push and create the codespace.
 
 set -e
@@ -29,6 +34,7 @@ set -e
 WORKSPACE_NAME=""
 WORKSPACE_DIR=""
 GITHUB_OWNER=""
+VPN_CONFIG=""
 REPOS=()
 ENV_FILES=()
 GIT_ORGS=()
@@ -41,12 +47,13 @@ while [[ $# -gt 0 ]]; do
     --github-org) GIT_ORGS+=("$2"); shift 2;;
     --repo) REPOS+=("$2"); shift 2;;
     --env-file) ENV_FILES+=("$2"); shift 2;;
+    --vpn-config) VPN_CONFIG="$2"; shift 2;;
     *) echo "Unknown option: $1"; exit 1;;
   esac
 done
 
 if [ -z "$WORKSPACE_NAME" ] || [ -z "$WORKSPACE_DIR" ] || [ ${#REPOS[@]} -eq 0 ]; then
-  echo "Usage: bash create-workspace.sh --name \"My Workspace\" --dir ./my-workspace --repo <url>:<port>:<type>:<pm> [--repo ...] [--github-org Org] [--env repo:.env:\"content\"]"
+  echo "Usage: bash create-workspace.sh --name \"My Workspace\" --dir ./my-workspace --repo <url>:<port>:<type>:<pm> [--repo ...] [--github-org Org] [--env repo:.env:\"content\"] [--vpn-config /path/to/template.ovpn]"
   exit 1
 fi
 
@@ -196,6 +203,26 @@ else
 WEOF
 fi
 
+# ── Build VPN sections for devcontainer.json ──
+VPN_RUN_ARGS=""
+VPN_APT_PACKAGES=""
+VPN_POST_CREATE_EXTRA=""
+VPN_POST_START_PREFIX=""
+VPN_SECRET=""
+
+if [ -n "$VPN_CONFIG" ]; then
+  VPN_RUN_ARGS='
+  "runArgs": ["--cap-add=NET_ADMIN", "--device=/dev/net/tun"],
+'
+  VPN_APT_PACKAGES=" openvpn"
+  VPN_POST_CREATE_EXTRA=" && bash .devcontainer/setup-vpn-config.sh"
+  VPN_POST_START_PREFIX="bash .devcontainer/start-openvpn.sh; "
+  VPN_SECRET=',
+    "VPN_PRIVATE_KEY": {
+      "description": "Private key for VPN connection (full PEM format including headers)"
+    }'
+fi
+
 # ── Write devcontainer.json ──
 cat > "$WORKSPACE_DIR/.devcontainer/devcontainer.json" << DEOF
 {
@@ -206,14 +233,14 @@ cat > "$WORKSPACE_DIR/.devcontainer/devcontainer.json" << DEOF
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/sshd:1": { "version": "latest" }
   },
-
+${VPN_RUN_ARGS}
   "forwardPorts": [$FORWARD_PORTS],
   "portsAttributes": {
 $PORTS_JSON
   },
 
-  "postCreateCommand": "which jq || sudo apt-get update && sudo apt-get install -y jq && bash .devcontainer/setup.sh",
-  "postStartCommand": "nohup bash .devcontainer/start.sh > /tmp/services.log 2>&1 &",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y jq${VPN_APT_PACKAGES}${VPN_POST_CREATE_EXTRA}; bash .devcontainer/setup.sh",
+  "postStartCommand": "${VPN_POST_START_PREFIX}nohup bash .devcontainer/start.sh > /tmp/services.log 2>&1 &",
 
   "customizations": {
     "vscode": {
@@ -236,7 +263,7 @@ $PORTS_JSON
     },
     "WASHMEN_GITHUB_TOKEN": {
       "description": "GitHub PAT with repo scope for cloning and pushing"
-    }
+    }${VPN_SECRET}
   },
 
   "hostRequirements": {
@@ -273,6 +300,31 @@ else
 fi
 
 chmod +x "$WORKSPACE_DIR/.devcontainer/setup.sh" "$WORKSPACE_DIR/.devcontainer/start.sh"
+
+# ── Copy VPN scripts if --vpn-config provided ──
+if [ -n "$VPN_CONFIG" ]; then
+  if [ ! -f "$VPN_CONFIG" ]; then
+    echo "ERROR: VPN config template not found: $VPN_CONFIG"
+    exit 1
+  fi
+
+  cp "$VPN_CONFIG" "$WORKSPACE_DIR/.devcontainer/vpnconfig.ovpn.template"
+  echo "Copied VPN config template"
+
+  # Copy VPN helper scripts from template dir or download
+  if [ -n "$TEMPLATE_DIR" ] && [ -f "$TEMPLATE_DIR/setup-vpn-config.sh" ]; then
+    cp "$TEMPLATE_DIR/setup-vpn-config.sh" "$WORKSPACE_DIR/.devcontainer/setup-vpn-config.sh"
+    cp "$TEMPLATE_DIR/start-openvpn.sh" "$WORKSPACE_DIR/.devcontainer/start-openvpn.sh"
+    echo "Copied VPN scripts from template"
+  else
+    # Download from GitHub
+    echo "Downloading VPN scripts from GitHub..."
+    curl -sL "https://raw.githubusercontent.com/GhrayebAli/washmen-ops-workspace/main/.devcontainer/setup-vpn-config.sh" > "$WORKSPACE_DIR/.devcontainer/setup-vpn-config.sh"
+    curl -sL "https://raw.githubusercontent.com/GhrayebAli/washmen-ops-workspace/main/.devcontainer/start-openvpn.sh" > "$WORKSPACE_DIR/.devcontainer/start-openvpn.sh"
+  fi
+
+  chmod +x "$WORKSPACE_DIR/.devcontainer/setup-vpn-config.sh" "$WORKSPACE_DIR/.devcontainer/start-openvpn.sh"
+fi
 
 # ── VS Code extension ──
 cat > "$WORKSPACE_DIR/.devcontainer/extensions/workspace-layout/package.json" << 'EEOF'
@@ -396,6 +448,13 @@ $(echo -e "$REPO_LIST")
 - All work on mvp/<feature-name> branches
 - Commit with descriptive messages
 - Never push to master/main
+
+## After Code Changes
+After completing a code change:
+1. **Commit locally** — do NOT push yet
+2. **Ask the user for approval** — show a summary of what changed and ask "Ready to push and sync codespaces?"
+3. **Only after explicit approval**: push to remote, then pull on all running codespaces — use \`gh codespace list\` to find them, then \`gh codespace ssh -c <name> -- 'cd /workspaces/<workspace>/<repo> && git pull origin main'\` for each
+4. **Do NOT manually restart vibe-ui** — it runs with \`nodemon\` which auto-restarts on file changes
 CLEOF
 
 # ── .gitignore ──
@@ -411,6 +470,10 @@ CLEOF
   echo ".active-branch"
   echo ".setup-done"
   echo ".DS_Store"
+  if [ -n "$VPN_CONFIG" ]; then
+    echo ".devcontainer/vpnconfig.ovpn"
+    echo ".devcontainer/openvpn-tmp/"
+  fi
 } > "$WORKSPACE_DIR/.gitignore"
 
 # ── Initialize git ──
@@ -434,6 +497,11 @@ echo "  2. Grant codespace secrets access:"
 echo "     REPO_ID=\$(gh api repos/$REPO_OWNER/$WORKSPACE_BASENAME --jq '.id')"
 echo "     gh api -X PUT /user/codespaces/secrets/ANTHROPIC_API_KEY/repositories/\$REPO_ID"
 echo "     gh api -X PUT /user/codespaces/secrets/WASHMEN_GITHUB_TOKEN/repositories/\$REPO_ID"
+if [ -n "$VPN_CONFIG" ]; then
+echo ""
+echo "  2b. Set VPN secret (repo-level):"
+echo "     gh secret set VPN_PRIVATE_KEY -R $REPO_OWNER/$WORKSPACE_BASENAME --app codespaces < /path/to/private-key.pem"
+fi
 echo ""
 echo "  3. Create and start the codespace:"
 echo "     gh codespace create -R $REPO_OWNER/$WORKSPACE_BASENAME -b main --machine standardLinux32gb"
