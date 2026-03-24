@@ -627,6 +627,9 @@ export function handleWashmenWs(ws, sessionIds) {
 
           if (mode !== "discover") {
             try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.error("[db]", e.message); }
+            if (cost > 0) {
+              try { addMessage(sessionId, "result", JSON.stringify({ cost_usd: cost, model })); } catch (e) { console.error("[db]", e.message); }
+            }
           }
 
           // Auto-push branch to origin when files were changed
