@@ -31,7 +31,7 @@ import {
 } from "../db.js";
 
 const DAILY_BUDGET = 20; // $20/day
-const PER_QUERY_BUDGET = 2; // $2 per query — prevents runaway turns
+const PER_QUERY_BUDGET = 5; // $5 per query — enough for complex features, catches runaway loops
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 const MODEL_MAP = { opus: "claude-opus-4-6", sonnet: "claude-sonnet-4-6", haiku: "claude-haiku-4-5-20251001" };
@@ -42,6 +42,10 @@ const PLAN_SYSTEM_PROMPT = `You are in PLAN MODE. You must NOT edit any files, r
 const PLAN_FIRST_TURN_APPEND = `\n\nRespond with a structured plan:\n1. What needs to change across each layer (frontend, API gateway, core service)\n2. Which specific files will be modified\n3. What the changes will look like\n4. Any risks or considerations`;
 
 const DISCOVER_SYSTEM_PROMPT = `You are in DISCOVERY MODE, exploring the codebase on the main branch. You must NOT edit any files or run commands that modify files. Only use Read, Glob, and Grep to explore and explain the codebase. Answer questions about architecture, patterns, and implementation details.`;
+
+const BUILD_SYSTEM_PROMPT = `Important workspace rules:
+- Use Read, Glob, and Grep directly for file exploration. Only use Agent sub-agents for tasks that genuinely require parallel deep research across many files.
+- After modifying backend files (controllers, routes, models, config), backend services are auto-restarted by the system — do NOT restart them yourself.`;
 
 // PreToolUse guardrail patterns
 const BLOCKED_BASH_PATTERNS = [
@@ -267,6 +271,13 @@ export function handleWashmenWs(ws, sessionIds) {
         preset: "claude_code",
         append: DISCOVER_SYSTEM_PROMPT,
       };
+    } else {
+      // Build mode
+      systemPrompt = {
+        type: "preset",
+        preset: "claude_code",
+        append: BUILD_SYSTEM_PROMPT,
+      };
     }
 
     // Check daily budget
@@ -320,6 +331,7 @@ export function handleWashmenWs(ws, sessionIds) {
         settingSources: ["project"],
         thinking: { type: "adaptive" },
         maxBudgetUsd: PER_QUERY_BUDGET,
+        maxTurns: 50,
         allowedTools: (mode === "plan" || mode === "discover")
             ? ["Read", "Glob", "Grep"]  // Plan/Discover mode: read-only tools
             : ["Read", "Edit", "Write", "Bash", "Glob", "Grep", "WebFetch", "Agent"],
