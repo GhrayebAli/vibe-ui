@@ -492,6 +492,21 @@ export function searchSessions(query, limit = 20, projectPath) {
   return stmts.searchSessionsAll.all(pattern, pattern, limit);
 }
 
+export function undoLastTurn(sessionId) {
+  const lastAssistant = db.prepare(
+    "SELECT id FROM messages WHERE session_id = ? AND role = 'assistant' ORDER BY created_at DESC LIMIT 1"
+  ).get(sessionId);
+  const lastUser = db.prepare(
+    "SELECT id FROM messages WHERE session_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 1"
+  ).get(sessionId);
+
+  const ids = [lastAssistant?.id, lastUser?.id].filter(Boolean);
+  if (ids.length > 0) {
+    db.prepare(`DELETE FROM messages WHERE id IN (${ids.map(() => '?').join(',')})`).run(...ids);
+  }
+  return ids.length;
+}
+
 export const deleteSession = db.transaction((id) => {
   db.prepare("DELETE FROM claude_sessions WHERE session_id = ?").run(id);
   db.prepare("DELETE FROM costs WHERE session_id = ?").run(id);

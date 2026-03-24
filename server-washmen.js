@@ -12,7 +12,7 @@ console.log(`[auth] Token: ${AUTH_TOKEN}`);
 import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
-import { getDb, createSession, getSession, addMessage, addCost, getTotalCost, getSessionByBranch, getNotes, saveNotes, getBranchCosts } from "./db.js";
+import { getDb, createSession, getSession, addMessage, addCost, getTotalCost, getSessionByBranch, getNotes, saveNotes, getBranchCosts, undoLastTurn } from "./db.js";
 import { handleWashmenWs } from "./server/ws-handler-washmen.js";
 import { loadWorkspaceConfig, getWorkspaceDir, getConfig, getFrontendRepo, getFrontendPort, getServicesConfig, getRepoNames, getClientConfig } from "./server/workspace-config.js";
 import { sanitizeBranchName, sanitizePort, validateDevCommand } from "./server/sanitize.js";
@@ -505,6 +505,12 @@ app.get("/api/sessions/:id/timeline", (req, res) => {
     "SELECT event_type, tool, input_summary, created_at FROM activity_events WHERE session_id = ? ORDER BY created_at ASC"
   ).all(req.params.id);
   res.json(events);
+});
+
+app.post("/api/sessions/:id/undo", (req, res) => {
+  const deleted = undoLastTurn(req.params.id);
+  const messages = getDb().prepare("SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC").all(req.params.id);
+  res.json({ ok: true, deleted, messages });
 });
 
 // File read API — for Code tab (restricted to workspace)

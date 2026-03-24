@@ -353,6 +353,22 @@ function handleMessage(msg) {
       sendBtn.style.display = 'flex';
       stopBtn.style.display = 'none';
       updateBudget(msg.totalCost);
+      // Add undo button
+      if (sid) {
+        const lastMsg = chat.querySelector('.msg:last-child');
+        if (lastMsg) {
+          const undoBtn = document.createElement('button');
+          undoBtn.className = 'undo-btn';
+          undoBtn.textContent = 'Undo';
+          undoBtn.onclick = async () => {
+            const resp = await fetch(`/api/sessions/${sid}/undo`, { method: 'POST' });
+            const data = await resp.json();
+            clearChat();
+            if (data.messages?.length > 0) loadMessages(data.messages);
+          };
+          lastMsg.appendChild(undoBtn);
+        }
+      }
       // Detect follow-up questions in the response
       if (msg.text) {
         detectAndRenderQuestion(msg.text, (answer) => doSend(answer));

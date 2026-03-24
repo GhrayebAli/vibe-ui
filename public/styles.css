@@ -554,3 +554,7 @@ pre:hover .code-copy { opacity: 1; }
 .timeline-toggle:hover { color: var(--accent); }
 .timeline-items { font-size: 10px; color: var(--text-dim); padding: 4px 0; line-height: 1.6; word-break: break-all; }
 .timeline-item { white-space: nowrap; }
+
+/* ═══ Undo Button ═══ */
+.undo-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); padding: 2px 10px; border-radius: var(--radius-pill); font-size: 11px; cursor: pointer; margin-top: 4px; font-family: var(--font); }
+.undo-btn:hover { border-color: var(--accent); color: var(--text); }
