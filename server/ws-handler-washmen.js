@@ -54,8 +54,26 @@ const BUILD_SYSTEM_PROMPT = `Important workspace rules:
 
 // PreToolUse guardrail patterns
 const BLOCKED_BASH_PATTERNS = [
+  // Database operations
   /migrate/i, /db:seed/i, /DROP\s/i, /DELETE\s+FROM/i, /TRUNCATE/i, /ALTER\s+TABLE/i,
   /git\s+push\s+.*\s*(master|main)\b/i,
+  // Dangerous shell patterns
+  /\bsudo\b/i,
+  /\brm\s+-rf?\b/i,
+  /\bcurl\b.*\|\s*(sh|bash)\b/,
+  /\bwget\b.*\|\s*(sh|bash)\b/,
+  /\bchmod\b/i,
+  /\bchown\b/i,
+  /\bkill\b/i,
+  /\bpkill\b/i,
+  /\breboot\b/i,
+  /\bshutdown\b/i,
+  /\bnc\s+-l/i,
+  /\benv\b/,
+  /\bprintenv\b/,
+  /\/etc\//,
+  /\/proc\//,
+  /\.env\b/,
 ];
 
 const BLOCKED_CODE_PATTERNS = [
@@ -69,6 +87,12 @@ const BLOCKED_CODE_PATTERNS = [
 
 const BLOCKED_FILE_PATTERNS = [
   /\/policies\//i, /\/middleware\//i, /\/auth\//i,
+  /\.env$/i, /\.env\./i,
+  /credentials/i,
+  /secrets?\./i,
+  /\.pem$/i, /\.key$/i,
+  /package\.json$/i,
+  /workspace\.json$/i,
 ];
 
 function checkPreToolUse(toolName, toolInput) {
