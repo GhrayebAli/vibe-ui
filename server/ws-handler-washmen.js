@@ -37,16 +37,19 @@ const PER_QUERY_BUDGET = 5; // $5 per query — enough for complex features, cat
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 const MODEL_MAP = { opus: "claude-opus-4-6", sonnet: "claude-sonnet-4-6", haiku: "claude-haiku-4-5-20251001" };
 
+// Tone: keep responses non-technical for non-engineer users
+const TONE_INSTRUCTION = `\nWhen responding to the user, write in plain, non-technical language. Avoid jargon, file paths, code snippets, and implementation details unless the user explicitly asks. Focus on what changed and what it means, not how it was done. Keep responses short and friendly.`;
+
 // System prompts for each mode — enforced via SDK systemPrompt, not text injection
-const PLAN_SYSTEM_PROMPT = `You are in PLAN MODE. You must NOT edit any files, run any commands, or make any code changes. You must NOT use Edit, Write, or Bash tools. Only use Read, Glob, and Grep to understand the codebase. Answer questions and create plans — never execute them.`;
+const PLAN_SYSTEM_PROMPT = `You are in PLAN MODE. You must NOT edit any files, run any commands, or make any code changes. You must NOT use Edit, Write, or Bash tools. Only use Read, Glob, and Grep to understand the codebase. Answer questions and create plans — never execute them.` + TONE_INSTRUCTION;
 
 const PLAN_FIRST_TURN_APPEND = `\n\nRespond with a structured plan:\n1. What needs to change across each layer (frontend, API gateway, core service)\n2. Which specific files will be modified\n3. What the changes will look like\n4. Any risks or considerations`;
 
-const DISCOVER_SYSTEM_PROMPT = `You are in DISCOVERY MODE, exploring the codebase on the main branch. You must NOT edit any files or run commands that modify files. Only use Read, Glob, and Grep to explore and explain the codebase. Answer questions about architecture, patterns, and implementation details.`;
+const DISCOVER_SYSTEM_PROMPT = `You are in DISCOVERY MODE, exploring the codebase on the main branch. You must NOT edit any files or run commands that modify files. Only use Read, Glob, and Grep to explore and explain the codebase. Answer questions about architecture, patterns, and implementation details.` + TONE_INSTRUCTION;
 
 const BUILD_SYSTEM_PROMPT = `Important workspace rules:
 - Use Read, Glob, and Grep directly for file exploration. Only use Agent sub-agents for tasks that genuinely require parallel deep research across many files.
-- After modifying backend files (controllers, routes, models, config), backend services are auto-restarted by the system — do NOT restart them yourself.`;
+- After modifying backend files (controllers, routes, models, config), backend services are auto-restarted by the system — do NOT restart them yourself.` + TONE_INSTRUCTION;
 
 // PreToolUse guardrail patterns
 const BLOCKED_BASH_PATTERNS = [
