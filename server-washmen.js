@@ -355,7 +355,13 @@ app.post("/api/switch-branch", async (req, res) => {
         wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `restart-${cfgRepo.name}`, status: 'active' });
         try { execSync(`kill $(lsof -ti:${safePort} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
         const logFile = `/tmp/${cfgRepo.name}.log`;
-        spawn("bash", ["-c", `cd "${repoPath}" && ${cfgRepo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
+        try { writeFileSync(logFile, ""); } catch {} // Truncate on restart
+        const child = spawn("bash", ["-c", `cd "${repoPath}" && ${cfgRepo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" });
+        child.unref();
+        child.on("error", (err) => {
+          console.error(`[spawn] ${cfgRepo.name} failed:`, err.message);
+          wsBroadcast({ type: "system", text: `Failed to start ${cfgRepo.name}: ${err.message}` });
+        });
         restarted.push(cfgRepo.name);
         wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `restart-${cfgRepo.name}`, status: 'done' });
         }
@@ -590,7 +596,7 @@ async function startBrowserConsoleListener() {
           ts: Date.now(),
         });
         // Keep buffer manageable
-        if (browserConsoleBuffer.length > 200) browserConsoleBuffer.splice(0, 100);
+        if (browserConsoleBuffer.length > 100) browserConsoleBuffer.splice(0, 50);
       }
     });
 
@@ -623,6 +629,11 @@ setTimeout(() => {
 app.get("/api/console", (req, res) => {
   const entries = [];
   const reset = req.query.reset === "true";
+
+  // Clean up logPositions for files that no longer exist
+  for (const key of Object.keys(logPositions)) {
+    if (!existsSync(`/tmp/${key}`)) delete logPositions[key];
+  }
 
   for (const [name, logFile] of getLogSources()) {
     try {
@@ -1012,7 +1023,13 @@ app.post("/api/restart-service", (req, res) => {
       try { execSync(`kill $(lsof -ti:${safePort} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
     }
     const logFile = `/tmp/${repo.name}.log`;
-    spawn("bash", ["-c", `cd "${workspaceDir}/${repo.name}" && ${repo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
+    try { writeFileSync(logFile, ""); } catch {} // Truncate on restart
+    const child = spawn("bash", ["-c", `cd "${workspaceDir}/${repo.name}" && ${repo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" });
+    child.unref();
+    child.on("error", (err) => {
+      console.error(`[spawn] ${repo.name} failed:`, err.message);
+      wsBroadcast({ type: "system", text: `Failed to start ${repo.name}: ${err.message}` });
+    });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
