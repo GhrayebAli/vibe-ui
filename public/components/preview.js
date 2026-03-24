@@ -15,12 +15,12 @@ export function initPreview(url) {
 
   frame.onload = () => {
     loader.classList.add('hidden');
-    // Try to read the current path from the iframe
+    // Try to read the current path from the iframe (works when same-origin via proxy)
     try {
-      const path = frame.contentWindow.location.pathname;
-      if (path && path !== '/') {
-        urlInput.value = urlInput.value.split('/')[0] + path;
-      }
+      let path = frame.contentWindow.location.pathname;
+      // Strip /preview proxy prefix for display
+      if (path.startsWith('/preview')) path = path.slice(8) || '/';
+      urlInput.value = path || '/';
     } catch {}
   };
 

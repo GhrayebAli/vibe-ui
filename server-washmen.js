@@ -31,6 +31,38 @@ app.use(express.static(join(__dirname, "public"), { etag: false, maxAge: 0 }));
 // Load workspace config at startup
 loadWorkspaceConfig();
 
+// Reverse proxy: /preview/* → frontend port (same-origin for iframe access)
+app.use("/preview", async (req, res) => {
+  const frontendPort = getFrontendPort();
+  const targetUrl = `http://localhost:${frontendPort}${req.url}`;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const resp = await fetch(targetUrl, {
+      method: req.method,
+      headers: { ...req.headers, host: `localhost:${frontendPort}` },
+      body: ["GET", "HEAD"].includes(req.method) ? undefined : req,
+      signal: controller.signal,
+      redirect: "manual",
+    });
+    clearTimeout(timeout);
+    // Forward status and headers
+    res.status(resp.status);
+    for (const [key, value] of resp.headers.entries()) {
+      if (!["transfer-encoding", "content-encoding", "connection"].includes(key.toLowerCase())) {
+        res.setHeader(key, value);
+      }
+    }
+    // Disable caching for proxied content
+    res.setHeader("Cache-Control", "no-store");
+    // Stream body
+    const body = await resp.arrayBuffer();
+    res.end(Buffer.from(body));
+  } catch (e) {
+    if (!res.headersSent) res.status(502).send("Preview proxy error: " + e.message);
+  }
+});
+
 // Serve workspace config to browser
 app.get("/api/workspace-config", (_req, res) => res.json(getClientConfig()));
 

@@ -262,7 +262,8 @@ function connect() {
       checkHealth();
       showLanding();
       const cfg = window.__workspaceConfig;
-      initPreview(portUrl(cfg.frontendPort) + cfg.previewPath);
+      // Load preview through same-origin proxy for iframe DOM access (visual edit)
+      initPreview('/preview' + cfg.previewPath);
       initVisualEdit($('preview-frame'), doSend);
       setInterval(checkHealth, 10000);
     } else {
