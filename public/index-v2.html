@@ -93,15 +93,15 @@
     </div>
 
     <!-- Chat Area (hidden when landing is shown) -->
-    <div class="chat-area" id="chat" style="display:none">
+    <div class="chat-area" id="chat" style="display:none" aria-live="polite" role="log">
     </div>
 
     <!-- Overlays (slide over chat only) -->
-    <div class="overlay" id="overlay-status">
+    <div class="overlay" id="overlay-status" role="dialog" aria-modal="true" aria-label="Service Status">
       <div class="overlay-header"><h3>Service Status</h3><button class="overlay-close">&times;</button></div>
       <div id="status-list"></div>
     </div>
-    <div class="overlay" id="overlay-notes">
+    <div class="overlay" id="overlay-notes" role="dialog" aria-modal="true" aria-label="Branch Summary">
       <div class="overlay-header"><h3>Branch Summary</h3><button class="overlay-close">&times;</button></div>
       <div class="notes-area" id="notes-area">
         <textarea id="notes-editor" placeholder="MVP notes will appear here..."></textarea>

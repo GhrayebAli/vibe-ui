@@ -625,7 +625,9 @@ document.querySelectorAll('.model-chip').forEach(chip => {
 }
 
 /* ═══ Overlays ═══ */
+import { trapFocus } from './js/utils/focus-trap.js';
 let activeOverlay = null;
+let releaseTrap = null;
 document.querySelectorAll('.strip-btn[data-overlay]').forEach(btn => {
   btn.onclick = () => {
     const name = btn.dataset.overlay;
@@ -635,15 +637,18 @@ document.querySelectorAll('.strip-btn[data-overlay]').forEach(btn => {
       el.classList.remove('open');
       btn.classList.remove('active');
       activeOverlay = null;
+      releaseTrap?.(); releaseTrap = null;
     } else {
       // Close any open overlay
       if (activeOverlay) {
         $('overlay-' + activeOverlay).classList.remove('open');
         document.querySelector(`.strip-btn[data-overlay="${activeOverlay}"]`).classList.remove('active');
+        releaseTrap?.(); releaseTrap = null;
       }
       el.classList.add('open');
       btn.classList.add('active');
       activeOverlay = name;
+      releaseTrap = trapFocus(el);
 
       // Load data for the overlay — pass branch for scoping
       // history panel removed — git commits are the version history
@@ -681,6 +686,7 @@ document.querySelectorAll('.overlay-close').forEach(btn => {
       const prevBtn = document.querySelector(`[data-overlay="${activeOverlay}"]`);
       if (prevBtn) prevBtn.classList.remove('active');
       activeOverlay = null;
+      releaseTrap?.(); releaseTrap = null;
     }
   };
 });
