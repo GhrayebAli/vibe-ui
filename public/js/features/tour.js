@@ -2,71 +2,62 @@
 const TOUR_KEY = 'claudeck-tour-completed';
 
 function buildSteps() {
-  const steps = [
-  // ── Navigation ──────────────────────────────────
-  {
-    element: '#home-btn',
-    popover: {
-      title: 'Home',
-      description: 'Return to the landing screen to switch branches or start a new feature.',
-      side: 'right',
-      align: 'center',
-    },
-  },
+  const all = [
+  // ── Top Bar ─────────────────────────────────────
   {
     element: '#mode-toggle',
     popover: {
       title: 'Build Mode',
-      description: 'Choose between Discover (read-only), Plan (design first), and Build (full edit) modes.',
-      side: 'right',
-      align: 'center',
+      description: 'Switch between <strong>Plan</strong> (design first) and <strong>Build</strong> (full edit) modes.',
+      side: 'bottom',
+      align: 'start',
     },
   },
   {
     element: '#model-picker',
     popover: {
       title: 'AI Model',
-      description: 'Select which AI model to use for your session.',
-      side: 'right',
-      align: 'center',
+      description: 'Pick <strong>Haiku</strong> for speed, <strong>Sonnet</strong> for balance, or <strong>Opus</strong> for complex tasks.',
+      side: 'bottom',
+      align: 'end',
     },
   },
 
   // ── Landing ─────────────────────────────────────
   {
-    element: '#landing',
+    element: '#landing-discover',
     popover: {
-      title: 'Landing Screen',
-      description: 'Your starting point — discover the codebase, resume a branch, or build a new feature.',
-      side: 'right',
-      align: 'start',
+      title: 'Discover Mode',
+      description: 'Explore the codebase in read-only mode. Ask questions, understand the architecture.',
+      side: 'bottom',
+      align: 'center',
+    },
+  },
+  {
+    element: '#landing-resume',
+    popover: {
+      title: 'Resume a Branch',
+      description: 'Continue working on a feature branch. Shows commit history, cost, and last activity.',
+      side: 'bottom',
+      align: 'center',
+    },
+  },
+  {
+    element: '#landing-build',
+    popover: {
+      title: 'Build a Feature',
+      description: 'Start a new feature — give it a name and the AI creates a branch and gets to work.',
+      side: 'top',
+      align: 'center',
     },
   },
 
-  // ── Chat Input ──────────────────────────────────
+  // ── Input Dock ──────────────────────────────────
   {
-    element: '#attach-btn',
-    popover: {
-      title: 'Attach Files',
-      description: 'Attach images or files as context for the AI.',
-      side: 'top',
-      align: 'center',
-    },
-  },
-  {
-    element: '#input',
+    element: '#input-dock',
     popover: {
       title: 'Chat Input',
-      description: 'Describe what you want to build. <kbd>Shift+Enter</kbd> for new lines, <kbd>Enter</kbd> to send.',
-      side: 'top',
-      align: 'center',
-    },
-  },
-  {
-    element: '#send-btn',
-    popover: {
-      title: 'Send Message',
-      description: 'Send your message to the AI, or press <kbd>Enter</kbd>.',
+      description: 'Describe what you want to build. Attach files for context. Press <strong>Enter</strong> to send.',
       side: 'top',
       align: 'center',
     },
@@ -74,30 +65,21 @@ function buildSteps() {
 
   // ── Right Panel ─────────────────────────────────
   {
-    element: '#tab-preview',
+    element: '.panel-tabs',
+    popover: {
+      title: 'Right Panel',
+      description: 'Switch between <strong>Preview</strong> (live app), <strong>Code</strong> (file changes), and <strong>Console</strong> (logs).',
+      side: 'left',
+      align: 'start',
+    },
+  },
+  {
+    element: '#preview-wrap',
     popover: {
       title: 'Live Preview',
-      description: 'See your changes in real time as the AI edits code.',
+      description: 'See your app running in real time as the AI makes changes.',
       side: 'left',
-      align: 'start',
-    },
-  },
-  {
-    element: '#tab-code',
-    popover: {
-      title: 'Code View',
-      description: 'Browse and inspect the files the AI has modified.',
-      side: 'left',
-      align: 'start',
-    },
-  },
-  {
-    element: '#tab-console',
-    popover: {
-      title: 'Console',
-      description: 'View server logs and browser console output for debugging.',
-      side: 'left',
-      align: 'start',
+      align: 'center',
     },
   },
 
@@ -106,14 +88,20 @@ function buildSteps() {
     element: '.budget-track',
     popover: {
       title: 'Budget Tracker',
-      description: 'Monitor your daily AI usage. The bar fills as you use more of your budget.',
+      description: 'Your daily AI spend. The bar fills as you use more of your allowance.',
       side: 'top',
       align: 'center',
     },
   },
   ];
 
-  return steps;
+  // Only include steps whose elements are visible in the DOM
+  return all.filter(step => {
+    const el = document.querySelector(step.element);
+    if (!el) return false;
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
 }
 
 /**
@@ -125,20 +113,23 @@ export function startTour() {
     return;
   }
 
+  const steps = buildSteps();
+  if (steps.length === 0) return;
+
   const driverObj = window.driver.js.driver({
     showProgress: true,
     animate: true,
-    overlayColor: 'rgba(0, 0, 0, 0.35)',
-    stagePadding: 6,
-    stageRadius: 8,
+    overlayColor: 'rgba(0, 0, 0, 0.55)',
+    stagePadding: 8,
+    stageRadius: 10,
     smoothScroll: true,
-    popoverClass: 'claudeck-tour',
+    popoverClass: 'washmen-tour',
     allowClose: true,
-    doneBtnText: 'Finish',
-    nextBtnText: 'Next →',
-    prevBtnText: '← Back',
+    doneBtnText: 'Done',
+    nextBtnText: 'Next',
+    prevBtnText: 'Back',
     showButtons: ['next', 'previous', 'close'],
-    steps: buildSteps(),
+    steps,
     onDestroyed: () => {
       localStorage.setItem(TOUR_KEY, '1');
     },

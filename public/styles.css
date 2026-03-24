@@ -528,17 +528,34 @@ pre:hover .code-copy { opacity: 1; }
 #welcome-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); transition: opacity 0.3s; }
 #welcome-overlay.hidden { display: none; }
 #welcome-overlay.hiding { opacity: 0; }
-.welcome-inner { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 40px; max-width: 400px; text-align: center; }
+.welcome-inner { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 40px; max-width: 400px; text-align: center; box-shadow: 0 12px 48px rgba(0,0,0,0.5); }
 .welcome-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
 .welcome-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
-.welcome-features { display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; text-align: left; }
-.welcome-feature { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text); }
-.welcome-feature-icon { font-size: 18px; }
+.welcome-logo { margin-bottom: 16px; }
+.welcome-features { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; text-align: left; }
+.welcome-feature { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-dim); }
+.welcome-feature-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
 .welcome-actions { display: flex; gap: 10px; justify-content: center; }
 .welcome-btn-primary { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-pill); padding: 10px 24px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .welcome-btn-primary:hover { filter: brightness(1.15); }
 .welcome-btn-secondary { background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 10px 24px; font-size: 13px; cursor: pointer; }
 .welcome-btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ═══ Tour (Driver.js theme override) ═══ */
+.washmen-tour.driver-popover { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); color: var(--text); font-family: var(--font); padding: 20px; max-width: 300px; }
+.washmen-tour .driver-popover-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.washmen-tour .driver-popover-description { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+.washmen-tour .driver-popover-description strong { color: var(--accent); font-weight: 500; }
+.washmen-tour .driver-popover-description kbd { background: var(--bg); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; font-size: 11px; font-family: var(--mono); }
+.washmen-tour .driver-popover-progress-text { font-size: 10px; color: var(--text-muted); }
+.washmen-tour .driver-popover-navigation-btns { gap: 6px; }
+.washmen-tour .driver-popover-prev-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: var(--radius-pill); padding: 5px 14px; font-size: 11px; font-family: var(--font); text-shadow: none; }
+.washmen-tour .driver-popover-prev-btn:hover { border-color: var(--accent); color: var(--text); }
+.washmen-tour .driver-popover-next-btn, .washmen-tour .driver-popover-close-btn-text { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-pill); padding: 5px 14px; font-size: 11px; font-weight: 600; font-family: var(--font); text-shadow: none; }
+.washmen-tour .driver-popover-next-btn:hover, .washmen-tour .driver-popover-close-btn-text:hover { filter: brightness(1.15); }
+.washmen-tour .driver-popover-close-btn { color: var(--text-muted); }
+.washmen-tour .driver-popover-close-btn:hover { color: var(--text); }
+.washmen-tour .driver-popover-arrow-side-left .driver-popover-arrow, .washmen-tour .driver-popover-arrow-side-right .driver-popover-arrow, .washmen-tour .driver-popover-arrow-side-top .driver-popover-arrow, .washmen-tour .driver-popover-arrow-side-bottom .driver-popover-arrow { border-color: var(--surface); }
 
 /* ═══ Preview Error State ═══ */
 .preview-error { text-align: center; padding: 32px; color: var(--text-dim); }
