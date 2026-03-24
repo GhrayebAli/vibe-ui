@@ -90,13 +90,14 @@ async function showLanding() {
       if (b.commitCount) stats.push(`${b.commitCount} commit${b.commitCount > 1 ? 's' : ''}`);
       if (b.filesChanged) stats.push(`${b.filesChanged} file${b.filesChanged > 1 ? 's' : ''}`);
       const statsHtml = stats.length ? `<span class="landing-branch-stats">${stats.join(' · ')}</span>` : '';
-      const commitHtml = b.lastCommitMsg ? `<span class="landing-branch-commit">${escapeHtml(b.lastCommitMsg)}</span>` : '';
+      const description = b.session?.title || (b.lastCommitMsg && !b.lastCommitMsg.startsWith('auto:') ? b.lastCommitMsg : '');
+      const descHtml = description ? `<span class="landing-branch-commit">${escapeHtml(description)}</span>` : '';
       const costHtml = b.cost > 0 ? `<span class="landing-branch-cost">$${b.cost.toFixed(2)}</span>` : '';
       const codespaceHtml = b.session?.codespace ? `<span class="landing-branch-codespace">${escapeHtml(b.session.codespace)}</span>` : '';
       item.innerHTML = `
         <div class="landing-branch-info">
           <span class="landing-branch-name">${escapeHtml(b.name)}</span>
-          ${commitHtml}
+          ${descHtml}
         </div>
         <div class="landing-branch-right">
           ${codespaceHtml}
