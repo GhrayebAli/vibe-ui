@@ -23,7 +23,7 @@ set -e
 # ── Parse arguments ──
 WORKSPACE_NAME=""
 WORKSPACE_DIR=""
-GITHUB_ORG=""
+GITHUB_OWNER=""
 REPOS=()
 ENV_FILES=()
 GIT_ORGS=()
@@ -31,6 +31,7 @@ GIT_ORGS=()
 while [[ $# -gt 0 ]]; do
   case $1 in
     --name) WORKSPACE_NAME="$2"; shift 2;;
+    --owner) GITHUB_OWNER="$2"; shift 2;;
     --dir) WORKSPACE_DIR="$2"; shift 2;;
     --github-org) GIT_ORGS+=("$2"); shift 2;;
     --repo) REPOS+=("$2"); shift 2;;
@@ -247,14 +248,18 @@ module.exports = { activate, deactivate };
 EXEOF
 
 # ── start-codespace.sh ──
-# Detect GitHub org/user from first repo URL
-FIRST_ORG=$(echo "${REPOS[0]}" | sed 's|.*github\.com/\([^/]*\)/.*|\1|')
+# Use --owner if provided, otherwise detect from first repo URL
+if [ -n "$GITHUB_OWNER" ]; then
+  REPO_OWNER="$GITHUB_OWNER"
+else
+  REPO_OWNER=$(echo "${REPOS[0]}" | sed 's|.*github\.com/\([^/]*\)/.*|\1|')
+fi
 
 cat > "$WORKSPACE_DIR/start-codespace.sh" << CSEOF
 #!/bin/bash
 # Entry point — run this locally to start/resume the workspace
 
-REPO="$FIRST_ORG/$WORKSPACE_BASENAME"
+REPO="$REPO_OWNER/$WORKSPACE_BASENAME"
 CODESPACE=\$(gh codespace list --json name,state,repository -q ".[] | select(.repository == \"\$REPO\" and .state == \"Available\") | .name" | head -1)
 
 if [ -z "\$CODESPACE" ]; then
@@ -355,14 +360,14 @@ echo "Next steps:"
 echo ""
 echo "  1. Create the GitHub repo and push:"
 echo "     cd $WORKSPACE_DIR"
-echo "     gh repo create $FIRST_ORG/$WORKSPACE_BASENAME --public --source=. --push"
+echo "     gh repo create $REPO_OWNER/$WORKSPACE_BASENAME --public --source=. --push"
 echo ""
 echo "  2. Grant codespace secrets access:"
-echo "     REPO_ID=\$(gh api repos/$FIRST_ORG/$WORKSPACE_BASENAME --jq '.id')"
+echo "     REPO_ID=\$(gh api repos/$REPO_OWNER/$WORKSPACE_BASENAME --jq '.id')"
 echo "     gh api -X PUT /user/codespaces/secrets/ANTHROPIC_API_KEY/repositories/\$REPO_ID"
 echo "     gh api -X PUT /user/codespaces/secrets/WASHMEN_GITHUB_TOKEN/repositories/\$REPO_ID"
 echo ""
 echo "  3. Create and start the codespace:"
-echo "     gh codespace create -R $FIRST_ORG/$WORKSPACE_BASENAME -b main --machine standardLinux32gb"
+echo "     gh codespace create -R $REPO_OWNER/$WORKSPACE_BASENAME -b main --machine standardLinux32gb"
 echo "     bash start-codespace.sh"
 echo ""
