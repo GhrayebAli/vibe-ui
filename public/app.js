@@ -355,7 +355,8 @@ function handleMessage(msg) {
       updateBudget(msg.totalCost);
       // Add undo button
       if (sid) {
-        const lastMsg = chat.querySelector('.msg:last-child');
+        const allMsgs = chat.querySelectorAll('.msg');
+        const lastMsg = allMsgs[allMsgs.length - 1];
         if (lastMsg) {
           const undoBtn = document.createElement('button');
           undoBtn.className = 'undo-btn';
