@@ -180,14 +180,6 @@ function getToolLabel(tool, input) {
   return { icon, label };
 }
 
-function addToolIndicator(tool, input) {
-  const { icon, label } = getToolLabel(tool, input);
-  const div = document.createElement('div');
-  div.className = 'tool-indicator-history';
-  div.textContent = `${icon} ${label}`;
-  chatEl.appendChild(div);
-}
-
 export function showActivity(tool, input) {
   const { icon, label } = getToolLabel(tool, input);
 
