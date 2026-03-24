@@ -10,13 +10,28 @@ export async function checkHealth() {
     const resp = await fetch('/api/service-health');
     const data = await resp.json();
 
-    // Update header dots dynamically
-    const dotIds = ['h-fe', 'h-gw', 'h-core', 'h-svc3', 'h-svc4', 'h-svc5'];
-    data.services.forEach((svc, i) => {
-      healthState[svc.name] = svc.status;
-      const dot = document.getElementById(dotIds[i]);
-      if (dot) dot.className = 'h-dot ' + (svc.status === 'healthy' ? 'ok' : 'err');
-    });
+    // Dynamically render health dots in the header
+    const dotsContainer = document.getElementById('health-dots');
+    if (dotsContainer && data.services) {
+      dotsContainer.innerHTML = '';
+      data.services.forEach(svc => {
+        const ok = svc.status === 'healthy';
+        const label = svc.name.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        // index-v2 uses <span class="h-dot">, washmen.html uses <div class="health-item"><span class="hd">
+        if (dotsContainer.classList.contains('health-dots')) {
+          const dot = document.createElement('span');
+          dot.className = 'h-dot ' + (ok ? 'ok' : 'err');
+          dot.title = label;
+          dotsContainer.appendChild(dot);
+        } else {
+          const item = document.createElement('div');
+          item.className = 'health-item';
+          item.innerHTML = `<span class="hd ${ok ? 'ok' : 'err'}"></span>${svc.name}`;
+          dotsContainer.appendChild(item);
+        }
+        healthState[svc.name] = svc.status;
+      });
+    }
 
     if (listEl) renderStatus(data.services);
   } catch {}
@@ -52,7 +67,6 @@ function renderStatus(svcs) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ service: svc.name }),
         });
-        // Poll until service is back up
         for (let i = 0; i < 8; i++) {
           await new Promise(r => setTimeout(r, 2000));
           await checkHealth();
@@ -70,7 +84,6 @@ function renderStatus(svcs) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ port: svc.port }),
         });
-        // Poll until service is actually down
         for (let i = 0; i < 5; i++) {
           await new Promise(r => setTimeout(r, 1000));
           await checkHealth();
