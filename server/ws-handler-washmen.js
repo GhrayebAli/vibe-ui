@@ -307,7 +307,22 @@ export function handleWashmenWs(ws, sessionIds) {
     }
 
     // Save user message — skip for discover mode
-    const branch = msg.branch || null;
+    // Resolve branch: prefer client-sent value, fall back to .active-branch or git HEAD
+    let branch = msg.branch || null;
+    if (!branch || branch === 'main') {
+      try {
+        const wsDir = getWorkspaceDir();
+        branch = readFileSync(wsDir + "/.active-branch", "utf-8").trim() || branch;
+      } catch {
+        try {
+          const repoNames = getRepoNames();
+          if (repoNames.length > 0) {
+            const wsDir = getWorkspaceDir();
+            branch = execSync(`git -C "${wsDir}/${repoNames[0]}" rev-parse --abbrev-ref HEAD`, { stdio: "pipe" }).toString().trim();
+          }
+        } catch {}
+      }
+    }
     if (mode !== "discover" && !getSession(sessionId)) {
       createSession(sessionId, null, text.slice(0, 50), "", branch);
     } else if (mode !== "discover") {
