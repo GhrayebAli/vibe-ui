@@ -339,7 +339,6 @@ function handleMessage(msg) {
       hideThinking();
       hideActivity(); // Clear any stuck spinners from the turn
       addAgentMsg(null, false); // finalize
-      finalizeTurnFooter(); // close any previous turn footer
       // Add undo button only when files were changed
       if (sid && msg.filesChanged > 0) attachUndoButton();
       showTurnCost(msg.cost, model);
