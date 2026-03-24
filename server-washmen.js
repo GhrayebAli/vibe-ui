@@ -22,19 +22,9 @@ const wss = new WebSocketServer({ server, path: "/ws" });
 
 app.use(express.json({ limit: "10mb" }));
 
-// Serve new Lovable-style UI as default
-app.get("/", (_req, res) => res.sendFile(join(__dirname, "public", "index-v2.html")));
-// Keep old UI accessible
-app.get("/v1", (_req, res) => res.sendFile(join(__dirname, "public", "washmen.html")));
-app.use(express.static(join(__dirname, "public"), { etag: false, maxAge: 0 }));
-
-// Load workspace config at startup
-loadWorkspaceConfig();
-
-// Reverse proxy: /preview/* → frontend port (same-origin for iframe access)
-app.use("/preview", async (req, res) => {
-  const frontendPort = getFrontendPort();
-  const targetUrl = `http://localhost:${frontendPort}${req.url}`;
+// Reverse proxy: /preview/* and frontend assets → frontend port (same-origin for iframe access)
+// MUST be before static handler so /v2/* doesn't get intercepted
+async function proxyRequest(req, res, targetUrl, frontendPort) {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
@@ -46,22 +36,33 @@ app.use("/preview", async (req, res) => {
       redirect: "manual",
     });
     clearTimeout(timeout);
-    // Forward status and headers
     res.status(resp.status);
     for (const [key, value] of resp.headers.entries()) {
       if (!["transfer-encoding", "content-encoding", "connection"].includes(key.toLowerCase())) {
         res.setHeader(key, value);
       }
     }
-    // Disable caching for proxied content
     res.setHeader("Cache-Control", "no-store");
-    // Stream body
     const body = await resp.arrayBuffer();
     res.end(Buffer.from(body));
   } catch (e) {
     if (!res.headersSent) res.status(502).send("Preview proxy error: " + e.message);
   }
+}
+app.use("/preview", (req, res) => {
+  const frontendPort = getFrontendPort();
+  proxyRequest(req, res, `http://localhost:${frontendPort}${req.url}`, frontendPort);
 });
+app.use("/v2", (req, res) => {
+  const frontendPort = getFrontendPort();
+  proxyRequest(req, res, `http://localhost:${frontendPort}/v2${req.url}`, frontendPort);
+});
+
+// Serve new Lovable-style UI as default
+app.get("/", (_req, res) => res.sendFile(join(__dirname, "public", "index-v2.html")));
+// Keep old UI accessible
+app.get("/v1", (_req, res) => res.sendFile(join(__dirname, "public", "washmen.html")));
+app.use(express.static(join(__dirname, "public"), { etag: false, maxAge: 0 }));
 
 // Serve workspace config to browser
 app.get("/api/workspace-config", (_req, res) => res.json(getClientConfig()));
