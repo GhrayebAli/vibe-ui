@@ -33,6 +33,13 @@ Two options:
 4. Services start → dotenv reads `.env`, Codespace secrets available via `process.env`
 
 ## Notes
-- AWS Secrets Manager is NOT used — ECS handles that for production, but Codespaces can't use the same IAM role pattern
 - Adding a new secret: set it at github.com/settings/codespaces, grant repo access, reference in code via `process.env`
 - Non-secret config changes: update workspace.json `envFiles` or the repo's `.env.example`
+
+## Future enhancement
+Replace manual Codespace secrets with AWS Secrets Manager integration:
+- Only 2 Codespace secrets needed: `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`
+- setup.sh calls `aws secretsmanager get-secret-value` to pull all project secrets
+- One central place for secrets, scales across all workspaces
+- No VPN needed — Secrets Manager is a public AWS API
+- Requires a lightweight IAM user with read-only Secrets Manager access
