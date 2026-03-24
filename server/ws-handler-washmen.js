@@ -306,10 +306,9 @@ export function handleWashmenWs(ws, sessionIds) {
       }
     }
 
-    // Save user message — skip for discover mode
     // Resolve branch: prefer client-sent value, fall back to .active-branch or git HEAD
     let branch = msg.branch || null;
-    if (!branch || branch === 'main') {
+    if (!branch || branch === 'main' || branch === 'master') {
       try {
         const wsDir = getWorkspaceDir();
         branch = readFileSync(wsDir + "/.active-branch", "utf-8").trim() || branch;
@@ -323,6 +322,14 @@ export function handleWashmenWs(ws, sessionIds) {
         } catch {}
       }
     }
+
+    // Block build mode on main/master — must use a feature branch
+    if (mode === "build" && (branch === "main" || branch === "master" || !branch)) {
+      send({ type: "error", text: "Cannot build on main/master. Go Home and create a feature branch first." });
+      return;
+    }
+
+    // Save user message — skip for discover mode
     if (mode !== "discover" && !getSession(sessionId)) {
       createSession(sessionId, null, text.slice(0, 50), "", branch);
     } else if (mode !== "discover") {
