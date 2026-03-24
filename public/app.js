@@ -262,8 +262,12 @@ function connect() {
       checkHealth();
       showLanding();
       const cfg = window.__workspaceConfig;
-      // Load preview through same-origin proxy (/v2/* proxied to frontend port)
-      initPreview(cfg.previewPath);
+      // If frontend has a subpath like /v2/, load via same-origin proxy for DOM access.
+      // If previewPath is just "/", fall back to direct URL (cross-origin, no hover highlight).
+      const previewUrl = cfg.previewPath && cfg.previewPath !== '/'
+        ? cfg.previewPath
+        : portUrl(cfg.frontendPort) + (cfg.previewPath || '/');
+      initPreview(previewUrl);
       initVisualEdit($('preview-frame'), doSend);
       setInterval(checkHealth, 10000);
     } else {
