@@ -57,6 +57,12 @@ async function showLanding() {
   // Track the server-reported active branch
   if (workspaceData.activeBranch) {
     currentBranch = workspaceData.activeBranch;
+    // Show branch badge on landing if on an mvp branch
+    const badge = $('branch-badge');
+    if (badge && currentBranch.startsWith('mvp/')) {
+      badge.textContent = currentBranch;
+      badge.style.display = '';
+    }
   }
 
   // Budget
