@@ -65,6 +65,7 @@ export function addAgentMsg(text, streaming) {
     }
     currentAgentBubble = null;
     currentAgentText = '';
+    activityEl = null;
     activityLog = [];
     scrollBottom();
   }
@@ -129,13 +130,14 @@ export function hideThinking() {
 }
 
 export function showActivity(tool, input) {
-  const icons = { Bash: '\u2699', Edit: '\u270E', Write: '\u270E', Read: '\uD83D\uDCC4', Glob: '\uD83D\uDD0D', Grep: '\uD83D\uDD0D' };
+  const icons = { Bash: '\u2699', Edit: '\u270E', Write: '\u270E', Read: '\uD83D\uDCC4', Glob: '\uD83D\uDD0D', Grep: '\uD83D\uDD0D', Agent: '\uD83E\uDD16', WebFetch: '\uD83C\uDF10' };
   const icon = icons[tool] || '\u26A1';
   const label = tool === 'Bash' ? (input?.command || '').slice(0, 70) :
     (tool === 'Edit' || tool === 'Write') ? 'Editing ' + (input?.file_path || '').split('/').pop() :
     tool === 'Read' ? 'Reading ' + (input?.file_path || '').split('/').pop() :
     tool === 'Glob' ? 'Searching ' + (input?.pattern || '') :
     tool === 'Grep' ? 'Searching ' + (input?.pattern || '') :
+    tool === 'Agent' ? (input?.description || 'Running sub-agent') :
     tool;
 
   activityLog.push({ icon, label, ts: Date.now() });
@@ -154,6 +156,10 @@ export function showActivity(tool, input) {
     activityEl.querySelector('.activity-current').onclick = () => activityEl.classList.toggle('expanded');
     chatEl.appendChild(activityEl);
   }
+
+  // Ensure spinner is visible (hideActivity may have hidden it)
+  const spinner = activityEl.querySelector('.activity-spinner');
+  if (spinner) spinner.style.display = '';
 
   activityEl.querySelector('.activity-label').textContent = icon + ' ' + label;
 
