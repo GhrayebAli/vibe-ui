@@ -26,7 +26,7 @@ app.use(express.json({ limit: "10mb" }));
 app.get("/", (_req, res) => res.sendFile(join(__dirname, "public", "index-v2.html")));
 // Keep old UI accessible
 app.get("/v1", (_req, res) => res.sendFile(join(__dirname, "public", "washmen.html")));
-app.use(express.static(join(__dirname, "public")));
+app.use(express.static(join(__dirname, "public"), { etag: false, maxAge: 0 }));
 
 // Load workspace config at startup
 loadWorkspaceConfig();
