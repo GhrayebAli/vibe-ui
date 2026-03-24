@@ -643,7 +643,10 @@ function attachUndoButton() {
   chat.querySelectorAll('.undo-btn').forEach(b => b.remove());
 
   if (!sid) return;
-  const footer = getTurnFooter();
+  // Prefer the last existing turn-footer (e.g. after undo reloads history),
+  // only create a new one if none exists yet
+  const allFooters = chat.querySelectorAll('.turn-footer');
+  const footer = allFooters.length > 0 ? allFooters[allFooters.length - 1] : getTurnFooter();
 
   const undoBtn = document.createElement('button');
   undoBtn.className = 'undo-btn';
