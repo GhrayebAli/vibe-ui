@@ -1,13 +1,19 @@
 // Service worker for PWA — offline fallback + push notifications
 
-const CACHE_NAME = 'claudeck-v1';
+const CACHE_NAME = 'claudeck-v2';
 const OFFLINE_URL = '/offline.html';
 
-// Assets to pre-cache for offline support
+// Assets to pre-cache for offline support (app shell)
 const PRECACHE_URLS = [
   OFFLINE_URL,
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/styles.css',
+  '/app.js',
+  '/components/chat.js',
+  '/components/preview.js',
+  '/components/status.js',
+  '/components/budget.js',
 ];
 
 // ── Install: pre-cache offline page ──
@@ -40,10 +46,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets (icons) — cache-first
-  if (event.request.url.includes('/icons/')) {
+  // Static assets (icons, CSS, JS) — network-first with cache fallback
+  if (event.request.url.includes('/icons/') || event.request.url.endsWith('.css') || event.request.url.endsWith('.js')) {
     event.respondWith(
-      caches.match(event.request).then((cached) => cached || fetch(event.request))
+      fetch(event.request).then((resp) => {
+        const clone = resp.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        return resp;
+      }).catch(() => caches.match(event.request))
     );
     return;
   }
