@@ -294,14 +294,12 @@ async function run() {
             see(`Send button disabled: ${isDisabled}`);
           }
 
-          step("Verify custom text toggle");
-          const customToggle = await panel.$(".ve-custom-toggle");
-          check(!!customToggle, "Custom toggle found ('+ Describe something else...')", "Custom toggle NOT found");
-          if (customToggle) {
-            await customToggle.click();
-            await page.waitForTimeout(300);
-            const customInput = await panel.$(".ve-chip-input");
-            check(!!customInput, "Custom text input expanded", "Custom text input did NOT expand");
+          step("Verify main prompt input is always visible");
+          const promptInput = await panel.$(".ve-prompt-input");
+          check(!!promptInput, "Main prompt input found (always visible)", "Main prompt input NOT found");
+          if (promptInput) {
+            const isVisible = await promptInput.evaluate(el => el.offsetHeight > 0);
+            check(isVisible, "Prompt input is visible without clicking anything", "Prompt input not visible");
           }
         }
 
@@ -345,7 +343,7 @@ async function run() {
         }
 
         // Expand custom text and type
-        const toggle = await panel.$(".ve-custom-toggle");
+        const toggle = await panel.$(".ve-prompt-input");
         if (toggle) {
           await toggle.click();
           await page.waitForTimeout(200);

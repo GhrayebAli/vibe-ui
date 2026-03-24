@@ -327,12 +327,12 @@ pre:hover .code-copy { opacity: 1; }
 .msg-screenshot .screenshot-caption { padding: 6px 10px; font-size: 11px; color: var(--text-dim); background: var(--surface); }
 
 /* Follow-up question block */
-.question-block { margin: 10px 0; padding: 12px; background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius-lg); }
-.q-options { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.question-block { margin: 10px 0; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); display: flex; align-items: center; gap: 8px; animation: fadeIn .2s ease; }
+.q-options { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
 .q-option { padding: 6px 16px; border-radius: 16px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 12px; font-weight: 500; cursor: pointer; font-family: var(--font); transition: all var(--transition); }
 .q-option:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-.q-skip { font-size: 11px; color: var(--text-muted); text-decoration: none; }
-.q-skip:hover { color: var(--text-dim); text-decoration: underline; }
+.q-dismiss { background: none; border: none; color: var(--text-muted); font-size: 16px; cursor: pointer; padding: 2px 6px; line-height: 1; transition: color var(--transition); }
+.q-dismiss:hover { color: var(--text); }
 
 /* Branch badge in topbar */
 .branch-badge { font-size: 10px; color: var(--accent); background: var(--accent-soft); padding: 1px 7px; border-radius: 8px; font-family: var(--mono); }
@@ -380,8 +380,18 @@ pre:hover .code-copy { opacity: 1; }
 .ve-color-swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: all 0.15s ease; }
 .ve-color-swatch:hover { transform: scale(1.15); }
 .ve-color-swatch.selected { border-color: var(--accent); box-shadow: 0 0 8px rgba(51,209,122,0.15); }
-.ve-custom-toggle { padding: 6px 12px; font-size: 12px; color: var(--text-dim, var(--text-muted)); cursor: pointer; transition: color 0.15s ease; }
-.ve-custom-toggle:hover { color: var(--accent); }
+/* Main prompt input (always visible) */
+.ve-main-input { padding: 8px 12px; border-top: 1px solid var(--border); }
+.ve-prompt-input { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md, 8px); padding: 10px 12px; color: var(--text); font-size: 13px; width: 100%; transition: border-color 0.15s ease; box-sizing: border-box; }
+.ve-prompt-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(51,209,122,0.1); }
+.ve-prompt-input::placeholder { color: var(--text-dim, var(--text-muted)); }
+
+/* Color badge on chip */
+.ve-chip-color-badge { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--border); display: inline-block; vertical-align: middle; margin-left: 2px; }
+
+/* Click highlight on overlay */
+.ve-click-highlight { position: absolute; width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--accent, #33d17a); background: rgba(51, 209, 122, 0.08); pointer-events: none; z-index: 11; animation: ve-click-ring 0.4s ease forwards; }
+@keyframes ve-click-ring { 0% { transform: scale(0.3); opacity: 1; } 100% { transform: scale(1); opacity: 0.6; } }
 
 /* Loading state */
 .ve-loading { text-align: center; padding: 20px; color: var(--text-muted); font-size: 12px; }

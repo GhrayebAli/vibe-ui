@@ -276,6 +276,9 @@ function handleClick(e) {
   const instruction = overlay?.querySelector('.ve-instruction');
   if (instruction) instruction.style.opacity = '0';
 
+  // Show click highlight on the overlay (works for both same-origin and cross-origin)
+  showClickHighlight(x, y);
+
   if (element) {
     // Same-origin — direct DOM access
     selectedElement = element;
@@ -399,6 +402,25 @@ function friendlyNameFromData(tag, classes, component) {
 }
 
 // ── Component detection ──
+
+function showClickHighlight(x, y) {
+  if (!overlay) return;
+  // Remove any previous highlight
+  overlay.querySelectorAll('.ve-click-highlight').forEach(el => el.remove());
+
+  const highlight = document.createElement('div');
+  highlight.className = 've-click-highlight';
+  highlight.style.left = (x - 40) + 'px';
+  highlight.style.top = (y - 40) + 'px';
+  overlay.appendChild(highlight);
+
+  // Also update the label to stay at the click position
+  const label = overlay.querySelector('.ve-label');
+  if (label) {
+    label.style.left = (x + 12) + 'px';
+    label.style.top = (y - 24) + 'px';
+  }
+}
 
 function findComponentAttr(element) {
   let el = element;
@@ -639,10 +661,18 @@ function renderChips(chips, container, onUpdate) {
           swatch.style.border = color === '#ffffff' ? '2px solid var(--border)' : '2px solid transparent';
           swatch.onclick = (ev) => {
             ev.stopPropagation();
-            grid.querySelectorAll('.ve-color-swatch').forEach(s => s.classList.remove('selected'));
-            swatch.classList.add('selected');
             state.selected.set(chip.label, color);
             el.classList.add('selected');
+            // Show selected color as a badge on the chip
+            let badge = el.querySelector('.ve-chip-color-badge');
+            if (!badge) {
+              badge = document.createElement('span');
+              badge.className = 've-chip-color-badge';
+              el.appendChild(badge);
+            }
+            badge.style.background = color;
+            // Collapse the color picker
+            expandArea.innerHTML = '';
             onUpdate(state);
           };
           grid.appendChild(swatch);
@@ -670,34 +700,33 @@ function renderChips(chips, container, onUpdate) {
     chipsDiv.appendChild(el);
   });
 
-  // Custom text toggle
-  const customToggle = document.createElement('div');
-  customToggle.className = 've-custom-toggle';
-  customToggle.textContent = '+ Describe something else...';
-  let customExpanded = false;
-  customToggle.onclick = () => {
-    if (customExpanded) return;
-    customExpanded = true;
-    customToggle.style.display = 'none';
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 've-chip-input';
-    input.placeholder = 'Describe what you want to change...';
-    input.style.width = '100%';
-    input.oninput = () => {
-      state.customText = input.value.trim();
-      onUpdate(state);
-    };
-    const wrapper = document.createElement('div');
-    wrapper.className = 've-chip-expand';
-    wrapper.appendChild(input);
-    expandArea.appendChild(wrapper);
-    setTimeout(() => input.focus(), 50);
+  // Always-visible text input with Enter to send
+  const inputWrapper = document.createElement('div');
+  inputWrapper.className = 've-main-input';
+  const mainInput = document.createElement('input');
+  mainInput.type = 'text';
+  mainInput.className = 've-prompt-input';
+  mainInput.placeholder = 'Describe what you want to change...';
+  mainInput.oninput = () => {
+    state.customText = mainInput.value.trim();
+    onUpdate(state);
   };
+  mainInput.onkeydown = (e) => {
+    if (e.key === 'Enter' && (state.customText || state.selected.size > 0)) {
+      e.preventDefault();
+      // Trigger the send button click
+      const sendBtn = document.querySelector('.ve-send');
+      if (sendBtn && !sendBtn.disabled) sendBtn.click();
+    }
+  };
+  inputWrapper.appendChild(mainInput);
 
   container.appendChild(chipsDiv);
   container.appendChild(expandArea);
-  container.appendChild(customToggle);
+  container.appendChild(inputWrapper);
+
+  // Auto-focus the input
+  setTimeout(() => mainInput.focus(), 100);
 
   return state;
 }
@@ -854,8 +883,24 @@ async function showLoadingPanel(clickX, clickY) {
   const filePath = el.component?.split(':')[1] || null;
   const lineNum = el.component?.split(':')[2] || null;
 
+  // Determine the best friendly name from server data
+  let name = friendlyNameFromData(el.tag, el.classes, el.component);
+  // If still generic "Element", try to extract from description or text
+  if (name === 'Element') {
+    if (elementInfo?.description) {
+      // Server returns description like "Component: Foo in file:line" or "<tag>.class"
+      const descMatch = elementInfo.description.match(/^Component:\s*(\S+)/);
+      if (descMatch) name = descMatch[1].replace(/([a-z])([A-Z])/g, '$1 $2');
+      else if (el.tag) name = friendlyNameFromData(el.tag, el.classes, null);
+    }
+    if (name === 'Element' && el.text) {
+      // Use truncated text as identifier
+      name = el.text.length > 20 ? `"${el.text.slice(0, 18)}..."` : `"${el.text}"`;
+    }
+  }
+
   const elementData = {
-    friendlyName: friendlyNameFromData(el.tag, el.classes, el.component),
+    friendlyName: name,
     text: el.text || '',
     screenshot: elementInfo?.screenshot || null,
     component: component,
