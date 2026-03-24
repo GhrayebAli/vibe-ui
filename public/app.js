@@ -212,6 +212,11 @@ async function resumeBranch(branch) {
       if (msgs.length > 0) loadMessages(msgs);
     } catch {}
     addSystemMsg(`Resumed ${branch.name}`);
+    // Check if there's an undoable commit and show undo button
+    try {
+      const preview = await fetch(`/api/sessions/${sid}/undo-preview`).then(r => r.json());
+      if (preview.ok && preview.commits.length > 0) attachUndoButton();
+    } catch {}
     // Show notes button — branch has prior work
     $('notes-btn').style.display = '';
   } else {
