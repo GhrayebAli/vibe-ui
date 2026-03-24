@@ -22,37 +22,6 @@ const wss = new WebSocketServer({ server, path: "/ws" });
 
 app.use(express.json({ limit: "10mb" }));
 
-// Reverse proxy: /v2/* → frontend port (same-origin for iframe DOM access in visual edit)
-// Registered before static handler so frontend assets don't 404
-async function proxyToFrontend(req, res, path) {
-  const frontendPort = getFrontendPort();
-  const targetUrl = `http://localhost:${frontendPort}${path}`;
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const resp = await fetch(targetUrl, {
-      method: req.method,
-      headers: { ...req.headers, host: `localhost:${frontendPort}` },
-      body: ["GET", "HEAD"].includes(req.method) ? undefined : req,
-      signal: controller.signal,
-      redirect: "manual",
-    });
-    clearTimeout(timeout);
-    res.status(resp.status);
-    for (const [key, value] of resp.headers.entries()) {
-      if (!["transfer-encoding", "content-encoding", "connection"].includes(key.toLowerCase())) {
-        res.setHeader(key, value);
-      }
-    }
-    res.setHeader("Cache-Control", "no-store");
-    const body = await resp.arrayBuffer();
-    res.end(Buffer.from(body));
-  } catch (e) {
-    if (!res.headersSent) res.status(502).send("Preview proxy error: " + e.message);
-  }
-}
-app.use("/v2", (req, res) => proxyToFrontend(req, res, `/v2${req.url}`));
-
 // Serve new Lovable-style UI as default
 app.get("/", (_req, res) => res.sendFile(join(__dirname, "public", "index-v2.html")));
 // Keep old UI accessible
@@ -672,6 +641,92 @@ async function getInspectPage(targetPath) {
   }
   return inspectPage;
 }
+
+// Inject visual edit helper script into the frontend iframe (cross-origin workaround)
+app.post("/api/inject-visual-helper", async (req, res) => {
+  try {
+    const page = await getInspectPage(null);
+    await page.evaluate(() => {
+      if (window.__veHelperActive) return;
+      window.__veHelperActive = true;
+
+      // Tag-to-friendly-name mapping
+      const TAG_NAMES = {
+        button:'Button',a:'Link',img:'Image',p:'Paragraph',input:'Input Field',
+        textarea:'Text Area',select:'Dropdown',table:'Table',tr:'Table Row',
+        td:'Table Cell',th:'Table Cell',ul:'List',ol:'List',li:'List Item',
+        nav:'Navigation',header:'Header',footer:'Footer',form:'Form',label:'Label',
+        span:'Text',div:'Section',svg:'Icon',h1:'Heading',h2:'Heading',h3:'Heading',
+        h4:'Heading',h5:'Heading',h6:'Heading',section:'Section',main:'Main Content',
+      };
+      const MUI_NAMES = {
+        MuiButton:'Button',MuiCard:'Card',MuiAppBar:'Top Navigation Bar',
+        MuiDrawer:'Sidebar',MuiTable:'Table',MuiTextField:'Text Field',
+        MuiSelect:'Dropdown',MuiChip:'Tag',MuiAvatar:'Avatar',MuiDialog:'Dialog',
+        MuiPaper:'Panel',MuiList:'List',MuiIconButton:'Icon Button',MuiToolbar:'Toolbar',
+        MuiTypography:'Text',MuiContainer:'Container',MuiGrid:'Grid Layout',
+      };
+      function getName(el) {
+        const cls = el.className || '';
+        for (const [k,v] of Object.entries(MUI_NAMES)) { if (cls.includes(k)) return v; }
+        return TAG_NAMES[el.tagName?.toLowerCase()] || el.tagName?.toLowerCase() || 'Element';
+      }
+
+      let highlightEl = null;
+      const style = document.createElement('style');
+      style.textContent = '.ve-iframe-highlight { outline: 2px solid rgba(66,133,244,0.8) !important; background-color: rgba(66,133,244,0.08) !important; } .ve-iframe-selected { outline: 2px solid #33d17a !important; box-shadow: 0 0 0 3px rgba(51,209,122,0.2) !important; background-color: rgba(51,209,122,0.06) !important; }';
+      document.head.appendChild(style);
+
+      window.addEventListener('message', (e) => {
+        const msg = e.data;
+        if (!msg || !msg.type?.startsWith('ve-')) return;
+
+        if (msg.type === 've-mousemove') {
+          const el = document.elementFromPoint(msg.x, msg.y);
+          if (highlightEl) highlightEl.classList.remove('ve-iframe-highlight');
+          if (el && el !== document.body && el !== document.documentElement) {
+            highlightEl = el;
+            el.classList.add('ve-iframe-highlight');
+            const r = el.getBoundingClientRect();
+            window.parent.postMessage({
+              source: 've-helper', type: 've-hover',
+              rect: { left: r.left, top: r.top, width: r.width, height: r.height, bottom: r.bottom },
+              name: getName(el),
+              tag: el.tagName?.toLowerCase(),
+              classes: el.className || '',
+              text: (el.textContent || '').trim().slice(0, 80),
+            }, '*');
+          }
+        } else if (msg.type === 've-click') {
+          const el = document.elementFromPoint(msg.x, msg.y);
+          if (highlightEl) highlightEl.classList.remove('ve-iframe-highlight');
+          document.querySelectorAll('.ve-iframe-selected').forEach(e => e.classList.remove('ve-iframe-selected'));
+          if (el && el !== document.body && el !== document.documentElement) {
+            el.classList.add('ve-iframe-selected');
+            const r = el.getBoundingClientRect();
+            const cs = getComputedStyle(el);
+            window.parent.postMessage({
+              source: 've-helper', type: 've-click',
+              rect: { left: r.left, top: r.top, width: r.width, height: r.height },
+              name: getName(el),
+              tag: el.tagName?.toLowerCase(),
+              classes: el.className || '',
+              text: (el.textContent || '').trim().slice(0, 80),
+              styles: { color: cs.color, backgroundColor: cs.backgroundColor, fontSize: cs.fontSize, padding: cs.padding },
+            }, '*');
+          }
+        } else if (msg.type === 've-deactivate') {
+          if (highlightEl) highlightEl.classList.remove('ve-iframe-highlight');
+          document.querySelectorAll('.ve-iframe-selected').forEach(e => e.classList.remove('ve-iframe-selected'));
+          window.__veHelperActive = false;
+        }
+      });
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
 
 app.post("/api/inspect-element", async (req, res) => {
   const { x, y, pctX, pctY, currentUrl } = req.body;

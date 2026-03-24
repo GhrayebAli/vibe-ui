@@ -43,6 +43,9 @@ export function deactivate() {
   document.getElementById('visual-edit-btn')?.classList.remove('active');
   document.getElementById('visual-edit-btn')?.classList.remove('ve-active');
   document.removeEventListener('keydown', handleEsc);
+  window.removeEventListener('message', handleIframeMessage);
+  // Tell iframe helper to clean up
+  try { previewFrame?.contentWindow?.postMessage({ type: 've-deactivate' }, '*'); } catch {}
 }
 
 export function getEditHistory() {
@@ -165,6 +168,11 @@ function activate() {
   overlay.addEventListener('mousemove', handleMouseMove);
   overlay.addEventListener('click', handleClick);
   document.addEventListener('keydown', handleEsc);
+
+  // For cross-origin: inject helper script into iframe via server
+  injectCrossOriginHelper();
+  // Listen for postMessage responses from iframe helper
+  window.addEventListener('message', handleIframeMessage);
 }
 
 function handleEsc(e) {
@@ -211,6 +219,57 @@ function cleanupIframeStyles() {
     injectedStyle = null;
   } catch {
     // Cross-origin
+  }
+}
+
+// ── Cross-origin iframe communication ──
+
+let iframeHelperReady = false;
+
+async function injectCrossOriginHelper() {
+  // Check if same-origin first
+  try {
+    if (previewFrame?.contentDocument) return; // Same-origin — no helper needed
+  } catch {}
+
+  // Inject helper script via server API
+  try {
+    await fetch('/api/inject-visual-helper', { method: 'POST' });
+    iframeHelperReady = true;
+  } catch {
+    iframeHelperReady = false;
+  }
+}
+
+function handleIframeMessage(e) {
+  if (!active || !overlay) return;
+  const msg = e.data;
+  if (!msg || msg.source !== 've-helper') return;
+
+  const highlightBox = overlay.querySelector('.ve-highlight-box');
+  const label = overlay.querySelector('.ve-label');
+
+  if (msg.type === 've-hover') {
+    // Element hover data from iframe
+    const r = msg.rect;
+    if (highlightBox && r) {
+      highlightBox.style.left = r.left + 'px';
+      highlightBox.style.top = r.top + 'px';
+      highlightBox.style.width = r.width + 'px';
+      highlightBox.style.height = r.height + 'px';
+      highlightBox.style.opacity = '1';
+    }
+    if (label && msg.name) {
+      label.textContent = msg.name;
+      label.dataset.size = `${Math.round(r.width)} × ${Math.round(r.height)}`;
+      label.style.opacity = '1';
+      const labelY = r.top > 30 ? (r.top - 28) : (r.bottom + 4);
+      label.style.left = r.left + 'px';
+      label.style.top = labelY + 'px';
+    }
+  } else if (msg.type === 've-leave') {
+    if (highlightBox) highlightBox.style.opacity = '0';
+    if (label) label.style.opacity = '0';
   }
 }
 
@@ -261,13 +320,24 @@ function handleMouseMove(e) {
       label.style.top = labelY + 'px';
     }
   } catch {
-    // Cross-origin — show cursor-following label
-    if (highlightBox) highlightBox.style.opacity = '0';
-    if (label) {
-      label.textContent = 'Click to select';
-      label.style.opacity = '1';
-      label.style.left = (e.offsetX + 12) + 'px';
-      label.style.top = (e.offsetY - 24) + 'px';
+    // Cross-origin — forward mouse coords to iframe helper via postMessage
+    if (iframeHelperReady) {
+      const iframeRect = previewFrame.getBoundingClientRect();
+      const x = e.clientX - iframeRect.left;
+      const y = e.clientY - iframeRect.top;
+      try {
+        previewFrame.contentWindow.postMessage({ type: 've-mousemove', x, y }, '*');
+      } catch {}
+      // highlight + label updated via handleIframeMessage callback
+    } else {
+      // No helper — show basic cursor label
+      if (highlightBox) highlightBox.style.opacity = '0';
+      if (label) {
+        label.textContent = 'Click to select';
+        label.style.opacity = '1';
+        label.style.left = (e.offsetX + 12) + 'px';
+        label.style.top = (e.offsetY - 24) + 'px';
+      }
     }
   }
 }
@@ -344,7 +414,13 @@ function handleClick(e) {
 
     renderEditPanel(elementData);
   } else {
-    // Cross-origin — use server inspection
+    // Cross-origin — tell iframe helper to highlight the clicked element
+    try {
+      previewFrame.contentWindow.postMessage({ type: 've-click', x, y }, '*');
+    } catch {}
+    // Show selection highlight on overlay
+    showClickHighlight(x, y);
+    // Use server inspection for element data
     showLoadingPanel(x, y);
   }
 }
