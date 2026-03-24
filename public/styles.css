@@ -94,7 +94,7 @@ input, textarea { font-family: var(--font); }
 .msg-agent .bubble h2 { font-size: 16px; }
 .msg-agent .bubble h3 { font-size: 14px; }
 .msg-system { text-align: center; color: var(--text-muted); font-size: 12px; font-style: italic; padding: 4px 0; }
-.turn-footer { display: flex; align-items: center; gap: 10px; padding: 6px 12px; margin: 4px 0 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.turn-footer { display: flex; align-items: center; gap: 10px; padding: 6px 12px; margin: 4px 0 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .turn-footer .diff-summary { margin: 0; border: none; flex: 1; min-width: 0; }
 .turn-footer .undo-btn { margin: 0; flex-shrink: 0; }
 .turn-cost { color: var(--text-muted); font-size: 10px; opacity: 0.7; margin-left: auto; flex-shrink: 0; white-space: nowrap; }
