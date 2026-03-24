@@ -158,7 +158,6 @@ function createMvpBranches(featureName) {
 export function handleWashmenWs(ws, sessionIds) {
   let currentSessionId = null;
   let currentQuery = null;
-  let hasResumedSession = false; // Only resume once per session, not every turn
 
   ws.on("message", async (raw) => {
     let msg;
@@ -252,14 +251,12 @@ export function handleWashmenWs(ws, sessionIds) {
     const sessionId = msg.sessionId || currentSessionId || crypto.randomUUID();
     const model = MODEL_MAP[msg.model] || DEFAULT_MODEL;
     const mode = msg.mode || "build";
-    // Reset resume flag if session changed (user switched branches)
-    if (sessionId !== currentSessionId) hasResumedSession = false;
     currentSessionId = sessionId;
 
     // Build system prompt based on mode
     let systemPrompt = undefined;
     if (mode === "plan") {
-      const isFirstTurn = !hasResumedSession && !getSession(sessionId);
+      const isFirstTurn = !getSession(sessionId);
       systemPrompt = {
         type: "preset",
         preset: "claude_code",
@@ -291,16 +288,15 @@ export function handleWashmenWs(ws, sessionIds) {
       return;
     }
 
-    // Session resumption — only on first turn of a resumed session, not every turn
-    // Subsequent turns are part of the same query() session and don't need replay
+    // Session resumption — resume on every turn so the agent has conversation context.
+    // Each handleChat creates a new query(), so without resume it starts with zero history.
     let claudeSessionIdToResume = null;
-    if (!hasResumedSession && getSession(sessionId)) {
+    if (getSession(sessionId)) {
       try {
         const stored = getClaudeSessionId(sessionId, "");
         if (stored) {
           claudeSessionIdToResume = stored;
-          hasResumedSession = true;
-          console.log(`[context] Resuming Claude session: ${stored} (first turn only)`);
+          console.log(`[context] Resuming Claude session: ${stored}`);
         } else {
           console.log("[context] No Claude session ID stored — starting fresh");
         }
@@ -403,8 +399,7 @@ export function handleWashmenWs(ws, sessionIds) {
       const fileContentBefore = new Map(); // Store pre-edit content for diff
 
       for await (const event of q) {
-        if (ws.readyState !== 1) break;
-
+        const wsOpen = ws.readyState === 1;
         const etype = event.type;
         const esub = event.subtype || "";
 
@@ -432,10 +427,10 @@ export function handleWashmenWs(ws, sessionIds) {
             if (block.type === "text" && block.text) {
               if (!gotFirstChunk) {
                 gotFirstChunk = true;
-                ws.send(JSON.stringify({ type: "thinking_done", sessionId }));
+                if (wsOpen) ws.send(JSON.stringify({ type: "thinking_done", sessionId }));
               }
               fullText += block.text;
-              ws.send(JSON.stringify({ type: "assistant_chunk", text: block.text, sessionId }));
+              if (wsOpen) ws.send(JSON.stringify({ type: "assistant_chunk", text: block.text, sessionId }));
             }
             // Tool use block — track file changes (guardrail runs in PreToolUse hook)
             if (block.type === "tool_use") {
@@ -463,10 +458,7 @@ export function handleWashmenWs(ws, sessionIds) {
                 }
               }
             }
-            // Tool result
-            if (block.type === "tool_result") {
-              ws.send(JSON.stringify({ type: "tool_complete", tool: block.tool_use_id }));
-            }
+            // Tool result — PostToolUse hook handles tool_complete, no duplicate needed
           }
         }
 
@@ -475,7 +467,15 @@ export function handleWashmenWs(ws, sessionIds) {
           gotResult = true;
           const cost = event.total_cost_usd || event.cost_usd || event.costUsd || event.usage?.cost_usd || 0;
           lastCost = cost;
-          console.log(`[agent] result: cost=$${cost}`);
+          const subtype = event.subtype || "";
+          console.log(`[agent] result: cost=$${cost} subtype=${subtype}`);
+
+          // Notify user if query was cut short by limits
+          if (subtype === "error_max_budget_usd" && wsOpen) {
+            ws.send(JSON.stringify({ type: "system", text: `Query stopped — reached $${PER_QUERY_BUDGET} budget limit. Send another message to continue.` }));
+          } else if (subtype === "error_max_turns" && wsOpen) {
+            ws.send(JSON.stringify({ type: "system", text: "Query stopped — reached turn limit. Send another message to continue." }));
+          }
 
           if (cost > 0) {
             try { addCost(sessionId, cost); } catch (e) { console.error("[cost]", e.message); }
@@ -505,12 +505,12 @@ export function handleWashmenWs(ws, sessionIds) {
                 return { ...f, additions: 0, deletions: 0 };
               }
             });
-            ws.send(JSON.stringify({ type: "file_diff", files: filesWithDiff }));
+            if (wsOpen) ws.send(JSON.stringify({ type: "file_diff", files: filesWithDiff }));
           }
           if (lastEditedFile) {
             try {
               const content = readFileSync(lastEditedFile, "utf8");
-              ws.send(JSON.stringify({ type: "code_update", path: lastEditedFile, content }));
+              if (wsOpen) ws.send(JSON.stringify({ type: "code_update", path: lastEditedFile, content }));
             } catch (e) { console.error("[code]", e.message); }
           }
 
@@ -531,7 +531,7 @@ export function handleWashmenWs(ws, sessionIds) {
               } catch (e) { console.error(`[auto-restart] ${repo.name} failed:`, e.message); }
             }
           }
-          if (restartedServices.length > 0) {
+          if (restartedServices.length > 0 && wsOpen) {
             ws.send(JSON.stringify({ type: "system", text: `Auto-restarted: ${restartedServices.join(", ")}` }));
           }
 
@@ -542,7 +542,7 @@ export function handleWashmenWs(ws, sessionIds) {
             try {
               const screenshotData = await takeScreenshot();
               if (screenshotData) {
-                ws.send(JSON.stringify({
+                if (wsOpen) ws.send(JSON.stringify({
                   type: "screenshot",
                   image: screenshotData,
                   caption: changedFiles.filter(f => f.name.includes(frontendName)).map(f => f.name.split("/").pop()).join(", "),
@@ -551,7 +551,7 @@ export function handleWashmenWs(ws, sessionIds) {
             } catch (e) { console.error("[screenshot]", e.message); }
           }
 
-          ws.send(JSON.stringify({
+          if (wsOpen) ws.send(JSON.stringify({
             type: "assistant_done",
             text: fullText,
             sessionId,
@@ -567,7 +567,7 @@ export function handleWashmenWs(ws, sessionIds) {
           if (changedFiles.length > 0 && branch && !branch.match(/^(main|master)$/)) {
             try {
               pushBranch(branch);
-              ws.send(JSON.stringify({ type: "system", text: `Pushed ${branch} to origin` }));
+              if (wsOpen) ws.send(JSON.stringify({ type: "system", text: `Pushed ${branch} to origin` }));
             } catch (e) { console.log("[push] post-change push failed:", e.message); }
           }
         }
