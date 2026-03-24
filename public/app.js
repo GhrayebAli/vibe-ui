@@ -12,7 +12,7 @@ const welcome = $('welcome'), starters = $('starters');
 const queue = $('queue');
 
 /* ═══ State ═══ */
-let ws, sid = null, streaming = false, model = 'sonnet', mode = 'build';
+let ws, sid = null, streaming = false, model = 'haiku', mode = 'build';
 let hasSent = false;
 let promptQueue = [];
 let currentBranch = 'main';
@@ -93,54 +93,6 @@ function hideLanding() {
   // Notes button shown dynamically when branch has changes
 }
 
-/* ═══ Switch Progress Overlay ═══ */
-function showSwitchProgress(branchName, steps) {
-  const overlay = $('switch-progress');
-  const title = $('switch-progress-title');
-  const stepsEl = $('switch-progress-steps');
-
-  // Hide landing and chat, show progress
-  $('landing').style.display = 'none';
-  chat.style.display = 'none';
-  $('input-dock').style.display = 'none';
-  $('home-btn').style.display = 'none';
-  $('mode-toggle').style.display = 'none';
-  $('model-picker').style.display = 'none';
-
-  title.textContent = `Switching to ${branchName}...`;
-  stepsEl.innerHTML = '';
-  for (const step of steps) {
-    const el = document.createElement('div');
-    el.className = 'switch-step';
-    el.id = `step-${step.id}`;
-    el.innerHTML = `<span class="switch-step-icon"><span class="step-dot"></span></span><span>${step.label}</span>`;
-    stepsEl.appendChild(el);
-  }
-  overlay.style.display = 'flex';
-}
-
-function updateSwitchStep(stepId, status) {
-  const el = $(`step-${stepId}`);
-  if (!el) return;
-  const iconEl = el.querySelector('.switch-step-icon');
-  if (status === 'active') {
-    el.className = 'switch-step active';
-    iconEl.innerHTML = '<span class="step-spinner"></span>';
-  } else if (status === 'done') {
-    el.className = 'switch-step done';
-    iconEl.innerHTML = '<span class="step-check">&#10003;</span>';
-  }
-}
-
-function hideSwitchProgress() {
-  $('switch-progress').style.display = 'none';
-  chat.style.display = '';
-  $('input-dock').style.display = '';
-  $('home-btn').style.display = '';
-  $('mode-toggle').style.display = '';
-  $('model-picker').style.display = '';
-}
-
 function startDiscover() {
   mode = 'discover';
   sid = null;
@@ -154,7 +106,9 @@ function startDiscover() {
 }
 
 async function resumeBranch(branch) {
+  hideLanding();
   clearChat();
+  addSystemMsg(`Switching to ${branch.name}...`);
 
   try {
     const resp = await fetch('/api/switch-branch', {
@@ -165,7 +119,6 @@ async function resumeBranch(branch) {
     const result = await resp.json();
     if (!result.ok) throw new Error(result.error || 'Switch failed');
   } catch (e) {
-    hideSwitchProgress();
     addErrorMsg(`Failed to switch branch: ${e.message}`);
     return;
   }
@@ -346,16 +299,6 @@ function handleMessage(msg) {
       addScreenshot(msg.image, msg.caption);
       // Also refresh the preview iframe
       refreshPreview();
-      break;
-
-    case 'switch_progress':
-      if (msg.phase === 'start') {
-        showSwitchProgress(msg.branch, msg.steps);
-      } else if (msg.phase === 'step') {
-        updateSwitchStep(msg.stepId, msg.status);
-      } else if (msg.phase === 'complete') {
-        hideSwitchProgress();
-      }
       break;
 
     case 'system':

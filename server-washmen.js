@@ -220,24 +220,10 @@ app.post("/api/switch-branch", async (req, res) => {
   const installed = [];
   const restarted = [];
 
-  // Build step list for progress tracking
-  const steps = [];
-  for (const cfgRepo of configRepos) {
-    steps.push({ id: `checkout-${cfgRepo.name}`, label: `Switching ${cfgRepo.name}` });
-    steps.push({ id: `deps-${cfgRepo.name}`, label: `Checking dependencies` });
-    if (cfgRepo.port && cfgRepo.dev) {
-      steps.push({ id: `restart-${cfgRepo.name}`, label: `Restarting ${cfgRepo.name}` });
-    }
-  }
-  steps.push({ id: 'services-ready', label: 'Waiting for services' });
-
-  wsBroadcast({ type: 'switch_progress', phase: 'start', branch, steps });
-
   for (const cfgRepo of configRepos) {
     const repoPath = join(workspaceDir, cfgRepo.name);
     try {
       // Try checkout — branch may not exist in all repos
-      wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `checkout-${cfgRepo.name}`, status: 'active' });
       try {
         execSync(`git -C "${repoPath}" checkout "${branch}"`, { stdio: "pipe" });
         switched.push(cfgRepo.name);
@@ -250,10 +236,8 @@ app.post("/api/switch-branch", async (req, res) => {
           console.log(`[switch] ${cfgRepo.name}: branch ${branch} not found, staying on current`);
         }
       }
-      wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `checkout-${cfgRepo.name}`, status: 'done' });
 
       // Check if lockfile changed → reinstall
-      wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `deps-${cfgRepo.name}`, status: 'active' });
       if (switched.includes(cfgRepo.name)) {
         const lockfile = existsSync(join(repoPath, "yarn.lock")) ? "yarn.lock" : "package-lock.json";
         try {
@@ -265,16 +249,13 @@ app.post("/api/switch-branch", async (req, res) => {
           }
         } catch {}
       }
-      wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `deps-${cfgRepo.name}`, status: 'done' });
 
       // Restart service using workspace.json dev command
       if (cfgRepo.port && cfgRepo.dev) {
-        wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `restart-${cfgRepo.name}`, status: 'active' });
         try { execSync(`kill $(lsof -ti:${cfgRepo.port} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
         const logFile = `/tmp/${cfgRepo.name}.log`;
         spawn("bash", ["-c", `cd "${repoPath}" && ${cfgRepo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
         restarted.push(cfgRepo.name);
-        wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `restart-${cfgRepo.name}`, status: 'done' });
       }
     } catch (err) {
       console.error(`[switch] Failed for ${cfgRepo.name}:`, err.message);
@@ -287,11 +268,7 @@ app.post("/api/switch-branch", async (req, res) => {
   } catch {}
 
   // Wait for services to start
-  wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: 'services-ready', status: 'active' });
   await new Promise(r => setTimeout(r, 3000));
-  wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: 'services-ready', status: 'done' });
-  wsBroadcast({ type: 'switch_progress', phase: 'complete', branch });
-
   res.json({ ok: true, branch, switched, installed, restarted });
 });
 
@@ -838,12 +815,6 @@ app.post("/api/stop-service", (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-// Broadcast to all connected WebSocket clients
-function wsBroadcast(data) {
-  const msg = JSON.stringify(data);
-  wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
-}
 
 // WebSocket handling
 wss.on("connection", (ws) => {

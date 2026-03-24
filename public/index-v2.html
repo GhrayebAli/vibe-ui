@@ -33,8 +33,8 @@
           <button class="mode-btn active" data-mode="build">Build</button>
         </div>
         <div class="model-picker" id="model-picker">
-          <button class="model-chip" data-model="haiku" title="Fast &amp; cheap — quick edits, bug fixes">Haiku</button>
-          <button class="model-chip active" data-model="sonnet" title="Balanced — features, refactoring">Sonnet</button>
+          <button class="model-chip active" data-model="haiku" title="Fast &amp; cheap — quick edits, bug fixes">Haiku</button>
+          <button class="model-chip" data-model="sonnet" title="Balanced — features, refactoring">Sonnet</button>
           <button class="model-chip" data-model="opus" title="Most capable — complex architecture, multi-file changes">Opus</button>
         </div>
       </div>
@@ -42,15 +42,6 @@
 
     <!-- Chat + Overlays container -->
     <div style="flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:0">
-
-    <!-- Switch Progress Overlay -->
-    <div id="switch-progress" class="switch-progress" style="display:none">
-      <div class="switch-progress-inner">
-        <div class="switch-progress-spinner"></div>
-        <div class="switch-progress-title" id="switch-progress-title">Switching branch...</div>
-        <div class="switch-progress-steps" id="switch-progress-steps"></div>
-      </div>
-    </div>
 
     <!-- Landing Screen (replaces chat on load) -->
     <div id="landing" class="landing">
