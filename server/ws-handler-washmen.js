@@ -22,6 +22,7 @@ async function takeScreenshot() {
 import {
   createSession,
   getSession,
+  touchSession,
   addMessage,
   addCost,
   getTotalCost,
@@ -309,6 +310,8 @@ export function handleWashmenWs(ws, sessionIds) {
     const branch = msg.branch || null;
     if (mode !== "discover" && !getSession(sessionId)) {
       createSession(sessionId, null, text.slice(0, 50), "", branch);
+    } else if (mode !== "discover") {
+      touchSession(sessionId);
     }
     if (mode !== "discover") {
       addMessage(sessionId, "user", JSON.stringify({ text }));
