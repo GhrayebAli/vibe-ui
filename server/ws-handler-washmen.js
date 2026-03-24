@@ -457,6 +457,7 @@ export function handleWashmenWs(ws, sessionIds) {
       let gotResult = false;
       let lastCost = 0;
       let changedFiles = []; // Track files edited/written by agent
+      let pendingEvents = []; // Collect UI events for DB persistence
       let lastEditedFile = null;
       const fileContentBefore = new Map(); // Store pre-edit content for diff
 
@@ -572,6 +573,7 @@ export function handleWashmenWs(ws, sessionIds) {
               }
             });
             if (wsOpen) ws.send(JSON.stringify({ type: "file_diff", files: filesWithDiff }));
+            pendingEvents.push({ type: "file_diff", files: filesWithDiff });
           }
           if (lastEditedFile) {
             try {
@@ -598,7 +600,9 @@ export function handleWashmenWs(ws, sessionIds) {
             }
           }
           if (restartedServices.length > 0 && wsOpen) {
-            ws.send(JSON.stringify({ type: "system", text: `Auto-restarted: ${restartedServices.join(", ")}` }));
+            const restartMsg = `Auto-restarted: ${restartedServices.join(", ")}`;
+            ws.send(JSON.stringify({ type: "system", text: restartMsg }));
+            pendingEvents.push({ type: "system", text: restartMsg });
           }
 
           // Take screenshot if frontend files were changed
@@ -628,6 +632,9 @@ export function handleWashmenWs(ws, sessionIds) {
 
           if (mode !== "discover") {
             try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.error("[db]", e.message); }
+            for (const evt of pendingEvents) {
+              try { addMessage(sessionId, "event", JSON.stringify(evt)); } catch (e) { console.error("[db] event:", e.message); }
+            }
             if (cost > 0) {
               try { addMessage(sessionId, "result", JSON.stringify({ cost_usd: cost, model })); } catch (e) { console.error("[db]", e.message); }
             }
@@ -637,7 +644,9 @@ export function handleWashmenWs(ws, sessionIds) {
           if (changedFiles.length > 0 && branch && !branch.match(/^(main|master)$/)) {
             try {
               pushBranch(branch);
-              if (wsOpen) ws.send(JSON.stringify({ type: "system", text: `Pushed ${branch} to origin` }));
+              const pushMsg = `Pushed ${branch} to origin`;
+              if (wsOpen) ws.send(JSON.stringify({ type: "system", text: pushMsg }));
+              pendingEvents.push({ type: "system", text: pushMsg });
             } catch (e) { console.log("[push] post-change push failed:", e.message); }
           }
         }

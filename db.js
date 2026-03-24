@@ -493,20 +493,17 @@ export function searchSessions(query, limit = 20, projectPath) {
 }
 
 export const undoLastTurn = db.transaction((sessionId) => {
-  const lastAssistant = db.prepare(
-    "SELECT id FROM messages WHERE session_id = ? AND role = 'assistant' ORDER BY created_at DESC LIMIT 1"
-  ).get(sessionId);
-  const lastResult = db.prepare(
-    "SELECT id FROM messages WHERE session_id = ? AND role = 'result' ORDER BY created_at DESC LIMIT 1"
-  ).get(sessionId);
+  // Find the last user message — everything from here onward is the last turn
   const lastUser = db.prepare(
-    "SELECT id FROM messages WHERE session_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 1"
+    "SELECT id FROM messages WHERE session_id = ? AND role = 'user' ORDER BY created_at DESC, id DESC LIMIT 1"
   ).get(sessionId);
 
-  const ids = [lastAssistant?.id, lastResult?.id, lastUser?.id].filter(Boolean);
-  if (ids.length > 0) {
-    db.prepare(`DELETE FROM messages WHERE id IN (${ids.map(() => '?').join(',')})`).run(...ids);
-  }
+  if (!lastUser) return 0;
+
+  // Delete everything from the last user message onward (user + assistant + events + result)
+  const result = db.prepare(
+    "DELETE FROM messages WHERE session_id = ? AND id >= ?"
+  ).run(sessionId, lastUser.id);
 
   // Clean up activity events from the undone turn
   const lastRemaining = db.prepare(
@@ -519,7 +516,7 @@ export const undoLastTurn = db.transaction((sessionId) => {
     db.prepare("DELETE FROM activity_events WHERE session_id = ?").run(sessionId);
   }
 
-  return ids.length;
+  return result.changes;
 });
 
 export const deleteSession = db.transaction((id) => {
