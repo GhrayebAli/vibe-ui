@@ -538,6 +538,10 @@ export function handleWashmenWs(ws, sessionIds) {
 
           if (cost > 0) {
             try { addCost(sessionId, cost); } catch (e) { console.error("[cost]", e.message); }
+            const updatedTotal = getTotalCost();
+            if (updatedTotal >= DAILY_BUDGET && wsOpen) {
+              ws.send(JSON.stringify({ type: "system", text: `Daily budget reached ($${updatedTotal.toFixed(2)}/$${DAILY_BUDGET}). Stopping.` }));
+            }
           }
 
           // Send file changes for Code tab and diff summary
