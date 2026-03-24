@@ -22,9 +22,11 @@ const wss = new WebSocketServer({ server, path: "/ws" });
 
 app.use(express.json({ limit: "10mb" }));
 
-// Reverse proxy: /preview/* and frontend assets → frontend port (same-origin for iframe access)
-// MUST be before static handler so /v2/* doesn't get intercepted
-async function proxyRequest(req, res, targetUrl, frontendPort) {
+// Reverse proxy: /v2/* → frontend port (same-origin for iframe DOM access in visual edit)
+// Registered before static handler so frontend assets don't 404
+async function proxyToFrontend(req, res, path) {
+  const frontendPort = getFrontendPort();
+  const targetUrl = `http://localhost:${frontendPort}${path}`;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
@@ -49,14 +51,7 @@ async function proxyRequest(req, res, targetUrl, frontendPort) {
     if (!res.headersSent) res.status(502).send("Preview proxy error: " + e.message);
   }
 }
-app.use("/preview", (req, res) => {
-  const frontendPort = getFrontendPort();
-  proxyRequest(req, res, `http://localhost:${frontendPort}${req.url}`, frontendPort);
-});
-app.use("/v2", (req, res) => {
-  const frontendPort = getFrontendPort();
-  proxyRequest(req, res, `http://localhost:${frontendPort}/v2${req.url}`, frontendPort);
-});
+app.use("/v2", (req, res) => proxyToFrontend(req, res, `/v2${req.url}`));
 
 // Serve new Lovable-style UI as default
 app.get("/", (_req, res) => res.sendFile(join(__dirname, "public", "index-v2.html")));
