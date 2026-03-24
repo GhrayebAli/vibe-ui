@@ -142,7 +142,7 @@ function pushBranch(branch) {
       let ahead = "0";
       try {
         ahead = execSync(`git -C "${repoDir}" rev-list --count main..HEAD 2>/dev/null || git -C "${repoDir}" rev-list --count master..HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim();
-      } catch {}
+      } catch (e) { console.warn("[push] rev-list count failed:", e.message); }
 
       if (ahead !== "0") {
         execSync(`git -C "${repoDir}" push -u origin "${branch}" 2>/dev/null`, { stdio: "pipe", timeout: 30000 });
@@ -348,7 +348,7 @@ export function handleWashmenWs(ws, sessionIds) {
             const wsDir = getWorkspaceDir();
             branch = execSync(`git -C "${wsDir}/${repoNames[0]}" rev-parse --abbrev-ref HEAD`, { stdio: "pipe" }).toString().trim();
           }
-        } catch {}
+        } catch (e) { console.warn("[ws] branch detection failed:", e.message); }
       }
     }
     // Validate resolved branch name to prevent injection
@@ -639,7 +639,7 @@ export function handleWashmenWs(ws, sessionIds) {
       // If loop ended without a result event, still send done
       if (!gotResult && fullText) {
         console.log("[agent] stream ended without result event — sending done");
-        try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch {}
+        try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.warn("[agent] failed to save message:", e.message); }
         ws.send(JSON.stringify({
           type: "assistant_done",
           text: fullText,
@@ -662,7 +662,7 @@ export function handleWashmenWs(ws, sessionIds) {
           text: `Agent error: ${err.message}`,
           sessionId,
         }));
-      } catch {}
+      } catch (e) { console.warn("[agent] failed to send error to client:", e.message); }
       currentQuery = null;
     }
   }

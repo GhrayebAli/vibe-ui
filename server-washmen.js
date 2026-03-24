@@ -196,11 +196,11 @@ app.get("/api/workspace", (_req, res) => {
     let activeBranch = null;
     try {
       activeBranch = readFileSync(join(workspaceDir, ".active-branch"), "utf-8").trim();
-    } catch {}
+    } catch (e) { console.warn("[workspace] .active-branch read failed:", e.message); }
     if (!activeBranch && repos.length > 0) {
       try {
         activeBranch = execSync(`git -C "${repos[0].path}" rev-parse --abbrev-ref HEAD`, { stdio: "pipe" }).toString().trim();
-      } catch {}
+      } catch (e) { console.warn("[workspace] git HEAD detection failed:", e.message); }
     }
 
     // List mvp/* branches from first repo (local + remote)
@@ -209,7 +209,7 @@ app.get("/api/workspace", (_req, res) => {
     if (repos.length > 0) {
       const repoPath = repos[0].path;
       // Fetch latest remote refs
-      try { execSync(`git -C "${repoPath}" fetch origin --prune 2>/dev/null`, { stdio: "pipe", timeout: 10000 }); } catch {}
+      try { execSync(`git -C "${repoPath}" fetch origin --prune 2>/dev/null`, { stdio: "pipe", timeout: 10000 }); } catch (e) { console.warn("[workspace] git fetch prune failed:", e.message); }
 
       // Local branches
       try {
@@ -229,7 +229,7 @@ app.get("/api/workspace", (_req, res) => {
             session: session ? { id: session.id, messageCount: msgCount, lastUsedAt: session.last_used_at, title: session.title || session.project_name || null } : null,
           });
         }
-      } catch {}
+      } catch (e) { console.warn("[workspace] local branch listing failed:", e.message); }
 
       // Remote-only branches (not yet checked out locally)
       try {
@@ -249,7 +249,7 @@ app.get("/api/workspace", (_req, res) => {
             session: null,
           });
         }
-      } catch {}
+      } catch (e) { console.warn("[workspace] remote branch listing failed:", e.message); }
     }
     // Sort by most recent activity — prefer session lastUsedAt, fall back to git committerdate
     branches.sort((a, b) => {
