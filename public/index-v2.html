@@ -11,6 +11,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.6/dist/driver.css">
+  <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.6/dist/driver.js.iife.js"></script>
 </head>
 <body>
 <div class="shell">
@@ -238,6 +240,32 @@
     </div>
   </div>
 
+</div>
+
+<!-- Welcome Overlay -->
+<div id="welcome-overlay" class="hidden">
+  <div class="welcome-inner">
+    <div class="welcome-title">Welcome to Washmen Ops</div>
+    <div class="welcome-subtitle">AI-powered workspace for building features</div>
+    <div class="welcome-features">
+      <div class="welcome-feature">
+        <span class="welcome-feature-icon">💬</span>
+        <span>Chat with AI to build features</span>
+      </div>
+      <div class="welcome-feature">
+        <span class="welcome-feature-icon">👁</span>
+        <span>Live preview of your changes</span>
+      </div>
+      <div class="welcome-feature">
+        <span class="welcome-feature-icon">🔀</span>
+        <span>Branch-based feature development</span>
+      </div>
+    </div>
+    <div class="welcome-actions">
+      <button id="welcome-get-started" class="welcome-btn-primary">Get Started</button>
+      <button id="welcome-take-tour" class="welcome-btn-secondary">Take a Tour</button>
+    </div>
+  </div>
 </div>
 
 <script type="module" src="app.js"></script>

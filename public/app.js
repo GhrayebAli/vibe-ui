@@ -3,6 +3,7 @@ import { initPreview, refreshPreview, setDevice, navigatePreview } from './compo
 import { initNotes, onNotesOpen, onNotesGenerated } from './components/notes.js';
 import { initStatus, checkHealth } from './components/status.js';
 import { initBudget, updateBudget } from './components/budget.js';
+import './js/features/welcome.js';
 import { initVisualEdit, toggleVisualEdit, deactivate as deactivateVisualEdit, highlightChange, getPendingChangeSelector, toggleHistory } from './components/visual-edit.js';
 
 /* ═══ DOM refs ═══ */

@@ -518,3 +518,19 @@ pre:hover .code-copy { opacity: 1; }
 .landing-budget { font-size: 11px; color: var(--text-muted); }
 .landing-card-resume { cursor: default; }
 .landing-card-resume:hover { border-color: var(--border); background: var(--surface); }
+
+/* ═══ Welcome Overlay ═══ */
+#welcome-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); transition: opacity 0.3s; }
+#welcome-overlay.hidden { display: none; }
+#welcome-overlay.hiding { opacity: 0; }
+.welcome-inner { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 40px; max-width: 400px; text-align: center; }
+.welcome-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.welcome-subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+.welcome-features { display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; text-align: left; }
+.welcome-feature { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text); }
+.welcome-feature-icon { font-size: 18px; }
+.welcome-actions { display: flex; gap: 10px; justify-content: center; }
+.welcome-btn-primary { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-pill); padding: 10px 24px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.welcome-btn-primary:hover { filter: brightness(1.15); }
+.welcome-btn-secondary { background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 10px 24px; font-size: 13px; cursor: pointer; }
+.welcome-btn-secondary:hover { border-color: var(--accent); color: var(--accent); }

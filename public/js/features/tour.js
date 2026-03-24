@@ -1,154 +1,63 @@
-// Guided tour — uses Driver.js to walk users through Claudeck features
+// Guided tour — uses Driver.js to walk users through Washmen Ops v2 features
 const TOUR_KEY = 'claudeck-tour-completed';
 
 function buildSteps() {
-  const hasSpeechApi = !document.body.classList.contains('no-speech-api');
   const steps = [
-  // ── Sidebar & Navigation ──────────────────────────
+  // ── Navigation ──────────────────────────────────
   {
     element: '#home-btn',
     popover: {
-      title: 'Home Dashboard',
-      description: 'Your activity hub — see AI usage heatmaps, session stats, streaks, and analytics at a glance.',
+      title: 'Home',
+      description: 'Return to the landing screen to switch branches or start a new feature.',
       side: 'right',
       align: 'center',
     },
   },
   {
-    element: '#project-select',
+    element: '#mode-toggle',
     popover: {
-      title: 'Project Selector',
-      description: 'Switch between projects. Each project has its own sessions, system prompt, and MCP config.',
-      side: 'right',
-      align: 'start',
-    },
-  },
-  {
-    element: '#session-search',
-    popover: {
-      title: 'Session Search',
-      description: 'Quickly find any session by name. Pro tip: use <kbd>Cmd+K</kbd> from anywhere.',
-      side: 'right',
-      align: 'start',
-    },
-  },
-  {
-    element: '#new-session-btn',
-    popover: {
-      title: 'New Chat',
-      description: 'Start a fresh conversation with Claude. Shortcut: <kbd>Cmd+N</kbd>',
+      title: 'Build Mode',
+      description: 'Choose between Discover (read-only), Plan (design first), and Build (full edit) modes.',
       side: 'right',
       align: 'center',
     },
   },
   {
-    element: '.mode-toggle .toggle-switch',
+    element: '#model-picker',
     popover: {
-      title: 'Parallel Mode',
-      description: 'Split into a 2×2 grid and run 4 conversations simultaneously.',
-      side: 'right',
-      align: 'center',
-    },
-  },
-  {
-    element: '#session-list',
-    popover: {
-      title: 'Session History',
-      description: 'All your chat sessions in one place. Click to switch, right-click to rename or delete.',
-      side: 'right',
-      align: 'start',
-    },
-  },
-  {
-    element: '#theme-toggle-btn',
-    popover: {
-      title: 'Theme Toggle',
-      description: 'Switch between dark terminal mode and a warm light theme.',
+      title: 'AI Model',
+      description: 'Select which AI model to use for your session.',
       side: 'right',
       align: 'center',
     },
   },
 
-  // ── Header Controls ───────────────────────────────
+  // ── Landing ─────────────────────────────────────
   {
-    element: '.header-dropdown:first-of-type .header-dropdown-trigger',
+    element: '#landing',
     popover: {
-      title: 'Session Settings',
-      description: 'Configure approval mode (Bypass, Confirm Writes, Plan), choose your AI model, and set max conversation turns.',
-      side: 'bottom',
-      align: 'end',
-    },
-  },
-  {
-    element: '.header-dropdown:nth-of-type(2) .header-dropdown-trigger',
-    popover: {
-      title: 'Tools & Integrations',
-      description: 'Access MCP servers, browser notifications, Telegram alerts, and developer docs.',
-      side: 'bottom',
-      align: 'end',
-    },
-  },
-  {
-    element: '#tips-feed-toggle-btn',
-    popover: {
-      title: 'Tips Feed',
-      description: 'Contextual tips and learning resources to help you get more out of Claudeck. <kbd>Cmd+Shift+T</kbd>',
-      side: 'bottom',
-      align: 'center',
-    },
-  },
-  {
-    element: '#right-panel-toggle-btn',
-    popover: {
-      title: 'Right Panel',
-      description: 'Toggle the file explorer, git panel, and plugin tabs. <kbd>Cmd+B</kbd>',
-      side: 'bottom',
-      align: 'center',
+      title: 'Landing Screen',
+      description: 'Your starting point — discover the codebase, resume a branch, or build a new feature.',
+      side: 'right',
+      align: 'start',
     },
   },
 
-  // ── Chat Area ─────────────────────────────────────
-  {
-    element: '#agent-btn',
-    popover: {
-      title: 'Agents & Workflows',
-      description: 'Open the agent sidebar to run autonomous agents, sequential chains, DAG pipelines, or multi-step workflows.',
-      side: 'top',
-      align: 'center',
-    },
-  },
+  // ── Chat Input ──────────────────────────────────
   {
     element: '#attach-btn',
     popover: {
       title: 'Attach Files',
-      description: 'Browse your project files and attach them as context for Claude.',
-      side: 'top',
-      align: 'center',
-    },
-  },
-  ...(hasSpeechApi ? [{
-    element: '#mic-btn',
-    popover: {
-      title: 'Voice Input',
-      description: 'Speak your message — uses Web Speech API for real-time speech-to-text.',
-      side: 'top',
-      align: 'center',
-    },
-  }] : []),
-  {
-    element: '#toolbox-btn',
-    popover: {
-      title: 'Prompt Templates',
-      description: 'Access your saved prompts. Create reusable templates with {{variable}} placeholders.',
+      description: 'Attach images or files as context for the AI.',
       side: 'top',
       align: 'center',
     },
   },
   {
-    element: '#message-input',
+    element: '#input',
     popover: {
       title: 'Chat Input',
-      description: 'Type your message here. Start with <kbd>/</kbd> for slash commands like /clear, /export, /costs, and more. <kbd>Shift+Enter</kbd> for a new line.',
+      description: 'Describe what you want to build. <kbd>Shift+Enter</kbd> for new lines, <kbd>Enter</kbd> to send.',
       side: 'top',
       align: 'center',
     },
@@ -157,18 +66,47 @@ function buildSteps() {
     element: '#send-btn',
     popover: {
       title: 'Send Message',
-      description: 'Send your message to Claude, or press <kbd>Enter</kbd>. While streaming, this becomes a stop button.',
+      description: 'Send your message to the AI, or press <kbd>Enter</kbd>.',
       side: 'top',
       align: 'center',
     },
   },
 
-  // ── Status Bar ────────────────────────────────────
+  // ── Right Panel ─────────────────────────────────
   {
-    element: '.status-bar',
+    element: '#tab-preview',
     popover: {
-      title: 'Status Bar',
-      description: 'Real-time info at a glance — connection status, git branch, active project, streaming tokens, context usage, and costs.',
+      title: 'Live Preview',
+      description: 'See your changes in real time as the AI edits code.',
+      side: 'left',
+      align: 'start',
+    },
+  },
+  {
+    element: '#tab-code',
+    popover: {
+      title: 'Code View',
+      description: 'Browse and inspect the files the AI has modified.',
+      side: 'left',
+      align: 'start',
+    },
+  },
+  {
+    element: '#tab-console',
+    popover: {
+      title: 'Console',
+      description: 'View server logs and browser console output for debugging.',
+      side: 'left',
+      align: 'start',
+    },
+  },
+
+  // ── Budget ──────────────────────────────────────
+  {
+    element: '.budget-track',
+    popover: {
+      title: 'Budget Tracker',
+      description: 'Monitor your daily AI usage. The bar fills as you use more of your budget.',
       side: 'top',
       align: 'center',
     },
