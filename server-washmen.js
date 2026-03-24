@@ -32,12 +32,8 @@ app.get("/", (_req, res) => {
   html = html.replace("</head>", `<script>window.__VIBE_TOKEN="${AUTH_TOKEN}";(function(){const _f=window.fetch;window.fetch=function(u,o){o=o||{};o.headers=new Headers(o.headers||{});o.headers.set("X-Vibe-Token",window.__VIBE_TOKEN);return _f.call(this,u,o);}})();</script></head>`);
   res.send(html);
 });
-// Keep old UI accessible (with embedded auth token)
-app.get("/v1", (_req, res) => {
-  let html = readFileSync(join(__dirname, "public", "washmen.html"), "utf8");
-  html = html.replace("</head>", `<script>window.__VIBE_TOKEN="${AUTH_TOKEN}";(function(){const _f=window.fetch;window.fetch=function(u,o){o=o||{};o.headers=new Headers(o.headers||{});o.headers.set("X-Vibe-Token",window.__VIBE_TOKEN);return _f.call(this,u,o);}})();</script></head>`);
-  res.send(html);
-});
+// Legacy UI — redirect to v2
+app.get("/v1", (_req, res) => res.redirect("/"));
 app.use(express.static(join(__dirname, "public"), { etag: false, maxAge: 0 }));
 
 // Auth middleware for all /api/* routes
