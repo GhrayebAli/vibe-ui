@@ -161,6 +161,12 @@ function startDiscover() {
 }
 
 async function resumeBranch(branch) {
+  // If already on this branch, just go back to the existing chat — no reload needed
+  if (branch.name === currentBranch && hasSent) {
+    hideLanding();
+    return;
+  }
+
   hideLanding();
   clearChat();
 
@@ -187,10 +193,13 @@ async function resumeBranch(branch) {
 
   if (branch.session) {
     sid = branch.session.id;
-    try {
-      const msgs = await (await fetch(`/api/sessions/${sid}/messages`)).json();
-      if (msgs.length > 0) loadMessages(msgs);
-    } catch {}
+    // Only reload messages if we actually switched (skipped means same branch, chat already loaded from DB)
+    if (!wasSkipped) {
+      try {
+        const msgs = await (await fetch(`/api/sessions/${sid}/messages`)).json();
+        if (msgs.length > 0) loadMessages(msgs);
+      } catch {}
+    }
     addSystemMsg(`Resumed ${branch.name}`);
     // Show notes button — branch has prior work
     $('notes-btn').style.display = '';
