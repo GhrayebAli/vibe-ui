@@ -326,8 +326,26 @@ app.post("/api/switch-branch", async (req, res) => {
   const installed = [];
   const restarted = [];
 
+  // Auto-save notes for the branch we're leaving
+  try {
+    const currentBranchFile = join(workspaceDir, ".active-branch");
+    const leavingBranch = existsSync(currentBranchFile) ? readFileSync(currentBranchFile, "utf-8").trim() : null;
+    if (leavingBranch && leavingBranch !== branch && leavingBranch.startsWith("mvp/")) {
+      const repoPath = join(workspaceDir, configRepos[0]?.name);
+      const diffStat = execSync(`git -C "${repoPath}" diff main..HEAD --stat 2>/dev/null`, { stdio: "pipe", timeout: 5000 }).toString().trim();
+      const logSummary = execSync(`git -C "${repoPath}" log main..HEAD --oneline 2>/dev/null`, { stdio: "pipe", timeout: 5000 }).toString().trim();
+      if (diffStat || logSummary) {
+        const notes = `## Auto-generated summary\n\n### Commits\n${logSummary || 'None'}\n\n### Changes\n${diffStat || 'None'}`;
+        saveNotes(leavingBranch, notes);
+      }
+    }
+  } catch (e) {
+    console.warn('[switch] Auto-notes failed:', e.message);
+  }
+
   // Build step list for progress tracking
   const steps = [];
+  steps.push({ id: 'save-notes', label: 'Saving branch notes' });
   for (const cfgRepo of configRepos) {
     steps.push({ id: `checkout-${cfgRepo.name}`, label: `Switching ${cfgRepo.name}` });
     steps.push({ id: `deps-${cfgRepo.name}`, label: `Checking dependencies` });
@@ -338,6 +356,7 @@ app.post("/api/switch-branch", async (req, res) => {
   steps.push({ id: 'services-ready', label: 'Waiting for services' });
 
   wsBroadcast({ type: 'switch_progress', phase: 'start', branch, steps });
+  wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: 'save-notes', status: 'done' });
 
   for (const cfgRepo of configRepos) {
     const repoPath = join(workspaceDir, cfgRepo.name);
