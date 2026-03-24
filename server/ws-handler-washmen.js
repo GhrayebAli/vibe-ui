@@ -1,6 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import crypto from "crypto";
-import { execSync } from "child_process";
+import { execSync, spawn } from "child_process";
 import { readFileSync } from "fs";
 import { getWorkspaceDir, getConfig, getRepoNames, getFrontendRepo, getFrontendPort, getAdditionalDirs } from "./workspace-config.js";
 
@@ -483,6 +483,27 @@ export function handleWashmenWs(ws, sessionIds) {
               const content = readFileSync(lastEditedFile, "utf8");
               ws.send(JSON.stringify({ type: "code_update", path: lastEditedFile, content }));
             } catch (e) { console.error("[code]", e.message); }
+          }
+
+          // Auto-restart backend services when their files were modified
+          // Sails.js (and most Node backends) don't hot-reload controllers/routes/models
+          const configRepos = getConfig().repos;
+          const restartedServices = [];
+          for (const repo of configRepos) {
+            if (repo.type === "frontend" || !repo.port || !repo.dev) continue;
+            const touchedBackend = changedFiles.some(f => f.name.includes(repo.name));
+            if (touchedBackend) {
+              try {
+                try { execSync(`kill $(lsof -ti:${repo.port} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+                const logFile = `/tmp/${repo.name}.log`;
+                spawn("bash", ["-c", `cd "${workspaceDir}/${repo.name}" && ${repo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
+                restartedServices.push(repo.name);
+                console.log(`[auto-restart] ${repo.name} on :${repo.port}`);
+              } catch (e) { console.error(`[auto-restart] ${repo.name} failed:`, e.message); }
+            }
+          }
+          if (restartedServices.length > 0) {
+            ws.send(JSON.stringify({ type: "system", text: `Auto-restarted: ${restartedServices.join(", ")}` }));
           }
 
           // Take screenshot if frontend files were changed
