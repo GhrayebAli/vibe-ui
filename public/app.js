@@ -340,8 +340,8 @@ function handleMessage(msg) {
       sendBtn.style.display = 'flex';
       stopBtn.style.display = 'none';
       updateBudget(msg.totalCost);
-      // Add undo button
-      if (sid) attachUndoButton();
+      // Add undo button only when files were changed
+      if (sid && msg.filesChanged > 0) attachUndoButton();
       // Detect follow-up questions in the response
       if (msg.text) {
         detectAndRenderQuestion(msg.text, (answer) => doSend(answer));

@@ -623,6 +623,7 @@ export function handleWashmenWs(ws, sessionIds) {
             sessionId,
             cost,
             totalCost: getTotalCost(),
+            filesChanged: changedFiles.length,
           }));
 
           if (mode !== "discover") {
