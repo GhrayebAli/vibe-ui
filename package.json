@@ -11,7 +11,8 @@
   "scripts": {
     "start": "node server-washmen.js",
     "dev": "nodemon --watch server-washmen.js --watch server/ --watch public/ -e js,mjs,html,css server-washmen.js",
-    "start:original": "node server.js"
+    "start:original": "node server.js",
+    "test:visual-edit": "node test/visual-edit.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.81",

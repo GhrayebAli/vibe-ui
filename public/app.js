@@ -3,7 +3,7 @@ import { initPreview, refreshPreview, setDevice, navigatePreview } from './compo
 import { initNotes, onNotesOpen, onNotesGenerated } from './components/notes.js';
 import { initStatus, checkHealth } from './components/status.js';
 import { initBudget, updateBudget } from './components/budget.js';
-import { initVisualEdit, toggleVisualEdit, deactivate as deactivateVisualEdit } from './components/visual-edit.js';
+import { initVisualEdit, toggleVisualEdit, deactivate as deactivateVisualEdit, highlightChange, getPendingChangeSelector, toggleHistory } from './components/visual-edit.js';
 
 /* ═══ DOM refs ═══ */
 const $ = id => document.getElementById(id);
@@ -340,12 +340,18 @@ function handleMessage(msg) {
 
     case 'code_update':
       updateCodeTab(msg.path, msg.content);
+      // Trigger change confirmation pulse if a visual edit is pending
+      { const sel = getPendingChangeSelector();
+        if (sel) setTimeout(() => highlightChange(sel), 1500); }
       break;
 
     case 'screenshot':
       addScreenshot(msg.image, msg.caption);
       // Also refresh the preview iframe
       refreshPreview();
+      // Trigger change confirmation pulse if a visual edit is pending
+      { const sel = getPendingChangeSelector();
+        if (sel) setTimeout(() => highlightChange(sel), 2000); }
       break;
 
     case 'switch_progress':
@@ -679,6 +685,7 @@ $('visual-edit-btn').onclick = () => {
   const isActive = toggleVisualEdit();
   $('visual-edit-btn').classList.toggle('ve-active', isActive);
 };
+$('ve-history-btn').onclick = () => toggleHistory();
 $('preview-url').onkeydown = e => {
   if (e.key === 'Enter') {
     let url = e.target.value.trim();
