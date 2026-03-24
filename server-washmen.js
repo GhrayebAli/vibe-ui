@@ -500,6 +500,13 @@ app.get("/api/sessions/:id/messages", (req, res) => {
   res.json(messages);
 });
 
+app.get("/api/sessions/:id/timeline", (req, res) => {
+  const events = getDb().prepare(
+    "SELECT event_type, tool, input_summary, created_at FROM activity_events WHERE session_id = ? ORDER BY created_at ASC"
+  ).all(req.params.id);
+  res.json(events);
+});
+
 // File read API — for Code tab (restricted to workspace)
 app.get("/api/file", (req, res) => {
   try {

@@ -546,3 +546,11 @@ pre:hover .code-copy { opacity: 1; }
 .preview-error-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
 .preview-error-desc { font-size: 12px; margin-bottom: 16px; }
 .preview-retry-btn { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-pill); padding: 8px 20px; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+/* ═══ Activity Timeline ═══ */
+.activity-timeline { margin-top: 6px; }
+.activity-timeline.collapsed .timeline-items { display: none; }
+.timeline-toggle { background: none; border: none; color: var(--text-muted); font-size: 10px; cursor: pointer; padding: 2px 0; font-family: var(--font); }
+.timeline-toggle:hover { color: var(--accent); }
+.timeline-items { font-size: 10px; color: var(--text-dim); padding: 4px 0; line-height: 1.6; word-break: break-all; }
+.timeline-item { white-space: nowrap; }

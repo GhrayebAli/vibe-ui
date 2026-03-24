@@ -201,6 +201,19 @@ db.exec(`
   );
 `);
 
+// Activity events table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS activity_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT REFERENCES sessions(id),
+    event_type TEXT NOT NULL,
+    tool TEXT,
+    input_summary TEXT,
+    created_at INTEGER DEFAULT (unixepoch())
+  );
+  CREATE INDEX IF NOT EXISTS idx_activity_session ON activity_events(session_id);
+`);
+
 // Brags table
 db.exec(`
   CREATE TABLE IF NOT EXISTS brags (

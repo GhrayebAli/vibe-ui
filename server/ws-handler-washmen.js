@@ -32,6 +32,7 @@ import {
   getClaudeSessionId,
   setClaudeSession,
   updateSessionTitle,
+  getDb,
 } from "../db.js";
 
 const DAILY_BUDGET = 30; // $30/day
@@ -411,6 +412,7 @@ export function handleWashmenWs(ws, sessionIds) {
                   },
                 };
               }
+              try { getDb().prepare("INSERT INTO activity_events (session_id, event_type, tool, input_summary) VALUES (?, ?, ?, ?)").run(sessionId, "tool_start", toolName, JSON.stringify(toolInput).slice(0, 200)); } catch {}
               if (ws.readyState === 1) {
                 ws.send(JSON.stringify({ type: "tool_activity", tool: toolName, input: toolInput }));
               }
@@ -421,6 +423,7 @@ export function handleWashmenWs(ws, sessionIds) {
             matcher: ".*",
             hooks: [async (input, toolUseId, { signal }) => {
               const toolName = input.tool_name;
+              try { getDb().prepare("INSERT INTO activity_events (session_id, event_type, tool) VALUES (?, ?, ?)").run(sessionId, "tool_end", toolName); } catch {}
               if (ws.readyState === 1) {
                 ws.send(JSON.stringify({ type: "tool_complete", tool: toolName }));
               }

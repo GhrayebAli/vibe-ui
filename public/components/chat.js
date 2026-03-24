@@ -66,6 +66,14 @@ export function addAgentMsg(text, streaming) {
     if (currentAgentBubble) {
       // Collapse long streamed messages after finalization
       maybeCollapse(currentAgentBubble);
+      // Show activity timeline if tools were used
+      if (activityLog.length > 0) {
+        const timelineEl = document.createElement('div');
+        timelineEl.className = 'activity-timeline collapsed';
+        const items = activityLog.map(a => `<span class="timeline-item">${a.icon} ${a.label}</span>`).join(' \u2192 ');
+        timelineEl.innerHTML = `<button class="timeline-toggle" onclick="this.parentElement.classList.toggle('collapsed')">Activity (${activityLog.length} tools)</button><div class="timeline-items">${items}</div>`;
+        currentAgentBubble.parentElement.appendChild(timelineEl);
+      }
       // Add timestamp to the parent msg div
       const timeSpan = document.createElement('span');
       timeSpan.className = 'msg-time';
