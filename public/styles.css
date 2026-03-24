@@ -335,7 +335,14 @@ pre:hover .code-copy { opacity: 1; }
 /* Overlay */
 .visual-overlay { position: absolute; inset: 0; z-index: 10; cursor: crosshair; }
 .ve-instruction { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: var(--bg-elevated, var(--surface)); border: 1px solid var(--border); border-radius: var(--radius-pill, 9999px); padding: 6px 14px; font-size: 11px; color: var(--text-secondary, var(--text-muted)); font-weight: 500; z-index: 12; pointer-events: none; animation: fadeInUp 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: opacity 0.2s ease; }
-.ve-label { position: absolute; background: var(--accent); color: #000; padding: 2px 8px; border-radius: var(--radius, 4px); font-size: 11px; font-weight: 600; pointer-events: none; white-space: nowrap; z-index: 12; box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: opacity 0.1s ease; }
+
+/* DevTools-style highlight box drawn on the overlay */
+.ve-highlight-box { position: absolute; pointer-events: none; z-index: 11; background: rgba(66, 133, 244, 0.12); border: 2px solid rgba(66, 133, 244, 0.8); border-radius: 2px; transition: left 0.05s ease, top 0.05s ease, width 0.05s ease, height 0.05s ease, opacity 0.1s ease; opacity: 0; }
+.ve-highlight-box.selected { background: rgba(51, 209, 122, 0.12); border-color: var(--accent, #33d17a); border-width: 2px; box-shadow: 0 0 0 3px rgba(51, 209, 122, 0.2); }
+
+/* Element name label anchored to highlight box */
+.ve-label { position: absolute; background: rgba(66, 133, 244, 0.9); color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; pointer-events: none; white-space: nowrap; z-index: 12; transition: opacity 0.08s ease; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.ve-label::after { content: attr(data-size); margin-left: 6px; opacity: 0.7; font-weight: 400; font-size: 10px; }
 
 /* Edit panel */
 .edit-panel { position: absolute; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); z-index: 15; max-height: 50%; overflow-y: auto; animation: slideUp .2s ease; }

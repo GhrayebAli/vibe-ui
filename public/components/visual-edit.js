@@ -154,11 +154,12 @@ function activate() {
   overlay.className = 'visual-overlay';
   overlay.innerHTML = `
     <div class="ve-instruction">Click any element to edit</div>
+    <div class="ve-highlight-box"></div>
     <div class="ve-label" style="opacity:0"></div>
   `;
   wrap.appendChild(overlay);
 
-  // Inject hover styles into iframe
+  // Inject hover styles into iframe (for selection persistence)
   injectIframeStyles();
 
   overlay.addEventListener('mousemove', handleMouseMove);
@@ -217,35 +218,51 @@ function cleanupIframeStyles() {
 
 function handleMouseMove(e) {
   const label = overlay?.querySelector('.ve-label');
+  const highlightBox = overlay?.querySelector('.ve-highlight-box');
 
   try {
     const iframeDoc = previewFrame?.contentDocument;
     if (!iframeDoc) throw new Error('no access');
 
-    const rect = previewFrame.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const iframeRect = previewFrame.getBoundingClientRect();
+    const x = e.clientX - iframeRect.left;
+    const y = e.clientY - iframeRect.top;
 
     const element = iframeDoc.elementFromPoint(x, y);
-    if (!element) return;
+    if (!element || element === iframeDoc.body || element === iframeDoc.documentElement) {
+      if (highlightBox) highlightBox.style.opacity = '0';
+      return;
+    }
 
-    // Remove previous hover
-    iframeDoc.querySelectorAll('.ve-hover').forEach(el => el.classList.remove('ve-hover'));
+    // Get the element's bounding rect relative to the iframe viewport
+    const elRect = element.getBoundingClientRect();
 
-    if (element !== iframeDoc.body && element !== iframeDoc.documentElement) {
-      element.classList.add('ve-hover');
+    // Draw highlight box on the overlay at the element's position
+    if (highlightBox) {
+      highlightBox.style.left = elRect.left + 'px';
+      highlightBox.style.top = elRect.top + 'px';
+      highlightBox.style.width = elRect.width + 'px';
+      highlightBox.style.height = elRect.height + 'px';
+      highlightBox.style.opacity = '1';
+    }
 
-      const compAttr = findComponentAttr(element);
-      const name = friendlyName(element, compAttr);
-      if (label) {
-        label.textContent = name;
-        label.style.opacity = '1';
-        label.style.left = (e.offsetX + 12) + 'px';
-        label.style.top = (e.offsetY - 24) + 'px';
-      }
+    // Show friendly name — use the EXACT element, not the parent component
+    const name = friendlyName(element, null);
+    const tag = element.tagName.toLowerCase();
+    const size = `${Math.round(elRect.width)} × ${Math.round(elRect.height)}`;
+
+    if (label) {
+      label.textContent = `${name}`;
+      label.dataset.size = size;
+      label.style.opacity = '1';
+      // Position label above the highlight box, or below if near top
+      const labelY = elRect.top > 30 ? (elRect.top - 28) : (elRect.bottom + 4);
+      label.style.left = elRect.left + 'px';
+      label.style.top = labelY + 'px';
     }
   } catch {
-    // Cross-origin
+    // Cross-origin — show cursor-following label
+    if (highlightBox) highlightBox.style.opacity = '0';
     if (label) {
       label.textContent = 'Click to select';
       label.style.opacity = '1';
@@ -276,20 +293,28 @@ function handleClick(e) {
   const instruction = overlay?.querySelector('.ve-instruction');
   if (instruction) instruction.style.opacity = '0';
 
-  // Show click highlight on the overlay (works for both same-origin and cross-origin)
-  showClickHighlight(x, y);
-
   if (element) {
     // Same-origin — direct DOM access
     selectedElement = element;
 
-    // Clear hover, apply selection
+    // Draw selection box on overlay
+    const elRect = element.getBoundingClientRect();
+    const highlightBox = overlay?.querySelector('.ve-highlight-box');
+    if (highlightBox) {
+      highlightBox.style.left = elRect.left + 'px';
+      highlightBox.style.top = elRect.top + 'px';
+      highlightBox.style.width = elRect.width + 'px';
+      highlightBox.style.height = elRect.height + 'px';
+      highlightBox.style.opacity = '1';
+      highlightBox.classList.add('selected');
+    }
+
+    // Also inject selection class for persistence
     try {
       const iframeDoc = previewFrame.contentDocument;
       iframeDoc.querySelectorAll('.ve-hover, .ve-selected').forEach(el => el.classList.remove('ve-hover', 've-selected'));
       element.classList.add('ve-selected');
     } catch {}
-
     const compAttr = findComponentAttr(element);
     const computedStyle = element.ownerDocument.defaultView.getComputedStyle(element);
     let component = null, filePath = null, lineNum = null;
