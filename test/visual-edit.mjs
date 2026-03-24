@@ -219,40 +219,49 @@ async function run() {
           check(chips.length >= 3, `At least 3 chips present (${chips.length})`, `Too few chips: ${chips.length}`);
 
           if (chips.length > 0) {
-            step("Click a chip to select it");
-            await chips[0].click();
-            await page.waitForTimeout(300);
-            const isSelected = await chips[0].evaluate(el => el.classList.contains("selected"));
-            check(isSelected, "Chip got .selected class on click", "Chip did NOT get .selected class");
+            step("Click a toggle chip to select it");
+            // Find a toggle-type chip first (not color/text which just expand)
+            let toggleChipIdx = -1;
+            for (let i = 0; i < chips.length; i++) {
+              const text = await chips[i].textContent();
+              if (text.includes("Hide") || text.includes("Make") || text.includes("Add") || text.includes("Round") || text.includes("More") || text.includes("Less") || text.includes("Stripe") || text.includes("Bold") || text.includes("Align")) {
+                toggleChipIdx = i;
+                break;
+              }
+            }
+            if (toggleChipIdx >= 0) {
+              await chips[toggleChipIdx].click();
+              await page.waitForTimeout(300);
+              const isSelected = await chips[toggleChipIdx].evaluate(el => el.classList.contains("selected")).catch(() => false);
+              check(isSelected, "Toggle chip got .selected class on click", "Toggle chip did NOT get .selected class");
 
-            step("Click same chip to toggle off");
-            // Only test toggle for 'toggle' type chips (not text/color which expand)
-            const chipText = await chips[0].textContent();
-            if (!chipText.includes("Change")) {
-              await chips[0].click();
+              step("Click same chip to toggle off");
+              await chips[toggleChipIdx].click();
               await page.waitForTimeout(200);
-              const isDeselected = await chips[0].evaluate(el => !el.classList.contains("selected"));
+              const isDeselected = await chips[toggleChipIdx].evaluate(el => !el.classList.contains("selected")).catch(() => false);
               check(isDeselected, "Chip toggled off on second click", "Chip still selected after second click");
             } else {
-              pass("Skip toggle-off test for expandable chip");
+              warn("No toggle chip found to test selection");
             }
 
             step("Select multiple chips");
-            // Find toggle-type chips (skip first few which may be text/color)
-            const toggleChips = [];
-            for (let i = 0; i < chips.length; i++) {
-              const text = await chips[i].textContent();
-              if (text.includes("Make") || text.includes("Add") || text.includes("Hide") || text.includes("Round") || text.includes("More") || text.includes("Less")) {
-                toggleChips.push(chips[i]);
+            // Re-query chips from the current panel to avoid stale references
+            const freshPanel = await page.$(".edit-panel");
+            const freshChips = freshPanel ? await freshPanel.$$(".ve-chip") : [];
+            const toggleIndices = [];
+            for (let i = 0; i < freshChips.length; i++) {
+              const text = await freshChips[i].textContent().catch(() => "");
+              if (text.includes("Make") || text.includes("Add") || text.includes("Hide") || text.includes("Round") || text.includes("More") || text.includes("Less") || text.includes("Stripe") || text.includes("Bold")) {
+                toggleIndices.push(i);
               }
             }
-            if (toggleChips.length >= 2) {
-              await toggleChips[0].click();
+            if (toggleIndices.length >= 2) {
+              await freshChips[toggleIndices[0]].click();
               await page.waitForTimeout(100);
-              await toggleChips[1].click();
+              await freshChips[toggleIndices[1]].click();
               await page.waitForTimeout(100);
-              const sel0 = await toggleChips[0].evaluate(el => el.classList.contains("selected"));
-              const sel1 = await toggleChips[1].evaluate(el => el.classList.contains("selected"));
+              const sel0 = await freshChips[toggleIndices[0]].evaluate(el => el.classList.contains("selected")).catch(() => false);
+              const sel1 = await freshChips[toggleIndices[1]].evaluate(el => el.classList.contains("selected")).catch(() => false);
               check(sel0 && sel1, "Multiple chips selected simultaneously", "Multi-select failed");
             } else {
               warn("Not enough toggle chips to test multi-select");
