@@ -12,6 +12,7 @@ import { WebSocketServer } from "ws";
 import { getDb, createSession, getSession, addMessage, addCost, getTotalCost, getSessionByBranch, getNotes, saveNotes } from "./db.js";
 import { handleWashmenWs } from "./server/ws-handler-washmen.js";
 import { loadWorkspaceConfig, getWorkspaceDir, getConfig, getFrontendRepo, getFrontendPort, getServicesConfig, getRepoNames, getClientConfig } from "./server/workspace-config.js";
+import { sanitizeBranchName, sanitizePort, validateDevCommand } from "./server/sanitize.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -255,6 +256,7 @@ app.get("/api/workspace", (_req, res) => {
 app.post("/api/switch-branch", async (req, res) => {
   const { branch } = req.body;
   if (!branch) return res.status(400).json({ error: "Missing branch" });
+  try { sanitizeBranchName(branch); } catch (e) { return res.status(400).json({ error: e.message }); }
 
   const workspaceDir = getWorkspaceDir();
   const configRepos = getConfig().repos;
@@ -327,12 +329,17 @@ app.post("/api/switch-branch", async (req, res) => {
 
       // Restart service using workspace.json dev command
       if (cfgRepo.port && cfgRepo.dev) {
+        const safePort = sanitizePort(cfgRepo.port);
+        if (!validateDevCommand(cfgRepo.dev)) {
+          console.warn(`[switch] Blocked unsafe dev command for ${cfgRepo.name}: ${cfgRepo.dev}`);
+        } else {
         wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `restart-${cfgRepo.name}`, status: 'active' });
-        try { execSync(`kill $(lsof -ti:${cfgRepo.port} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+        try { execSync(`kill $(lsof -ti:${safePort} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
         const logFile = `/tmp/${cfgRepo.name}.log`;
         spawn("bash", ["-c", `cd "${repoPath}" && ${cfgRepo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
         restarted.push(cfgRepo.name);
         wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `restart-${cfgRepo.name}`, status: 'done' });
+        }
       }
     } catch (err) {
       console.error(`[switch] Failed for ${cfgRepo.name}:`, err.message);
@@ -376,6 +383,7 @@ app.post("/api/create-branch", (req, res) => {
 
   const slug = name.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().replace(/\s+/g, "-").slice(0, 50).replace(/-+$/, "");
   const branchName = `mvp/${slug || "feature-" + Date.now().toString(36)}`;
+  try { sanitizeBranchName(branchName); } catch (e) { return res.status(400).json({ error: e.message }); }
 
   const repos = discoverRepos();
   const defaultBranch = detectDefaultBranch(repos);
@@ -973,9 +981,13 @@ app.post("/api/restart-service", (req, res) => {
     const repo = getConfig().repos.find(r => r.name === svcName);
     if (!repo || !repo.dev) return res.status(400).json({ error: `Unknown service: ${svcName}` });
 
+    if (!validateDevCommand(repo.dev)) {
+      return res.status(403).json({ error: `Blocked unsafe dev command: ${repo.dev}` });
+    }
     // Kill existing process on the port, then start
     if (repo.port) {
-      try { execSync(`kill $(lsof -ti:${repo.port} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+      const safePort = sanitizePort(repo.port);
+      try { execSync(`kill $(lsof -ti:${safePort} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
     }
     const logFile = `/tmp/${repo.name}.log`;
     spawn("bash", ["-c", `cd "${workspaceDir}/${repo.name}" && ${repo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();

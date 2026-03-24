@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { execSync, spawn } from "child_process";
 import { readFileSync } from "fs";
 import { getWorkspaceDir, getConfig, getRepoNames, getFrontendRepo, getFrontendPort, getAdditionalDirs } from "./workspace-config.js";
+import { sanitizeBranchName } from "./sanitize.js";
 
 // Screenshot capture using Playwright
 async function takeScreenshot() {
@@ -324,6 +325,10 @@ export function handleWashmenWs(ws, sessionIds) {
           }
         } catch {}
       }
+    }
+    // Validate resolved branch name to prevent injection
+    if (branch) {
+      try { sanitizeBranchName(branch); } catch { branch = null; }
     }
 
     // Block build mode on main/master — must use a feature branch
