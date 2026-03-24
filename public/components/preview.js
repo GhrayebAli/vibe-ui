@@ -75,8 +75,18 @@ export function refreshPreview() {
     } catch {}
     if (attempts >= maxAttempts) {
       clearRetry();
-      // Give up waiting, try loading anyway
-      frame.src = frame.src;
+      loader.innerHTML = `
+        <div class="preview-error">
+          <div class="preview-error-icon">!</div>
+          <div class="preview-error-title">Services not ready</div>
+          <div class="preview-error-desc">Frontend service didn't respond after 30 seconds.</div>
+          <button class="preview-retry-btn" onclick="window.__retryPreview?.()">Retry</button>
+        </div>
+      `;
+      window.__retryPreview = () => {
+        loader.innerHTML = '<div class="ld"></div><div class="status-lines">Retrying...</div>';
+        refreshPreview();
+      };
     }
   }, 1000);
 }

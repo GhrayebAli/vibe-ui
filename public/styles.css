@@ -534,3 +534,10 @@ pre:hover .code-copy { opacity: 1; }
 .welcome-btn-primary:hover { filter: brightness(1.15); }
 .welcome-btn-secondary { background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 10px 24px; font-size: 13px; cursor: pointer; }
 .welcome-btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ═══ Preview Error State ═══ */
+.preview-error { text-align: center; padding: 32px; color: var(--text-dim); }
+.preview-error-icon { width: 40px; height: 40px; border-radius: 50%; background: var(--error-soft, rgba(239,68,68,0.1)); color: var(--error, #ef4444); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; margin-bottom: 12px; }
+.preview-error-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.preview-error-desc { font-size: 12px; margin-bottom: 16px; }
+.preview-retry-btn { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-pill); padding: 8px 20px; font-size: 12px; font-weight: 600; cursor: pointer; }
