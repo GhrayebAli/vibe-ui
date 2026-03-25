@@ -200,7 +200,8 @@ pre:hover .code-copy { opacity: 1; }
 
 /* Input row */
 .input-row { display: flex; gap: 8px; align-items: flex-end; }
-.input-row textarea { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 10px 14px; font-size: 13.5px; resize: none; min-height: 42px; max-height: 150px; line-height: 1.4; transition: border-color var(--transition); }
+.input-row textarea { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 10px 14px; font-size: 13.5px; resize: none; min-height: 42px; max-height: 150px; line-height: 1.4; transition: border-color var(--transition); overflow-y: auto; scrollbar-width: none; }
+.input-row textarea::-webkit-scrollbar { display: none; }
 .input-row textarea:focus { outline: none; border-color: var(--accent); }
 .input-row textarea:disabled { opacity: .5; cursor: not-allowed; }
 /* Send button — Lovable circle style */
