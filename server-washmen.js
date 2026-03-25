@@ -344,61 +344,75 @@ app.post("/api/switch-branch", async (req, res) => {
     if (leavingBranch && leavingBranch !== branch && leavingBranch.startsWith("mvp/")) {
       const repos = discoverRepos();
       const defBranch = detectDefaultBranch(repos);
-      const sections = [];
-      let totalCommits = 0, totalFiles = 0;
+      let hasChanges = false;
 
       for (const repo of repos) {
         try {
-          const count = parseInt(execSync(`git -C "${repo.path}" rev-list --count ${defBranch}..HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim()) || 0;
-          if (count === 0) continue;
-          totalCommits += count;
-          const files = execSync(`git -C "${repo.path}" diff --name-only ${defBranch}..HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim().split("\n").filter(Boolean);
-          totalFiles += files.length;
-          const stat = execSync(`git -C "${repo.path}" diff --stat ${defBranch}..HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim();
-          const lastLine = stat.split("\n").pop() || '';
-          sections.push(`**${repo.name}** — ${count} commits, ${files.length} files\n${files.map(f => '- `' + f + '`').join('\n')}\n${lastLine}`);
+          const c = parseInt(execSync(`git -C "${repo.path}" rev-list --count ${defBranch}..HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim()) || 0;
+          if (c > 0) { hasChanges = true; break; }
         } catch {}
       }
 
-      // Get session title for context
-      const session = getSessionByBranch(leavingBranch);
-      const title = session?.title || session?.project_name || leavingBranch.replace('mvp/', '');
+      if (hasChanges) {
+        const session = getSessionByBranch(leavingBranch);
+        const featureName = leavingBranch.replace('mvp/', '').replace(/-/g, ' ');
 
-      if (sections.length > 0) {
-        // Build a change summary from chat messages (what the user asked + what the AI did)
-        let changeSummary = '';
+        // Build change log from chat conversation
+        const changes = [];
         if (session) {
           try {
             const msgs = getDb().prepare(
-              "SELECT role, substr(content, 1, 500) as preview FROM messages WHERE session_id = ? ORDER BY created_at ASC"
+              "SELECT role, substr(content, 1, 500) as preview FROM messages WHERE session_id = ? AND role IN ('user', 'assistant') ORDER BY created_at ASC"
             ).all(session.id);
-            const turns = [];
-            let currentUserMsg = '';
+            let lastUserMsg = '';
             for (const m of msgs) {
               try {
                 const parsed = JSON.parse(m.preview);
                 if (m.role === 'user' && parsed.text) {
-                  currentUserMsg = parsed.text.replace(/\[Attached image:[^\]]+\]\s*/g, '').trim();
-                } else if (m.role === 'assistant' && parsed.text && currentUserMsg) {
-                  // Extract first sentence of AI response as the action taken
-                  const firstSentence = parsed.text.split(/[.!?\n]/)[0]?.trim();
-                  if (firstSentence && firstSentence.length > 10) {
-                    turns.push(`- **${currentUserMsg}** → ${firstSentence}`);
-                  } else {
-                    turns.push(`- ${currentUserMsg}`);
+                  lastUserMsg = parsed.text.replace(/\[Attached image:[^\]]+\]\s*/g, '').trim();
+                } else if (m.role === 'assistant' && parsed.text && lastUserMsg) {
+                  const response = parsed.text.replace(/^(Done!?|Here'?s?|I'll|Let me|OK|Sure|Perfect)[.!,\s]*/i, '').trim();
+                  const summary = response.split(/[.\n]/)[0]?.trim();
+                  if (summary && summary.length > 15 && !summary.startsWith('What') && !summary.startsWith('Which')) {
+                    changes.push(`- ${summary}`);
+                  } else if (lastUserMsg.length > 5) {
+                    changes.push(`- ${lastUserMsg}`);
                   }
-                  currentUserMsg = '';
+                  lastUserMsg = '';
                 }
               } catch {}
-            }
-            if (turns.length > 0) {
-              changeSummary = `\n\n### What was done\n${turns.join('\n')}`;
             }
           } catch {}
         }
 
-        const notes = `## ${title}\n\n**${totalCommits} commits** across **${totalFiles} files** in ${sections.length} repo${sections.length > 1 ? 's' : ''}${changeSummary}\n\n### Files changed\n\n${sections.join('\n\n---\n\n')}`;
-        saveNotes(leavingBranch, notes);
+        // Build technical sections per repo
+        const repoSections = [];
+        let totalCommits = 0, totalFiles = 0;
+        for (const repo of repos) {
+          try {
+            const count = parseInt(execSync(`git -C "${repo.path}" rev-list --count ${defBranch}..HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim()) || 0;
+            if (count === 0) continue;
+            totalCommits += count;
+            const files = execSync(`git -C "${repo.path}" diff --name-only ${defBranch}..HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim().split("\n").filter(Boolean);
+            totalFiles += files.length;
+            const stat = execSync(`git -C "${repo.path}" diff --stat ${defBranch}..HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim();
+            const lastLine = stat.split("\n").pop() || '';
+            repoSections.push(`**${repo.name}** — ${files.length} files\n${files.map(f => '- \`' + f + '\`').join('\n')}\n${lastLine}`);
+          } catch {}
+        }
+
+        const header = `## Feature: ${featureName}`;
+        const branchLine = `\n\n\`${leavingBranch}\``;
+        const overview = `\n\n${totalCommits} changes across ${totalFiles} files in ${repoSections.length} project${repoSections.length > 1 ? 's' : ''}`;
+        const changeLog = changes.length > 0
+          ? `\n\n### Changes delivered\n${changes.join('\n')}`
+          : '';
+        const technical = repoSections.length > 0
+          ? `\n\n### Projects touched\n\n${repoSections.join('\n\n')}`
+          : '';
+        const status = `\n\n---\n*Auto-generated on ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}*`;
+
+        saveNotes(leavingBranch, `${header}${branchLine}${overview}${changeLog}${technical}${status}`);
       }
     }
   } catch (e) {
