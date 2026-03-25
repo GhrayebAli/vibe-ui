@@ -492,10 +492,8 @@ pre:hover .code-copy { opacity: 1; }
 .landing-header { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .landing-logo { margin-bottom: 4px; }
 .landing-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-.topbar-logo { flex-shrink: 0; }
-.topbar-name { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; }
-.topbar-workspace { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.topbar-name::after { content: ''; display: inline-block; width: 1px; height: 12px; background: var(--border); margin: 0 6px; vertical-align: middle; }
+.topbar-logo { flex-shrink: 0; cursor: default; }
+.topbar-workspace { font-size: 12px; font-weight: 500; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .landing-subtitle { font-size: 14px; color: var(--text-dim); }
 .landing-cards { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 400px; }
 .landing-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; cursor: pointer; transition: all var(--transition); display: flex; gap: 12px; align-items: flex-start; text-align: left; color: var(--text); font-family: var(--font); }
