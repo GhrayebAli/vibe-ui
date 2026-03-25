@@ -692,9 +692,18 @@ app.get("/api/uploads/*", (req, res) => {
   try {
     const fileName = req.params[0];
     if (!fileName || fileName.includes('..')) return res.status(400).json({ error: "Invalid path" });
-    const filePath = join(getWorkspaceDir(), "tmp", "uploads", fileName);
-    if (!existsSync(filePath)) return res.status(404).json({ error: "Not found" });
-    res.sendFile(filePath);
+    const sanitized = fileName.replace(/[^a-zA-Z0-9._-]/g, "");
+    const filePath = join(getWorkspaceDir(), "tmp", "uploads", sanitized);
+    // Try filesystem first
+    if (existsSync(filePath)) return res.sendFile(filePath);
+    // Fall back to DB
+    const row = getDb().prepare("SELECT data, mime_type FROM uploads WHERE filename = ?").get(sanitized);
+    if (row) {
+      const buf = Buffer.from(row.data, "base64");
+      res.set("Content-Type", row.mime_type || "image/png");
+      return res.send(buf);
+    }
+    res.status(404).json({ error: "Not found" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -716,17 +725,7 @@ app.get("/api/file", (req, res) => {
   }
 });
 
-// Serve uploaded images for chat history replay
-app.get("/api/uploads/:filename", (req, res) => {
-  const uploadDir = join(getWorkspaceDir(), "tmp", "uploads");
-  const filename = req.params.filename.replace(/[^a-zA-Z0-9._-]/g, "");
-  const filePath = join(uploadDir, filename);
-  res.sendFile(filePath, (err) => {
-    if (err) res.status(404).json({ error: "File not found" });
-  });
-});
-
-// File upload API — saves to workspace /tmp/uploads/ for agent to read
+// File upload API — saves to filesystem for agent AND persists to DB for durability
 app.post("/api/upload", (req, res) => {
   try {
     const { filename, data, mediaType } = req.body;
@@ -742,6 +741,11 @@ app.post("/api/upload", (req, res) => {
     // data is base64
     writeFileSync(filePath, Buffer.from(data, "base64"));
     console.log(`[upload] Saved ${filePath} (${Math.round(Buffer.from(data, "base64").length / 1024)}KB)`);
+
+    // Persist to DB so images survive codespace restarts
+    try {
+      getDb().prepare("INSERT OR REPLACE INTO uploads (filename, data, mime_type) VALUES (?, ?, ?)").run(name, data, mediaType || "image/png");
+    } catch (e) { console.error("[upload] DB save failed:", e.message); }
 
     res.json({ path: filePath, name });
   } catch (err) {

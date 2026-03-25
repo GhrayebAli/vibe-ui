@@ -214,6 +214,17 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_activity_session ON activity_events(session_id);
 `);
 
+// Uploads table — persist attached images in DB so they survive codespace restarts
+db.exec(`
+  CREATE TABLE IF NOT EXISTS uploads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename TEXT NOT NULL UNIQUE,
+    data TEXT NOT NULL,
+    mime_type TEXT,
+    created_at INTEGER DEFAULT (unixepoch())
+  );
+`);
+
 // Brags table
 db.exec(`
   CREATE TABLE IF NOT EXISTS brags (
