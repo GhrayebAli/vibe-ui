@@ -192,7 +192,7 @@ export function getSessionChangedFiles(sessionId) {
   return sessionChangedFiles.get(sessionId) || [];
 }
 
-export function handleWashmenWs(ws, sessionIds) {
+export function handleWashmenWs(ws, sessionIds, presence = null) {
   let currentSessionId = null;
   let currentQuery = null;
 
@@ -201,6 +201,36 @@ export function handleWashmenWs(ws, sessionIds) {
     try {
       msg = JSON.parse(raw.toString());
     } catch {
+      return;
+    }
+
+    // ── Multi-user presence message types ──
+    if (msg.type === "identify") {
+      if (presence && ws.__id) {
+        presence.addUser(ws.__id, msg.name || "anonymous", msg.role || "other");
+      }
+      return;
+    }
+
+    if (msg.type === "heartbeat") {
+      if (presence && ws.__id) {
+        presence.heartbeat(ws.__id);
+      }
+      return;
+    }
+
+    if (msg.type === "take_over") {
+      if (presence && ws.__id) {
+        const result = presence.takeOver(ws.__id);
+        ws.send(JSON.stringify({ type: result.ok ? "build_lock_acquired" : "build_locked", ...result }));
+      }
+      return;
+    }
+
+    if (msg.type === "release_lock") {
+      if (presence && ws.__id) {
+        presence.releaseLock(ws.__id);
+      }
       return;
     }
 
@@ -216,6 +246,22 @@ export function handleWashmenWs(ws, sessionIds) {
     }
 
     if (msg.type === "chat") {
+      // Check build lock for build mode (skip for discover/plan)
+      const chatMode = msg.mode || "build";
+      if (chatMode === "build" && presence && ws.__id) {
+        const lockResult = presence.acquireLock(ws.__id);
+        if (!lockResult.ok) {
+          ws.send(JSON.stringify({
+            type: "build_locked",
+            lockedBy: lockResult.lockedBy,
+            lockedSince: lockResult.lockedSince,
+            branch: lockResult.branch,
+          }));
+          return;
+        }
+        // Log chat event and update branch
+        presence.onChatSent(ws.__id, msg.branch, msg.sessionId);
+      }
       await handleChat(msg, ws, sessionIds);
     } else if (msg.type === "restart_services") {
       ws.send(JSON.stringify({ type: "system", text: "Restarting services..." }));
@@ -423,7 +469,8 @@ export function handleWashmenWs(ws, sessionIds) {
       }
     }
     if (mode !== "discover") {
-      addMessage(sessionId, "user", JSON.stringify({ text }));
+      const userName = msg.user_name || "anonymous";
+      addMessage(sessionId, "user", JSON.stringify({ text, user_name: userName }));
     }
 
     // Determine workspace directories

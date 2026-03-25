@@ -15,6 +15,7 @@ import { getDb, createSession, getSession, addMessage, addCost, getTotalCost, ge
 import { handleWashmenWs, getSessionChangedFiles } from "./server/ws-handler-washmen.js";
 import { loadWorkspaceConfig, getWorkspaceDir, getConfig, getFrontendRepo, getFrontendPort, getServicesConfig, getRepoNames, getClientConfig } from "./server/workspace-config.js";
 import { sanitizeBranchName, sanitizePort, validateDevCommand } from "./server/sanitize.js";
+import { PresenceManager } from "./server/presence.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1483,6 +1484,13 @@ function wsBroadcast(data) {
   wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
 }
 
+// ── Multi-User Presence Manager ──
+const presence = new PresenceManager();
+presence.setBroadcast(wsBroadcast);
+
+// Presence API endpoint
+app.get("/api/presence", (_req, res) => res.json(presence.getPresence()));
+
 // WebSocket handling (with auth)
 wss.on("connection", (ws, req) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -1491,7 +1499,16 @@ wss.on("connection", (ws, req) => {
     ws.close(4001, "Unauthorized");
     return;
   }
-  handleWashmenWs(ws, sessionIds);
+
+  // Assign unique ID for presence tracking
+  ws.__id = randomUUID();
+
+  // Handle disconnect — remove from presence
+  ws.on("close", () => {
+    presence.removeUser(ws.__id);
+  });
+
+  handleWashmenWs(ws, sessionIds, presence);
 });
 
 const PORT = process.env.PORT || 4000;
