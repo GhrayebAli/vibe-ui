@@ -397,20 +397,21 @@ app.post("/api/switch-branch", async (req, res) => {
             totalFiles += files.length;
             const stat = execSync(`git -C "${repo.path}" diff --stat ${defBranch}..HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim();
             const lastLine = stat.split("\n").pop() || '';
-            repoSections.push(`**${repo.name}** — ${files.length} files\n${files.map(f => '- \`' + f + '\`').join('\n')}\n${lastLine}`);
+            repoSections.push(`*${repo.name}* — ${files.length} files\n${files.map(f => '  • \`' + f + '\`').join('\n')}\n  ${lastLine}`);
           } catch {}
         }
 
-        const header = `## Feature: ${featureName}`;
-        const branchLine = `\n\n\`${leavingBranch}\``;
-        const overview = `\n\n${totalCommits} changes across ${totalFiles} files in ${repoSections.length} project${repoSections.length > 1 ? 's' : ''}`;
+        const header = `*Feature: ${featureName}*`;
+        const branchLine = `\n\`${leavingBranch}\``;
+        const overview = `\n${totalCommits} changes across ${totalFiles} files in ${repoSections.length} project${repoSections.length > 1 ? 's' : ''}`;
         const changeLog = changes.length > 0
-          ? `\n\n### Changes delivered\n${changes.join('\n')}`
+          ? `\n\n*Changes delivered*\n${changes.map(c => c.replace(/^- /, '• ')).join('\n')}`
           : '';
         const technical = repoSections.length > 0
-          ? `\n\n### Projects touched\n\n${repoSections.join('\n\n')}`
+          ? `\n\n*Projects touched*\n\n${repoSections.join('\n\n')}`
           : '';
-        const status = `\n\n---\n*Auto-generated on ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}*`;
+        const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const status = `\n\n—\n_Auto-generated on ${date}_`;
 
         saveNotes(leavingBranch, `${header}${branchLine}${overview}${changeLog}${technical}${status}`);
       }
