@@ -210,7 +210,8 @@ app.get("/api/workspace", (_req, res) => {
     } catch {}
 
     if (repos.length > 0) {
-      const repoPath = repos[0].path;
+      const frontendRepoObj = getFrontendRepo();
+      const repoPath = frontendRepoObj ? join(getWorkspaceDir(), frontendRepoObj.name) : repos[0].path;
       // Fetch latest remote refs
       try { execSync(`git -C "${repoPath}" fetch origin --prune 2>/dev/null`, { stdio: "pipe", timeout: 10000 }); } catch (e) { console.warn("[workspace] git fetch prune failed:", e.message); }
 
