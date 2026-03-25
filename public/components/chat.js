@@ -14,10 +14,11 @@ function timeLabel() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export function addUserMsg(text, attachHtml) {
+export function addUserMsg(text, attachHtml, senderName) {
   const div = document.createElement('div');
   div.className = 'msg msg-user';
-  div.innerHTML = `${attachHtml ? `<div class="msg-attachments">${attachHtml}</div>` : ''}<div class="bubble">${escapeHtml(text)}</div><span class="msg-time">${timeLabel()}</span>`;
+  const nameTag = senderName ? `<span class="msg-sender">${escapeHtml(senderName)}</span>` : '';
+  div.innerHTML = `${nameTag}${attachHtml ? `<div class="msg-attachments">${attachHtml}</div>` : ''}<div class="bubble">${escapeHtml(text)}</div><span class="msg-time">${timeLabel()}</span>`;
   chatEl.appendChild(div);
   maybeCollapse(div.querySelector('.bubble'));
   scrollBottom();
@@ -346,7 +347,7 @@ export function loadMessages(msgs) {
               return `<div class="attach-placeholder" title="${escapeHtml(fileName)}"><img src="/api/uploads/${encodeURIComponent(fileName)}" class="attach-thumb" alt="screenshot" onerror="this.style.display='none';this.parentElement.classList.add('missing')"><span class="attach-missing-label">Screenshot</span></div>`;
             }).join('')
           : '';
-        addUserMsg(cleanText, attachHtml);
+        addUserMsg(cleanText, attachHtml, parsed.user_name);
       } else if (m.role === 'assistant') addAgentMsg(text, false);
       else if (m.role === 'result') {
         showTurnCost(parsed.cost_usd, parsed.model);
@@ -358,7 +359,7 @@ export function loadMessages(msgs) {
       }
       else addSystemMsg(text);
     } catch {
-      if (m.role === 'user') addUserMsg(m.content);
+      if (m.role === 'user') addUserMsg(m.content, '', null);
       else addAgentMsg(m.content, false);
     }
   });

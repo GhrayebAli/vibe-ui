@@ -538,11 +538,11 @@ function doSend(text) {
       .filter(a => a.type === 'image')
       .map(a => `<img src="${a.preview}" class="attach-preview">`)
       .join('');
-    addUserMsg(text, previewHtml);
+    addUserMsg(text, previewHtml, getIdentity()?.name);
     pendingAttachments = [];
     clearAttachmentPreview();
   } else {
-    addUserMsg(text);
+    addUserMsg(text, '', getIdentity()?.name);
   }
 
   hasSent = true;
