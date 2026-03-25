@@ -48,10 +48,11 @@ app.get("/__visual-bridge.js", (_req, res) => {
 
 app.use("/preview-proxy", (req, res) => {
   const frontendPort = getFrontendPort();
-  const vibePort = process.env.PORT || 4000;
   const targetPath = req.url || "/";
-  const bridgeScriptTag = `<script src="http://localhost:${vibePort}/__visual-bridge.js" defer></script>`;
-  const baseTag = `<base href="http://localhost:${frontendPort}/">`;
+  // Use relative path for bridge script so it works in Codespace (no localhost references)
+  const bridgeScriptTag = `<script src="/__visual-bridge.js" defer></script>`;
+  // Base href points to the proxy path so all relative/absolute Vite URLs resolve through the proxy
+  const baseTag = `<base href="/preview-proxy/">`;
 
   const options = {
     hostname: "localhost",
