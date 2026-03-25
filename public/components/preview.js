@@ -18,7 +18,7 @@ export function initPreview(url) {
     // Check if the iframe actually loaded content (not an error page)
     let loaded = false;
     try {
-      // If we can read the iframe and it has a body with content, it's loaded
+      // Same-origin (via proxy): can read contentDocument
       const doc = frame.contentDocument || frame.contentWindow.document;
       loaded = doc && doc.body && doc.body.innerHTML.length > 0;
     } catch {
@@ -31,8 +31,10 @@ export function initPreview(url) {
       loader.classList.add('hidden');
       try {
         const path = frame.contentWindow.location.pathname;
-        if (path && path !== '/') {
-          urlInput.value = urlInput.value.split('/')[0] + path;
+        if (path && path !== '/' && path !== '/preview-proxy/') {
+          const displayPath = path.replace(/^\/preview-proxy/, '');
+          const base = urlInput.value.split('/')[0];
+          urlInput.value = base + displayPath;
         }
       } catch {}
     }
@@ -42,8 +44,26 @@ export function initPreview(url) {
     // Don't hide loader on error — retry will handle it
   };
 
-  // Start loading
-  frame.src = url;
+  // Load through the preview proxy so the visual-bridge script is injected
+  frame.src = toProxyUrl(url);
+}
+
+/**
+ * Convert a frontend URL to a /preview-proxy/* path.
+ * This routes through vibe-ui's server which proxies to the frontend
+ * and injects the visual-bridge script into HTML responses.
+ */
+function toProxyUrl(url) {
+  try {
+    const u = new URL(url);
+    return '/preview-proxy' + u.pathname + u.search + u.hash;
+  } catch {
+    if (url.startsWith('/preview-proxy')) return url;
+    if (url.startsWith('/')) return '/preview-proxy' + url;
+    const i = url.indexOf('/');
+    if (i > 0) return '/preview-proxy' + url.slice(i);
+    return '/preview-proxy/';
+  }
 }
 
 function clearRetry() {
@@ -100,6 +120,6 @@ export function navigatePreview(url) {
   if (!frame) return;
   clearRetry();
   loader.classList.remove('hidden');
-  frame.src = url;
+  frame.src = toProxyUrl(url);
   urlInput.value = url.replace(/^https?:\/\//, '');
 }

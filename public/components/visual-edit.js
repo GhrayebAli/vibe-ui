@@ -1,431 +1,241 @@
 /**
- * Visual Edit Mode v2 — Smart Component Editor
- * Non-engineer friendly visual element editor with:
- * - Friendly labels, breadcrumb navigation, smart chips
- * - Unified edit panel, structured prompt builder
- * - Edit history with undo, change confirmation pulse
+ * Visual Edit Mode v3 — PostMessage Bridge Architecture
+ * Communicates with a bridge script injected into the frontend iframe.
+ * No same-origin access required; no Playwright fallback.
+ *
+ * Bridge protocol (postMessage):
+ *   Parent -> Iframe: VE_ENABLE, VE_DISABLE, VE_PING, VE_HOVER, VE_CLICK, VE_HIGHLIGHT_CHANGE
+ *   Iframe -> Parent: VE_BRIDGE_READY, VE_PONG, VE_ELEMENT_HOVERED,
+ *                     VE_ELEMENT_SELECTED, VE_VIEWPORT_CHANGED
  */
 
-// ── State ──
 let active = false;
 let overlay = null;
+let canvas = null;
+let ctx = null;
 let editPanel = null;
-let selectedElement = null;
 let previewFrame = null;
 let onSendPrompt = null;
-let injectedStyle = null;
 let pendingChangeSelector = null;
+let bridgeReady = false;
+let bridgeReadyTimer = null;
+let infoToast = null;
 const editHistory = [];
-
-// ── Public API ──
+let hoverData = null;
+let rafId = null;
 
 export function initVisualEdit(frame, sendFn) {
   previewFrame = frame;
   onSendPrompt = sendFn;
+  window.addEventListener('message', handleBridgeMessage);
 }
 
 export function toggleVisualEdit() {
-  if (active) deactivate();
-  else activate();
+  if (active) deactivate(); else activate();
   return active;
 }
 
-export function isVisualEditActive() {
-  return active;
-}
+export function isVisualEditActive() { return active; }
 
 export function deactivate() {
   active = false;
+  hoverData = null;
+  if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
   if (overlay) { overlay.remove(); overlay = null; }
+  if (canvas) { canvas.remove(); canvas = null; ctx = null; }
   if (editPanel) { editPanel.remove(); editPanel = null; }
-  selectedElement = null;
-  cleanupIframeStyles();
-  document.getElementById('visual-edit-btn')?.classList.remove('active');
-  document.getElementById('visual-edit-btn')?.classList.remove('ve-active');
+  if (infoToast) { infoToast.remove(); infoToast = null; }
+  if (bridgeReadyTimer) { clearTimeout(bridgeReadyTimer); bridgeReadyTimer = null; }
+  document.getElementById('visual-edit-btn')?.classList.remove('active', 've-active');
   document.removeEventListener('keydown', handleEsc);
-  window.removeEventListener('message', handleIframeMessage);
-  // Tell iframe helper to clean up
-  try { previewFrame?.contentWindow?.postMessage({ type: 've-deactivate' }, '*'); } catch {}
+  postToBridge({ type: 'VE_DISABLE' });
 }
 
-export function getEditHistory() {
-  return editHistory;
-}
+export function getEditHistory() { return editHistory; }
 
 export function toggleHistory() {
   const existing = document.querySelector('.ve-history-popover');
   if (existing) { existing.remove(); return; }
-
   const btn = document.getElementById('ve-history-btn');
   if (!btn) return;
-
   const popover = document.createElement('div');
   popover.className = 've-history-popover';
-
   if (editHistory.length === 0) {
     popover.innerHTML = '<div class="ve-history-empty">No edits yet</div>';
   } else {
-    const items = editHistory.slice(-10).reverse();
-    items.forEach(entry => {
+    editHistory.slice(-10).reverse().forEach(entry => {
       const item = document.createElement('div');
       item.className = 've-history-item' + (entry.undone ? ' undone' : '');
-      item.innerHTML = `
-        <div class="ve-history-info">
-          <div class="ve-history-name">${entry.friendlyName}</div>
-          <div class="ve-history-action">${entry.action}</div>
-        </div>
-        <span class="ve-history-time">${relativeTime(entry.timestamp)}</span>
-        ${entry.undone ? '' : '<button class="ve-history-undo">Undo</button>'}
-      `;
+      item.innerHTML = `<div class="ve-history-info"><div class="ve-history-name">${esc(entry.friendlyName)}</div><div class="ve-history-action">${esc(entry.action)}</div></div><span class="ve-history-time">${relativeTime(entry.timestamp)}</span>${entry.undone ? '' : '<button class="ve-history-undo">Undo</button>'}`;
       const undoBtn = item.querySelector('.ve-history-undo');
-      if (undoBtn) {
-        undoBtn.onclick = (e) => {
-          e.stopPropagation();
-          entry.undone = true;
-          if (onSendPrompt) {
-            onSendPrompt(`Undo the previous visual edit change to the ${entry.friendlyName}: revert ${entry.action}`);
-          }
-          popover.remove();
-          updateHistoryBadge();
-        };
-      }
+      if (undoBtn) undoBtn.onclick = (e) => { e.stopPropagation(); entry.undone = true; if (onSendPrompt) onSendPrompt('Undo the previous visual edit change to the ' + entry.friendlyName + ': revert ' + entry.action); popover.remove(); updateHistoryBadge(); };
       popover.appendChild(item);
     });
   }
-
   btn.appendChild(popover);
-
-  // Close on outside click
-  const closeOnOutside = (e) => {
-    if (!popover.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
-      popover.remove();
-      document.removeEventListener('click', closeOnOutside);
-    }
-  };
+  const closeOnOutside = (e) => { if (!popover.contains(e.target) && e.target !== btn && !btn.contains(e.target)) { popover.remove(); document.removeEventListener('click', closeOnOutside); } };
   setTimeout(() => document.addEventListener('click', closeOnOutside), 0);
 }
 
 export function highlightChange(selector) {
   if (!selector) { pendingChangeSelector = null; return; }
-  try {
-    const iframeDoc = previewFrame?.contentDocument;
-    if (!iframeDoc) { pendingChangeSelector = null; return; }
-
-    const el = iframeDoc.querySelector(selector);
-    if (!el) { pendingChangeSelector = null; return; }
-
-    // Inject pulse animation if not already present
-    let style = iframeDoc.getElementById('ve-confirm-styles');
-    if (!style) {
-      style = iframeDoc.createElement('style');
-      style.id = 've-confirm-styles';
-      style.textContent = `
-        @keyframes ve-confirm-pulse {
-          0%   { box-shadow: 0 0 0 0 rgba(51, 209, 122, 0.5); }
-          50%  { box-shadow: 0 0 0 8px rgba(51, 209, 122, 0.15); }
-          100% { box-shadow: 0 0 0 0 rgba(51, 209, 122, 0); }
-        }
-        .ve-change-confirmed { animation: ve-confirm-pulse 0.6s ease 3; }
-      `;
-      iframeDoc.head.appendChild(style);
-    }
-
-    el.classList.add('ve-change-confirmed');
-    setTimeout(() => {
-      el.classList.remove('ve-change-confirmed');
-    }, 2000);
-  } catch {
-    // Cross-origin — skip silently
-  }
+  postToBridge({ type: 'VE_HIGHLIGHT_CHANGE', payload: { selector } });
   pendingChangeSelector = null;
 }
 
-export function getPendingChangeSelector() {
-  return pendingChangeSelector;
-}
+export function getPendingChangeSelector() { return pendingChangeSelector; }
 
-// ── Activation ──
+// ── Activation / Deactivation ──
 
 function activate() {
-  active = true;
+  active = true; bridgeReady = false;
   document.getElementById('visual-edit-btn')?.classList.add('active');
-
   const wrap = document.getElementById('preview-wrap');
   if (!wrap) return;
 
+  // Create canvas overlay for drawing highlights
+  canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:11;';
+  wrap.appendChild(canvas);
+  ctx = canvas.getContext('2d');
+  resizeCanvas();
+
+  // Create transparent interaction overlay (captures mouse events over iframe)
   overlay = document.createElement('div');
   overlay.className = 'visual-overlay';
-  overlay.innerHTML = `
-    <div class="ve-instruction">Click any element to edit</div>
-    <div class="ve-highlight-box"></div>
-    <div class="ve-label" style="opacity:0"></div>
-  `;
+  overlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:12;cursor:crosshair;';
+  overlay.innerHTML = '<div class="ve-instruction">Click any element to edit</div>';
   wrap.appendChild(overlay);
-
-  // Inject hover styles into iframe (for selection persistence)
-  injectIframeStyles();
 
   overlay.addEventListener('mousemove', handleMouseMove);
   overlay.addEventListener('click', handleClick);
+  overlay.addEventListener('mouseleave', () => { hoverData = null; });
   document.addEventListener('keydown', handleEsc);
 
-  // For cross-origin: inject helper script into iframe via server
-  injectCrossOriginHelper();
-  // Listen for postMessage responses from iframe helper
-  window.addEventListener('message', handleIframeMessage);
+  // Tell bridge to enter selection mode
+  postToBridge({ type: 'VE_ENABLE' });
+  postToBridge({ type: 'VE_PING' });
+
+  // If bridge doesn't respond in 3s, show fallback message
+  bridgeReadyTimer = setTimeout(() => {
+    if (!bridgeReady && active) showBridgeNotDetected();
+  }, 3000);
+
+  startRenderLoop();
 }
 
-function handleEsc(e) {
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    deactivate();
-  }
+function handleEsc(e) { if (e.key === 'Escape') { e.preventDefault(); deactivate(); } }
+
+function postToBridge(msg) {
+  try { previewFrame?.contentWindow?.postMessage(msg, '*'); } catch {}
 }
 
-// ── Iframe style injection ──
+// ── Bridge Message Handler ──
 
-function injectIframeStyles() {
-  try {
-    const iframeDoc = previewFrame?.contentDocument;
-    if (!iframeDoc) return;
-    if (iframeDoc.getElementById('ve-injected-styles')) return;
-
-    injectedStyle = iframeDoc.createElement('style');
-    injectedStyle.id = 've-injected-styles';
-    injectedStyle.textContent = `
-      .ve-hover {
-        outline: 2px solid #33d17a !important;
-        background-color: rgba(51, 209, 122, 0.06) !important;
-      }
-      .ve-selected {
-        outline: 2px solid #33d17a !important;
-        box-shadow: 0 0 0 4px rgba(51, 209, 122, 0.15) !important;
-      }
-    `;
-    iframeDoc.head.appendChild(injectedStyle);
-  } catch {
-    // Cross-origin — no iframe access
-  }
-}
-
-function cleanupIframeStyles() {
-  try {
-    const iframeDoc = previewFrame?.contentDocument;
-    if (!iframeDoc) return;
-    iframeDoc.getElementById('ve-injected-styles')?.remove();
-    iframeDoc.querySelectorAll('.ve-hover, .ve-selected').forEach(el => {
-      el.classList.remove('ve-hover', 've-selected');
-    });
-    injectedStyle = null;
-  } catch {
-    // Cross-origin
-  }
-}
-
-// ── Cross-origin iframe communication ──
-
-let iframeHelperReady = false;
-
-async function injectCrossOriginHelper() {
-  // Check if same-origin first
-  try {
-    if (previewFrame?.contentDocument) return; // Same-origin — no helper needed
-  } catch {}
-
-  // Inject helper script via server API
-  try {
-    await fetch('/api/inject-visual-helper', { method: 'POST' });
-    iframeHelperReady = true;
-  } catch {
-    iframeHelperReady = false;
-  }
-}
-
-function handleIframeMessage(e) {
-  if (!active || !overlay) return;
+function handleBridgeMessage(e) {
   const msg = e.data;
-  if (!msg || msg.source !== 've-helper') return;
+  if (!msg || typeof msg.type !== 'string' || !msg.type.startsWith('VE_')) return;
 
-  const highlightBox = overlay.querySelector('.ve-highlight-box');
-  const label = overlay.querySelector('.ve-label');
-
-  if (msg.type === 've-hover') {
-    // Element hover data from iframe
-    const r = msg.rect;
-    if (highlightBox && r) {
-      highlightBox.style.left = r.left + 'px';
-      highlightBox.style.top = r.top + 'px';
-      highlightBox.style.width = r.width + 'px';
-      highlightBox.style.height = r.height + 'px';
-      highlightBox.style.opacity = '1';
-    }
-    if (label && msg.name) {
-      label.textContent = msg.name;
-      label.dataset.size = `${Math.round(r.width)} × ${Math.round(r.height)}`;
-      label.style.opacity = '1';
-      const labelY = r.top > 30 ? (r.top - 28) : (r.bottom + 4);
-      label.style.left = r.left + 'px';
-      label.style.top = labelY + 'px';
-    }
-  } else if (msg.type === 've-leave') {
-    if (highlightBox) highlightBox.style.opacity = '0';
-    if (label) label.style.opacity = '0';
+  if (msg.type === 'VE_BRIDGE_READY' || msg.type === 'VE_PONG') {
+    bridgeReady = true;
+    if (bridgeReadyTimer) { clearTimeout(bridgeReadyTimer); bridgeReadyTimer = null; }
+    if (infoToast) { infoToast.remove(); infoToast = null; }
+    if (active) postToBridge({ type: 'VE_ENABLE' });
+  } else if (msg.type === 'VE_ELEMENT_HOVERED' && active) {
+    hoverData = msg.payload;
+  } else if (msg.type === 'VE_ELEMENT_SELECTED' && active) {
+    handleElementSelected(msg.payload);
   }
 }
 
-// ── Mouse handling ──
+// ── Canvas Overlay Rendering ──
+
+function resizeCanvas() {
+  if (!canvas || !previewFrame) return;
+  const r = previewFrame.getBoundingClientRect();
+  canvas.width = r.width * devicePixelRatio;
+  canvas.height = r.height * devicePixelRatio;
+  canvas.style.width = r.width + 'px';
+  canvas.style.height = r.height + 'px';
+  if (ctx) ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+
+function startRenderLoop() {
+  function render() {
+    if (!active || !ctx || !canvas) return;
+    resizeCanvas();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (hoverData && hoverData.rect) {
+      const r = hoverData.rect;
+      // Blue highlight rectangle
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.strokeRect(r.left, r.top, r.width, r.height);
+      // Light blue fill
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.08)';
+      ctx.fillRect(r.left, r.top, r.width, r.height);
+      // Label with component name + dimensions
+      const label = (hoverData.componentName || hoverData.tagName || 'Element') +
+        '  ' + Math.round(r.width) + ' x ' + Math.round(r.height);
+      ctx.font = '600 11px "DM Sans", system-ui, sans-serif';
+      const tw = ctx.measureText(label).width;
+      const lH = 18, lW = tw + 12;
+      const lX = r.left;
+      const lY = r.top > 24 ? r.top - lH - 4 : r.top + r.height + 4;
+      ctx.fillStyle = '#3b82f6';
+      ctx.beginPath();
+      ctx.roundRect(lX, lY, lW, lH, 3);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, lX + 6, lY + lH / 2);
+    }
+    rafId = requestAnimationFrame(render);
+  }
+  rafId = requestAnimationFrame(render);
+}
+
+// ── Mouse Forwarding ──
 
 function handleMouseMove(e) {
-  const label = overlay?.querySelector('.ve-label');
-  const highlightBox = overlay?.querySelector('.ve-highlight-box');
-
-  try {
-    const iframeDoc = previewFrame?.contentDocument;
-    if (!iframeDoc) throw new Error('no access');
-
-    const iframeRect = previewFrame.getBoundingClientRect();
-    const x = e.clientX - iframeRect.left;
-    const y = e.clientY - iframeRect.top;
-
-    const element = iframeDoc.elementFromPoint(x, y);
-    if (!element || element === iframeDoc.body || element === iframeDoc.documentElement) {
-      if (highlightBox) highlightBox.style.opacity = '0';
-      return;
-    }
-
-    // Get the element's bounding rect relative to the iframe viewport
-    const elRect = element.getBoundingClientRect();
-
-    // Draw highlight box on the overlay at the element's position
-    if (highlightBox) {
-      highlightBox.style.left = elRect.left + 'px';
-      highlightBox.style.top = elRect.top + 'px';
-      highlightBox.style.width = elRect.width + 'px';
-      highlightBox.style.height = elRect.height + 'px';
-      highlightBox.style.opacity = '1';
-    }
-
-    // Show friendly name — use the EXACT element, not the parent component
-    const name = friendlyName(element, null);
-    const tag = element.tagName.toLowerCase();
-    const size = `${Math.round(elRect.width)} × ${Math.round(elRect.height)}`;
-
-    if (label) {
-      label.textContent = `${name}`;
-      label.dataset.size = size;
-      label.style.opacity = '1';
-      // Position label above the highlight box, or below if near top
-      const labelY = elRect.top > 30 ? (elRect.top - 28) : (elRect.bottom + 4);
-      label.style.left = elRect.left + 'px';
-      label.style.top = labelY + 'px';
-    }
-  } catch {
-    // Cross-origin — forward mouse coords to iframe helper via postMessage
-    if (iframeHelperReady) {
-      const iframeRect = previewFrame.getBoundingClientRect();
-      const x = e.clientX - iframeRect.left;
-      const y = e.clientY - iframeRect.top;
-      try {
-        previewFrame.contentWindow.postMessage({ type: 've-mousemove', x, y }, '*');
-      } catch {}
-      // highlight + label updated via handleIframeMessage callback
-    } else {
-      // No helper — show basic cursor label
-      if (highlightBox) highlightBox.style.opacity = '0';
-      if (label) {
-        label.textContent = 'Click to select';
-        label.style.opacity = '1';
-        label.style.left = (e.offsetX + 12) + 'px';
-        label.style.top = (e.offsetY - 24) + 'px';
-      }
-    }
-  }
+  if (!previewFrame) return;
+  const r = previewFrame.getBoundingClientRect();
+  postToBridge({ type: 'VE_HOVER', payload: { x: e.clientX - r.left, y: e.clientY - r.top } });
 }
 
 function handleClick(e) {
-  const rect = previewFrame.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-
-  let element = null;
-
-  try {
-    const iframeDoc = previewFrame.contentDocument;
-    element = iframeDoc.elementFromPoint(x, y);
-    if (!element || element === iframeDoc.body || element === iframeDoc.documentElement) {
-      element = null;
-    }
-  } catch {
-    element = null;
-  }
-
-  // Hide instruction pill
-  const instruction = overlay?.querySelector('.ve-instruction');
-  if (instruction) instruction.style.opacity = '0';
-
-  if (element) {
-    // Same-origin — direct DOM access
-    selectedElement = element;
-
-    // Draw selection box on overlay
-    const elRect = element.getBoundingClientRect();
-    const highlightBox = overlay?.querySelector('.ve-highlight-box');
-    if (highlightBox) {
-      highlightBox.style.left = elRect.left + 'px';
-      highlightBox.style.top = elRect.top + 'px';
-      highlightBox.style.width = elRect.width + 'px';
-      highlightBox.style.height = elRect.height + 'px';
-      highlightBox.style.opacity = '1';
-      highlightBox.classList.add('selected');
-    }
-
-    // Also inject selection class for persistence
-    try {
-      const iframeDoc = previewFrame.contentDocument;
-      iframeDoc.querySelectorAll('.ve-hover, .ve-selected').forEach(el => el.classList.remove('ve-hover', 've-selected'));
-      element.classList.add('ve-selected');
-    } catch {}
-    const compAttr = findComponentAttr(element);
-    const computedStyle = element.ownerDocument.defaultView.getComputedStyle(element);
-    let component = null, filePath = null, lineNum = null;
-    if (compAttr) {
-      [component, filePath, lineNum] = compAttr.split(':');
-    }
-
-    const elementData = {
-      friendlyName: friendlyName(element, compAttr),
-      text: (element.textContent || '').trim().slice(0, 80),
-      screenshot: null,
-      component: component,
-      filePath: filePath,
-      lineNum: lineNum,
-      selector: buildSelectorPath(element),
-      tag: element.tagName.toLowerCase(),
-      classes: element.className || '',
-      styles: {
-        color: computedStyle.color,
-        backgroundColor: computedStyle.backgroundColor,
-        fontSize: computedStyle.fontSize,
-        padding: computedStyle.padding,
-      },
-      ancestors: buildAncestors(element),
-      element: element,
-    };
-
-    renderEditPanel(elementData);
-  } else {
-    // Cross-origin — tell iframe helper to highlight the clicked element
-    try {
-      previewFrame.contentWindow.postMessage({ type: 've-click', x, y }, '*');
-    } catch {}
-    // Show selection highlight on overlay
-    showClickHighlight(x, y);
-    // Use server inspection for element data
-    showLoadingPanel(x, y);
-  }
+  if (!previewFrame) return;
+  const r = previewFrame.getBoundingClientRect();
+  postToBridge({ type: 'VE_CLICK', payload: { x: e.clientX - r.left, y: e.clientY - r.top } });
+  const inst = overlay?.querySelector('.ve-instruction');
+  if (inst) inst.style.opacity = '0';
 }
 
-// ── Friendly Names (Task 2) ──
+// ── Element Selection Handler ──
+
+function handleElementSelected(payload) {
+  if (!payload) return;
+  renderEditPanel({
+    friendlyName: friendlyNameFromData(payload.tagName, payload.className, payload.componentName),
+    text: payload.text || '',
+    screenshot: null,
+    component: payload.componentName || null,
+    filePath: payload.filePath || null,
+    lineNum: payload.lineNumber || null,
+    selector: payload.selector || '',
+    tag: payload.tagName || 'div',
+    classes: payload.className || '',
+    styles: payload.styles || {},
+    ancestors: (payload.ancestors || []).map(a => ({
+      element: null,
+      name: friendlyNameFromData(a.tagName, a.className, a.componentName)
+    })),
+    element: null,
+  });
+}
+
+// ── Friendly Name Helpers ──
 
 const TAG_NAMES = {
   button: 'Button', a: 'Link', img: 'Image', p: 'Paragraph',
@@ -454,673 +264,291 @@ const MUI_NAMES = {
   MuiDataGrid: 'Data Table',
 };
 
-function friendlyName(element, componentAttr) {
-  // Highest priority: data-component attribute
-  if (componentAttr) {
-    const name = componentAttr.split(':')[0];
-    // Split PascalCase into words
-    const words = name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
-    // Remove generic suffixes
-    return words.replace(/\s*(Component|Wrapper|Container|View|Page)$/i, '').trim() || name;
+function friendlyNameFromData(tag, classes, componentName) {
+  if (componentName) {
+    const w = componentName.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+    return w.replace(/\s*(Component|Wrapper|Container|View|Page)$/i, '').trim() || componentName;
   }
-
-  // If element is a string (from server data), try tag-based
-  if (typeof element === 'string') {
-    return TAG_NAMES[element.toLowerCase()] || element.charAt(0).toUpperCase() + element.slice(1);
-  }
-
-  // MUI class-based mapping (higher priority)
-  if (element?.classList) {
-    const classes = element.className || '';
-    for (const [muiClass, name] of Object.entries(MUI_NAMES)) {
-      if (classes.includes(muiClass)) {
-        // Special handling for MuiTypography — infer from variant
-        if (muiClass === 'MuiTypography') {
+  if (classes) {
+    for (const [k, v] of Object.entries(MUI_NAMES)) {
+      if (classes.includes(k)) {
+        if (k === 'MuiTypography') {
           if (classes.includes('h1') || classes.includes('h2') || classes.includes('h3')) return 'Heading';
           if (classes.includes('body')) return 'Paragraph';
-          if (classes.includes('caption')) return 'Caption';
-          if (classes.includes('subtitle')) return 'Subtitle';
         }
-        return name;
+        return v;
       }
     }
   }
-
-  // Tag-based fallback
-  const tag = element?.tagName?.toLowerCase() || '';
   return TAG_NAMES[tag] || (tag ? tag.charAt(0).toUpperCase() + tag.slice(1) : 'Element');
 }
 
-// Also export for server-response data (tag string, classes string, component string)
-function friendlyNameFromData(tag, classes, component) {
-  if (component) return friendlyName(null, component);
-  if (classes) {
-    for (const [muiClass, name] of Object.entries(MUI_NAMES)) {
-      if (classes.includes(muiClass)) return name;
-    }
-  }
-  return TAG_NAMES[tag] || (tag ? tag.charAt(0).toUpperCase() + tag.slice(1) : 'Element');
+// ── Smart Chips ──
+
+function getChipsForElement(ed) {
+  const tag = ed.tag, cls = ed.classes || '', nm = ed.friendlyName;
+
+  if (tag === 'button' || cls.includes('MuiButton') || cls.includes('MuiIconButton'))
+    return [{icon:'✏️',label:'Change label',type:'text'},{icon:'🎨',label:'Change color',type:'color'},{icon:'⭕',label:'Make rounded',type:'toggle'},{icon:'▢',label:'Make outlined',type:'toggle'},{icon:'↑',label:'Make larger',type:'toggle'},{icon:'↓',label:'Make smaller',type:'toggle'},{icon:'👁️',label:'Hide element',type:'toggle'}];
+
+  if (/^h[1-6]$/.test(tag) || tag === 'p' || tag === 'span' || cls.includes('MuiTypography'))
+    return [{icon:'✏️',label:'Change text',type:'text'},{icon:'🎨',label:'Change color',type:'color'},{icon:'↑',label:'Make larger',type:'toggle'},{icon:'↓',label:'Make smaller',type:'toggle'},{icon:'B',label:'Make bold',type:'toggle'},{icon:'≡',label:'Align center',type:'toggle'},{icon:'👁️',label:'Hide element',type:'toggle'}];
+
+  if (tag === 'img' || cls.includes('MuiAvatar'))
+    return [{icon:'↑',label:'Make larger',type:'toggle'},{icon:'↓',label:'Make smaller',type:'toggle'},{icon:'⭕',label:'Make rounded',type:'toggle'},{icon:'🖼️',label:'Add border',type:'toggle'},{icon:'💫',label:'Add shadow',type:'toggle'},{icon:'👁️',label:'Hide element',type:'toggle'}];
+
+  if (cls.includes('MuiCard') || cls.includes('MuiPaper') || cls.includes('card'))
+    return [{icon:'🎨',label:'Change background',type:'color'},{icon:'💫',label:'Add shadow',type:'toggle'},{icon:'⭕',label:'Round corners',type:'toggle'},{icon:'↕️',label:'More padding',type:'toggle'},{icon:'↕️',label:'Less padding',type:'toggle'},{icon:'🖼️',label:'Add border',type:'toggle'},{icon:'👁️',label:'Hide element',type:'toggle'}];
+
+  if (tag === 'input' || tag === 'textarea' || cls.includes('MuiTextField') || cls.includes('MuiSelect'))
+    return [{icon:'✏️',label:'Change placeholder',type:'text'},{icon:'↑',label:'Make larger',type:'toggle'},{icon:'⭕',label:'Round corners',type:'toggle'},{icon:'🎨',label:'Change border color',type:'color'},{icon:'👁️',label:'Hide element',type:'toggle'}];
+
+  if (tag === 'table' || cls.includes('MuiTable') || cls.includes('MuiDataGrid'))
+    return [{icon:'🎨',label:'Stripe rows',type:'toggle'},{icon:'🖼️',label:'Add borders',type:'toggle'},{icon:'↑',label:'Make header bold',type:'toggle'},{icon:'↕️',label:'More row spacing',type:'toggle'},{icon:'👁️',label:'Hide element',type:'toggle'}];
+
+  if (tag === 'nav' || cls.includes('MuiAppBar') || cls.includes('MuiDrawer') || cls.includes('MuiTabs'))
+    return [{icon:'🎨',label:'Change background',type:'color'},{icon:'✏️',label:'Change color',type:'color'},{icon:'💫',label:'Add shadow',type:'toggle'},{icon:'👁️',label:'Hide element',type:'toggle'}];
+
+  if (tag === 'ul' || tag === 'ol' || cls.includes('MuiList'))
+    return [{icon:'↕️',label:'More spacing',type:'toggle'},{icon:'↕️',label:'Less spacing',type:'toggle'},{icon:'🖼️',label:'Add dividers',type:'toggle'},{icon:'🎨',label:'Alternate colors',type:'toggle'},{icon:'👁️',label:'Hide element',type:'toggle'}];
+
+  // Default
+  return [{icon:'🎨',label:'Change background',type:'color'},{icon:'↕️',label:'More padding',type:'toggle'},{icon:'↕️',label:'Less padding',type:'toggle'},{icon:'💫',label:'Add shadow',type:'toggle'},{icon:'🖼️',label:'Add border',type:'toggle'},{icon:'⭕',label:'Round corners',type:'toggle'},{icon:'👁️',label:'Hide element',type:'toggle'}];
 }
 
-// ── Component detection ──
-
-function showClickHighlight(x, y) {
-  if (!overlay) return;
-  // Remove any previous highlight
-  overlay.querySelectorAll('.ve-click-highlight').forEach(el => el.remove());
-
-  const highlight = document.createElement('div');
-  highlight.className = 've-click-highlight';
-  highlight.style.left = (x - 40) + 'px';
-  highlight.style.top = (y - 40) + 'px';
-  overlay.appendChild(highlight);
-
-  // Also update the label to stay at the click position
-  const label = overlay.querySelector('.ve-label');
-  if (label) {
-    label.style.left = (x + 12) + 'px';
-    label.style.top = (y - 24) + 'px';
-  }
-}
-
-function findComponentAttr(element) {
-  let el = element;
-  while (el && el !== el.ownerDocument?.body) {
-    if (el.dataset?.component) return el.dataset.component;
-    el = el.parentElement;
-  }
-  return null;
-}
-
-// ── Breadcrumb (Task 3) ──
-
-function buildAncestors(element) {
-  const ancestors = [];
-  let el = element.parentElement;
-  while (el && el !== el.ownerDocument?.body && ancestors.length < 4) {
-    // Skip generic wrappers (css-*, jss-*, MuiBox, MuiGrid with single child)
-    const cls = el.className || '';
-    const isGenericWrapper = /^(css-|jss-)/.test(cls) ||
-      (/MuiBox/.test(cls) && el.children.length === 1) ||
-      (/MuiGrid/.test(cls) && el.children.length === 1);
-
-    if (!isGenericWrapper) {
-      const compAttr = findComponentAttr(el) !== findComponentAttr(element) ? findComponentAttr(el) : null;
-      ancestors.push({
-        element: el,
-        name: friendlyName(el, compAttr),
-      });
-    }
-    el = el.parentElement;
-  }
-  return ancestors.reverse(); // root → leaf order
-}
-
-function renderBreadcrumb(elementData, onSelect) {
-  const bc = document.createElement('div');
-  bc.className = 've-breadcrumb';
-
-  // Add "Page" root
-  const items = [{ name: 'Page', element: null }, ...elementData.ancestors, { name: elementData.friendlyName, element: elementData.element }];
-
-  items.forEach((item, i) => {
-    if (i > 0) {
-      const sep = document.createElement('span');
-      sep.className = 've-breadcrumb-sep';
-      sep.textContent = '›';
-      bc.appendChild(sep);
-    }
-    const span = document.createElement('span');
-    span.className = 've-breadcrumb-item' + (i === items.length - 1 ? ' active' : '');
-    span.textContent = item.name;
-    if (i < items.length - 1 && item.element) {
-      span.onclick = () => {
-        // Shift selection to this ancestor
-        selectedElement = item.element;
-        try {
-          const iframeDoc = previewFrame.contentDocument;
-          iframeDoc.querySelectorAll('.ve-selected').forEach(el => el.classList.remove('ve-selected'));
-          item.element.classList.add('ve-selected');
-        } catch {}
-
-        const compAttr = findComponentAttr(item.element);
-        const computedStyle = item.element.ownerDocument.defaultView.getComputedStyle(item.element);
-        let component = null, filePath = null, lineNum = null;
-        if (compAttr) [component, filePath, lineNum] = compAttr.split(':');
-
-        const newData = {
-          friendlyName: friendlyName(item.element, compAttr),
-          text: (item.element.textContent || '').trim().slice(0, 80),
-          screenshot: null,
-          component, filePath, lineNum,
-          selector: buildSelectorPath(item.element),
-          tag: item.element.tagName.toLowerCase(),
-          classes: item.element.className || '',
-          styles: {
-            color: computedStyle.color,
-            backgroundColor: computedStyle.backgroundColor,
-            fontSize: computedStyle.fontSize,
-            padding: computedStyle.padding,
-          },
-          ancestors: buildAncestors(item.element),
-          element: item.element,
-        };
-        onSelect(newData);
-      };
-    }
-    bc.appendChild(span);
-  });
-
-  return bc;
-}
-
-// ── Chip system (Task 4) ──
-
-function getChipsForElement(elementData) {
-  const tag = elementData.tag;
-  const classes = elementData.classes || '';
-  const name = elementData.friendlyName;
-
-  // Detect element category
-  const isText = /^h[1-6]$/.test(tag) || tag === 'p' || tag === 'span' || classes.includes('MuiTypography');
-  const isButton = tag === 'button' || (tag === 'a' && classes.includes('btn')) || classes.includes('MuiButton') || classes.includes('MuiIconButton');
-  const isImage = tag === 'img' || classes.includes('MuiAvatar') || (tag === 'svg' && name === 'Icon');
-  const isCard = classes.includes('MuiCard') || classes.includes('MuiPaper') || classes.includes('card');
-  const isInput = tag === 'input' || tag === 'textarea' || classes.includes('MuiTextField') || classes.includes('MuiSelect');
-  const isTable = tag === 'table' || classes.includes('MuiTable') || classes.includes('MuiDataGrid');
-  const isNav = tag === 'nav' || classes.includes('MuiAppBar') || classes.includes('MuiDrawer') || classes.includes('MuiTabs');
-  const isList = tag === 'ul' || tag === 'ol' || classes.includes('MuiList');
-
-  let chips = [];
-
-  if (isButton) {
-    chips = [
-      { icon: '✏️', label: 'Change label', type: 'text' },
-      { icon: '🎨', label: 'Change color', type: 'color' },
-      { icon: '⭕', label: 'Make rounded', type: 'toggle' },
-      { icon: '▢', label: 'Make outlined', type: 'toggle' },
-      { icon: '↑', label: 'Make larger', type: 'toggle' },
-      { icon: '↓', label: 'Make smaller', type: 'toggle' },
-    ];
-  } else if (isText) {
-    chips = [
-      { icon: '✏️', label: 'Change text', type: 'text' },
-      { icon: '🎨', label: 'Change color', type: 'color' },
-      { icon: '↑', label: 'Make larger', type: 'toggle' },
-      { icon: '↓', label: 'Make smaller', type: 'toggle' },
-      { icon: 'B', label: 'Make bold', type: 'toggle' },
-      { icon: '≡', label: 'Align center', type: 'toggle' },
-    ];
-  } else if (isImage) {
-    chips = [
-      { icon: '↑', label: 'Make larger', type: 'toggle' },
-      { icon: '↓', label: 'Make smaller', type: 'toggle' },
-      { icon: '⭕', label: 'Make rounded', type: 'toggle' },
-      { icon: '🖼️', label: 'Add border', type: 'toggle' },
-      { icon: '💫', label: 'Add shadow', type: 'toggle' },
-    ];
-  } else if (isCard) {
-    chips = [
-      { icon: '🎨', label: 'Change background', type: 'color' },
-      { icon: '💫', label: 'Add shadow', type: 'toggle' },
-      { icon: '⭕', label: 'Round corners', type: 'toggle' },
-      { icon: '↕️', label: 'More padding', type: 'toggle' },
-      { icon: '↕️', label: 'Less padding', type: 'toggle' },
-      { icon: '🖼️', label: 'Add border', type: 'toggle' },
-    ];
-  } else if (isInput) {
-    chips = [
-      { icon: '✏️', label: 'Change placeholder', type: 'text' },
-      { icon: '↑', label: 'Make larger', type: 'toggle' },
-      { icon: '⭕', label: 'Round corners', type: 'toggle' },
-      { icon: '🎨', label: 'Change border color', type: 'color' },
-    ];
-  } else if (isTable) {
-    chips = [
-      { icon: '🎨', label: 'Stripe rows', type: 'toggle' },
-      { icon: '🖼️', label: 'Add borders', type: 'toggle' },
-      { icon: '↑', label: 'Make header bold', type: 'toggle' },
-      { icon: '↕️', label: 'More row spacing', type: 'toggle' },
-    ];
-  } else if (isNav) {
-    chips = [
-      { icon: '🎨', label: 'Change background', type: 'color' },
-      { icon: '✏️', label: 'Change color', type: 'color' },
-      { icon: '💫', label: 'Add shadow', type: 'toggle' },
-    ];
-  } else if (isList) {
-    chips = [
-      { icon: '↕️', label: 'More spacing', type: 'toggle' },
-      { icon: '↕️', label: 'Less spacing', type: 'toggle' },
-      { icon: '🖼️', label: 'Add dividers', type: 'toggle' },
-      { icon: '🎨', label: 'Alternate colors', type: 'toggle' },
-    ];
-  } else {
-    // Container / generic
-    chips = [
-      { icon: '🎨', label: 'Change background', type: 'color' },
-      { icon: '↕️', label: 'More padding', type: 'toggle' },
-      { icon: '↕️', label: 'Less padding', type: 'toggle' },
-      { icon: '💫', label: 'Add shadow', type: 'toggle' },
-      { icon: '🖼️', label: 'Add border', type: 'toggle' },
-      { icon: '⭕', label: 'Round corners', type: 'toggle' },
-    ];
-  }
-
-  // Universal chip
-  chips.push({ icon: '👁️', label: 'Hide element', type: 'toggle' });
-  return chips;
-}
-
-const COLOR_PRESETS = ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#ffffff', '#000000'];
+const COLOR_PRESETS = ['#ef4444','#f59e0b','#22c55e','#3b82f6','#8b5cf6','#ec4899','#ffffff','#000000'];
 
 function renderChips(chips, container, onUpdate) {
   const state = { selected: new Map(), customText: '' };
-  const chipsDiv = document.createElement('div');
-  chipsDiv.className = 've-chips';
-
-  const expandArea = document.createElement('div');
-  expandArea.className = 've-chip-expand-area';
+  const cd = document.createElement('div'); cd.className = 've-chips';
+  const ea = document.createElement('div'); ea.className = 've-chip-expand-area';
 
   chips.forEach(chip => {
-    const el = document.createElement('span');
-    el.className = 've-chip';
-    el.innerHTML = `<span>${chip.icon}</span> ${chip.label}`;
+    const el = document.createElement('span'); el.className = 've-chip';
+    el.innerHTML = '<span>' + chip.icon + '</span> ' + chip.label;
     el.onclick = () => {
       if (chip.type === 'toggle') {
-        const isSelected = el.classList.toggle('selected');
-        if (isSelected) state.selected.set(chip.label, true);
-        else state.selected.delete(chip.label);
+        const s = el.classList.toggle('selected');
+        if (s) state.selected.set(chip.label, true); else state.selected.delete(chip.label);
         onUpdate(state);
       } else if (chip.type === 'text') {
-        expandArea.innerHTML = '';
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 've-chip-input';
-        input.placeholder = `New ${chip.label.replace('Change ', '').toLowerCase()}...`;
-        input.oninput = () => {
-          if (input.value.trim()) state.selected.set(chip.label, input.value.trim());
-          else state.selected.delete(chip.label);
-          onUpdate(state);
-        };
-        const wrapper = document.createElement('div');
-        wrapper.className = 've-chip-expand';
-        wrapper.appendChild(input);
-        expandArea.appendChild(wrapper);
-        el.classList.add('selected');
-        setTimeout(() => input.focus(), 50);
+        ea.innerHTML = '';
+        const inp = document.createElement('input'); inp.type = 'text'; inp.className = 've-chip-input';
+        inp.placeholder = 'New ' + chip.label.replace('Change ','').toLowerCase() + '...';
+        inp.oninput = () => { if (inp.value.trim()) state.selected.set(chip.label, inp.value.trim()); else state.selected.delete(chip.label); onUpdate(state); };
+        const w = document.createElement('div'); w.className = 've-chip-expand';
+        w.appendChild(inp); ea.appendChild(w); el.classList.add('selected');
+        setTimeout(() => inp.focus(), 50);
       } else if (chip.type === 'color') {
-        expandArea.innerHTML = '';
-        const wrapper = document.createElement('div');
-        wrapper.className = 've-chip-expand';
-        const grid = document.createElement('div');
-        grid.className = 've-color-grid';
-        COLOR_PRESETS.forEach(color => {
-          const swatch = document.createElement('div');
-          swatch.className = 've-color-swatch';
-          swatch.style.background = color;
-          swatch.style.border = color === '#ffffff' ? '2px solid var(--border)' : '2px solid transparent';
-          swatch.onclick = (ev) => {
-            ev.stopPropagation();
-            state.selected.set(chip.label, color);
-            el.classList.add('selected');
-            // Show selected color as a badge on the chip
-            let badge = el.querySelector('.ve-chip-color-badge');
-            if (!badge) {
-              badge = document.createElement('span');
-              badge.className = 've-chip-color-badge';
-              el.appendChild(badge);
-            }
-            badge.style.background = color;
-            // Collapse the color picker
-            expandArea.innerHTML = '';
-            onUpdate(state);
+        ea.innerHTML = '';
+        const w = document.createElement('div'); w.className = 've-chip-expand';
+        const g = document.createElement('div'); g.className = 've-color-grid';
+        COLOR_PRESETS.forEach(c => {
+          const sw = document.createElement('div'); sw.className = 've-color-swatch'; sw.style.background = c;
+          sw.style.border = c === '#ffffff' ? '2px solid var(--border)' : '2px solid transparent';
+          sw.onclick = (ev) => {
+            ev.stopPropagation(); state.selected.set(chip.label, c); el.classList.add('selected');
+            let b = el.querySelector('.ve-chip-color-badge');
+            if (!b) { b = document.createElement('span'); b.className = 've-chip-color-badge'; el.appendChild(b); }
+            b.style.background = c; ea.innerHTML = ''; onUpdate(state);
           };
-          grid.appendChild(swatch);
+          g.appendChild(sw);
         });
-        const hexInput = document.createElement('input');
-        hexInput.type = 'text';
-        hexInput.className = 've-chip-input';
-        hexInput.placeholder = '#hex';
-        hexInput.style.width = '80px';
-        hexInput.oninput = () => {
-          if (hexInput.value.trim()) {
-            state.selected.set(chip.label, hexInput.value.trim());
-            el.classList.add('selected');
-          } else {
-            state.selected.delete(chip.label);
-            el.classList.remove('selected');
-          }
+        const hi = document.createElement('input'); hi.type = 'text'; hi.className = 've-chip-input';
+        hi.placeholder = '#hex'; hi.style.width = '80px';
+        hi.oninput = () => {
+          if (hi.value.trim()) { state.selected.set(chip.label, hi.value.trim()); el.classList.add('selected'); }
+          else { state.selected.delete(chip.label); el.classList.remove('selected'); }
           onUpdate(state);
         };
-        wrapper.appendChild(grid);
-        wrapper.appendChild(hexInput);
-        expandArea.appendChild(wrapper);
+        w.appendChild(g); w.appendChild(hi); ea.appendChild(w);
       }
     };
-    chipsDiv.appendChild(el);
+    cd.appendChild(el);
   });
 
-  // Always-visible text input with Enter to send
-  const inputWrapper = document.createElement('div');
-  inputWrapper.className = 've-main-input';
-  const mainInput = document.createElement('input');
-  mainInput.type = 'text';
-  mainInput.className = 've-prompt-input';
-  mainInput.placeholder = 'Describe what you want to change...';
-  mainInput.oninput = () => {
-    state.customText = mainInput.value.trim();
-    onUpdate(state);
-  };
-  mainInput.onkeydown = (e) => {
+  const iw = document.createElement('div'); iw.className = 've-main-input';
+  const mi = document.createElement('input'); mi.type = 'text'; mi.className = 've-prompt-input';
+  mi.placeholder = 'Describe what you want to change...';
+  mi.oninput = () => { state.customText = mi.value.trim(); onUpdate(state); };
+  mi.onkeydown = (e) => {
     if (e.key === 'Enter' && (state.customText || state.selected.size > 0)) {
       e.preventDefault();
-      // Trigger the send button click
-      const sendBtn = document.querySelector('.ve-send');
-      if (sendBtn && !sendBtn.disabled) sendBtn.click();
+      const sb = document.querySelector('.ve-send');
+      if (sb && !sb.disabled) sb.click();
     }
   };
-  inputWrapper.appendChild(mainInput);
-
-  container.appendChild(chipsDiv);
-  container.appendChild(expandArea);
-  container.appendChild(inputWrapper);
-
-  // Auto-focus the input
-  setTimeout(() => mainInput.focus(), 100);
-
+  iw.appendChild(mi);
+  container.appendChild(cd); container.appendChild(ea); container.appendChild(iw);
+  setTimeout(() => mi.focus(), 100);
   return state;
 }
 
-// ── Unified Edit Panel (Task 5) ──
+// ── Edit Panel ──
 
-function renderEditPanel(elementData) {
+function renderEditPanel(ed) {
   if (editPanel) editPanel.remove();
-
-  const rightPanel = document.querySelector('.right-panel');
-  if (!rightPanel) return;
+  const rp = document.querySelector('.right-panel');
+  if (!rp) return;
 
   editPanel = document.createElement('div');
   editPanel.className = 'edit-panel';
 
   // Header
-  const header = document.createElement('div');
-  header.className = 've-header';
-  header.innerHTML = `
-    <span class="ve-title">${elementData.friendlyName}</span>
-    <button class="ve-close">&times;</button>
-  `;
-  header.querySelector('.ve-close').onclick = () => { editPanel.remove(); editPanel = null; };
-  editPanel.appendChild(header);
+  const hd = document.createElement('div'); hd.className = 've-header';
+  hd.innerHTML = '<span class="ve-title">' + esc(ed.friendlyName) + '</span><button class="ve-close">&times;</button>';
+  hd.querySelector('.ve-close').onclick = () => { editPanel.remove(); editPanel = null; };
+  editPanel.appendChild(hd);
 
   // Breadcrumb
-  if (elementData.ancestors && elementData.ancestors.length > 0) {
-    const bc = renderBreadcrumb(elementData, (newData) => {
-      renderEditPanel(newData);
-    });
-    editPanel.appendChild(bc);
+  if (ed.ancestors && ed.ancestors.length > 0) editPanel.appendChild(renderBreadcrumb(ed));
+
+  // File info
+  if (ed.filePath) {
+    const fi = document.createElement('div'); fi.className = 've-file-info';
+    fi.innerHTML = '<span class="ve-file-icon">📄</span> <span class="ve-file-path">' +
+      esc(ed.filePath) + (ed.lineNum ? ':' + ed.lineNum : '') + '</span>';
+    editPanel.appendChild(fi);
   }
 
-  // Element info
-  const info = document.createElement('div');
-  info.className = 've-info';
-  let infoHtml = '';
-  if (elementData.screenshot) {
-    infoHtml += `<img src="data:image/png;base64,${elementData.screenshot}" class="ve-screenshot">`;
+  // Info section (text preview, styles)
+  const info = document.createElement('div'); info.className = 've-info';
+  let ih = '';
+  if (ed.text) {
+    const t = ed.text.length > 80 ? ed.text.slice(0, 77) + '...' : ed.text;
+    ih += '<div class="ve-text-preview">"' + esc(t) + '"</div>';
   }
-  if (elementData.text) {
-    const truncated = elementData.text.length > 80 ? elementData.text.slice(0, 77) + '...' : elementData.text;
-    infoHtml += `<div class="ve-text-preview">"${escapeHtml(truncated)}"</div>`;
+  if (ed.styles && Object.values(ed.styles).some(v => v)) {
+    const s = ed.styles, p = [];
+    if (s.color) p.push('<span class="ve-style-swatch" style="background:' + s.color + '"></span> ' + s.color);
+    if (s.backgroundColor && s.backgroundColor !== 'rgba(0, 0, 0, 0)' && s.backgroundColor !== 'transparent')
+      p.push('<span class="ve-style-swatch" style="background:' + s.backgroundColor + '"></span> bg: ' + s.backgroundColor);
+    if (s.fontSize) p.push(s.fontSize);
+    if (p.length) ih += '<div class="ve-styles-preview">' + p.join(' &middot; ') + '</div>';
   }
-  if (infoHtml) {
-    info.innerHTML = infoHtml;
-    editPanel.appendChild(info);
-  }
+  if (ih) { info.innerHTML = ih; editPanel.appendChild(info); }
 
-  // Chips
-  const chipsContainer = document.createElement('div');
-  chipsContainer.className = 've-chips-section';
-  const chips = getChipsForElement(elementData);
-  let chipState = null;
+  // Chips section
+  const cc = document.createElement('div'); cc.className = 've-chips-section';
 
-  // Action bar
-  const actions = document.createElement('div');
-  actions.className = 've-actions';
-  const cancelBtn = document.createElement('button');
-  cancelBtn.className = 've-cancel';
-  cancelBtn.textContent = 'Cancel';
-  cancelBtn.onclick = () => { editPanel.remove(); editPanel = null; };
+  // Actions
+  const acts = document.createElement('div'); acts.className = 've-actions';
+  const cb = document.createElement('button'); cb.className = 've-cancel'; cb.textContent = 'Cancel';
+  cb.onclick = () => { editPanel.remove(); editPanel = null; };
+  const sb = document.createElement('button'); sb.className = 've-send'; sb.textContent = 'Send to Agent ✨';
+  sb.disabled = true;
 
-  const sendBtn = document.createElement('button');
-  sendBtn.className = 've-send';
-  sendBtn.textContent = 'Send to Agent ✨';
-  sendBtn.disabled = true;
-
-  const updateSendBtn = (state) => {
-    const count = state.selected.size + (state.customText ? 1 : 0);
-    sendBtn.disabled = count === 0;
-    sendBtn.textContent = count > 0 ? `Send ${count} change${count > 1 ? 's' : ''} ✨` : 'Send to Agent ✨';
+  const upd = (st) => {
+    const c = st.selected.size + (st.customText ? 1 : 0);
+    sb.disabled = c === 0;
+    sb.textContent = c > 0 ? 'Send ' + c + ' change' + (c > 1 ? 's' : '') + ' ✨' : 'Send to Agent ✨';
   };
+  const cs = renderChips(getChipsForElement(ed), cc, upd);
+  editPanel.appendChild(cc);
 
-  chipState = renderChips(chips, chipsContainer, updateSendBtn);
-  editPanel.appendChild(chipsContainer);
-
-  sendBtn.onclick = () => {
+  sb.onclick = () => {
     if (!onSendPrompt) return;
-    const prompt = buildPrompt(elementData, chipState.selected, chipState.customText);
-    const actionSummary = [...chipState.selected.entries()].map(([k, v]) => v === true ? k : `${k} → ${v}`).join(', ');
-
-    // Store pending change selector for confirmation pulse
-    pendingChangeSelector = elementData.selector;
-
-    // Add to history
+    const pr = buildPrompt(ed, cs.selected, cs.customText);
+    const sm = [...cs.selected.entries()].map(([k,v]) => v === true ? k : k + ' → ' + v).join(', ');
+    pendingChangeSelector = ed.selector;
     editHistory.push({
       id: crypto.randomUUID(),
       timestamp: Date.now(),
-      friendlyName: elementData.friendlyName,
-      action: actionSummary || chipState.customText || 'Custom change',
-      prompt: prompt,
-      selector: elementData.selector,
+      friendlyName: ed.friendlyName,
+      action: sm || cs.customText || 'Custom change',
+      prompt: pr,
+      selector: ed.selector,
       undone: false,
     });
     updateHistoryBadge();
-
-    onSendPrompt(prompt);
+    onSendPrompt(pr);
     deactivate();
   };
 
-  actions.appendChild(cancelBtn);
-  actions.appendChild(sendBtn);
-  editPanel.appendChild(actions);
-
-  rightPanel.appendChild(editPanel);
+  acts.appendChild(cb); acts.appendChild(sb);
+  editPanel.appendChild(acts);
+  rp.appendChild(editPanel);
 }
 
-// ── Cross-origin loading panel ──
-
-async function showLoadingPanel(clickX, clickY) {
-  if (editPanel) editPanel.remove();
-
-  const rightPanel = document.querySelector('.right-panel');
-  if (!rightPanel) return;
-
-  editPanel = document.createElement('div');
-  editPanel.className = 'edit-panel';
-  editPanel.innerHTML = `
-    <div class="ve-header">
-      <span class="ve-title">Identifying element...</span>
-      <button class="ve-close">&times;</button>
-    </div>
-    <div class="ve-loading">
-      <div class="activity-spinner" style="margin:0 auto 8px"></div>
-      Inspecting element...
-    </div>
-  `;
-  editPanel.querySelector('.ve-close').onclick = () => { editPanel.remove(); editPanel = null; };
-  rightPanel.appendChild(editPanel);
-
-  // Call server
-  let elementInfo = null;
-  try {
-    const iframe = document.getElementById('preview-frame');
-    const pctX = clickX / iframe.offsetWidth;
-    const pctY = clickY / iframe.offsetHeight;
-    const currentUrl = document.getElementById('preview-url')?.value || '/';
-
-    const resp = await fetch('/api/inspect-element', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pctX, pctY, currentUrl }),
-    });
-    const data = await resp.json();
-    if (data.found) elementInfo = data;
-  } catch (e) {
-    console.error('[visual-edit] inspect failed:', e);
-  }
-
-  // Build normalized elementData from server response
-  const el = elementInfo?.element || {};
-  const component = el.component?.split(':')[0] || null;
-  const filePath = el.component?.split(':')[1] || null;
-  const lineNum = el.component?.split(':')[2] || null;
-
-  // Determine the best friendly name from server data
-  let name = friendlyNameFromData(el.tag, el.classes, el.component);
-  // If still generic "Element", try to extract from description or text
-  if (name === 'Element') {
-    if (elementInfo?.description) {
-      // Server returns description like "Component: Foo in file:line" or "<tag>.class"
-      const descMatch = elementInfo.description.match(/^Component:\s*(\S+)/);
-      if (descMatch) name = descMatch[1].replace(/([a-z])([A-Z])/g, '$1 $2');
-      else if (el.tag) name = friendlyNameFromData(el.tag, el.classes, null);
+function renderBreadcrumb(ed) {
+  const bc = document.createElement('div'); bc.className = 've-breadcrumb';
+  [{ name: 'Page' }, ...ed.ancestors, { name: ed.friendlyName }].forEach((item, i, arr) => {
+    if (i > 0) {
+      const s = document.createElement('span'); s.className = 've-breadcrumb-sep'; s.textContent = '›';
+      bc.appendChild(s);
     }
-    if (name === 'Element' && el.text) {
-      // Use truncated text as identifier
-      name = el.text.length > 20 ? `"${el.text.slice(0, 18)}..."` : `"${el.text}"`;
-    }
-  }
-
-  const elementData = {
-    friendlyName: name,
-    text: el.text || '',
-    screenshot: elementInfo?.screenshot || null,
-    component: component,
-    filePath: filePath,
-    lineNum: lineNum,
-    selector: el.selector || '',
-    tag: el.tag || 'div',
-    classes: el.classes || '',
-    styles: el.currentStyles || {},
-    ancestors: [], // Can't build from server data
-    element: null,
-  };
-
-  renderEditPanel(elementData);
+    const sp = document.createElement('span');
+    sp.className = 've-breadcrumb-item' + (i === arr.length - 1 ? ' active' : '');
+    sp.textContent = item.name;
+    bc.appendChild(sp);
+  });
+  return bc;
 }
 
-// ── Prompt Builder (Task 7) ──
+// ── Prompt Builder ──
 
-function buildPrompt(elementData, selectedChips, customText) {
-  let lines = [];
-  lines.push('VISUAL EDIT REQUEST');
-  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  lines.push('');
+function buildPrompt(ed, sel, txt) {
+  const l = [
+    'VISUAL EDIT REQUEST',
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    '',
+    'Target: ' + ed.friendlyName + (ed.text ? ' — "' + ed.text.slice(0, 60) + '"' : ''),
+  ];
+  if (ed.filePath) l.push('File: ' + ed.filePath + (ed.lineNum ? ':' + ed.lineNum : ''));
+  if (ed.component) l.push('Component: ' + ed.component);
+  if (ed.selector) l.push('Selector: ' + ed.selector);
+  if (ed.classes) l.push('Classes: ' + ed.classes);
 
-  const textPreview = elementData.text ? ` — "${elementData.text.slice(0, 60)}"` : '';
-  lines.push(`Target: ${elementData.friendlyName}${textPreview}`);
-
-  if (elementData.filePath) {
-    lines.push(`File: ${elementData.filePath}${elementData.lineNum ? ':' + elementData.lineNum : ''}`);
-  }
-  if (elementData.component) lines.push(`Component: ${elementData.component}`);
-  if (elementData.selector) lines.push(`Selector: ${elementData.selector}`);
-  if (elementData.classes) lines.push(`Classes: ${elementData.classes}`);
-
-  if (elementData.styles && Object.values(elementData.styles).some(v => v)) {
-    lines.push('');
-    lines.push('Current styles:');
-    const s = elementData.styles;
-    const parts = [];
-    if (s.color) parts.push(`color: ${s.color}`);
-    if (s.backgroundColor) parts.push(`background: ${s.backgroundColor}`);
-    if (s.fontSize) parts.push(`font-size: ${s.fontSize}`);
-    if (s.padding) parts.push(`padding: ${s.padding}`);
-    lines.push('  ' + parts.join('  |  '));
+  if (ed.styles && Object.values(ed.styles).some(v => v)) {
+    l.push('', 'Current styles:');
+    const s = ed.styles, p = [];
+    if (s.color) p.push('color: ' + s.color);
+    if (s.backgroundColor) p.push('background: ' + s.backgroundColor);
+    if (s.fontSize) p.push('font-size: ' + s.fontSize);
+    if (s.padding) p.push('padding: ' + s.padding);
+    if (s.margin) p.push('margin: ' + s.margin);
+    l.push('  ' + p.join('  |  '));
   }
 
-  lines.push('');
-  lines.push('Requested changes:');
+  l.push('', 'Requested changes:');
+  for (const [a, v] of sel) l.push(v === true ? '  • ' + a : '  • ' + a + ' → new value: ' + v);
+  if (txt) l.push('  • Custom: ' + txt);
 
-  for (const [action, value] of selectedChips) {
-    if (value === true) {
-      lines.push(`  • ${action}`);
-    } else {
-      lines.push(`  • ${action} → new value: ${value}`);
-    }
-  }
+  l.push('', 'IMPORTANT: Only modify the targeted element described above. Do NOT change global theme, MUI theme, layout wrappers, or App-level styles. Apply changes via the component\'s own styles (sx prop, className, or styled-components) scoped to this specific element in ' + (ed.filePath || 'the component file') + '.');
 
-  if (customText) {
-    lines.push(`  • Custom: ${customText}`);
-  }
-
-  lines.push('');
-  const file = elementData.filePath || 'the component file';
-  lines.push(`IMPORTANT: Only modify the targeted element described above. Do NOT change global theme, MUI theme, layout wrappers, or App-level styles. Apply changes via the component's own styles (sx prop, className, or styled-components) scoped to this specific element in ${file}.`);
-
-  return lines.join('\n');
+  return l.join('\n');
 }
 
-// ── Helpers ──
+// ── Bridge Not Detected Toast ──
 
-function buildSelectorPath(element) {
-  const parts = [];
-  let el = element;
-  for (let i = 0; i < 3 && el && el !== el.ownerDocument?.body; i++) {
-    let selector = el.tagName.toLowerCase();
-    if (el.id) selector += '#' + el.id;
-    else if (el.classList?.length > 0) {
-      const meaningful = [...el.classList].filter(c => !c.startsWith('css-') && !c.startsWith('jss-')).slice(0, 2);
-      if (meaningful.length > 0) selector += '.' + meaningful.join('.');
-    }
-    parts.unshift(selector);
-    el = el.parentElement;
-  }
-  return parts.join(' > ');
+function showBridgeNotDetected() {
+  const wrap = document.getElementById('preview-wrap');
+  if (!wrap || infoToast) return;
+  infoToast = document.createElement('div');
+  infoToast.className = 've-bridge-toast';
+  infoToast.innerHTML = '<div class="ve-toast-icon">ℹ️</div><div class="ve-toast-text"><strong>Visual editing bridge not detected.</strong><br>Make sure the frontend is running with the visual-bridge script injected.<br><small>The bridge auto-injects when loading the preview through the proxy.</small></div><button class="ve-toast-close" onclick="this.parentElement.remove()">&times;</button>';
+  wrap.appendChild(infoToast);
 }
 
-function escapeHtml(text) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
+// ── Utilities ──
 
-function rgbToHex(rgb) {
-  if (!rgb || rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return '#ffffff';
-  const match = rgb.match(/\d+/g);
-  if (!match || match.length < 3) return '#ffffff';
-  return '#' + match.slice(0, 3).map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
-}
+function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
 function relativeTime(ts) {
-  const diff = Date.now() - ts;
-  if (diff < 60000) return 'just now';
-  if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
-  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
-  return Math.floor(diff / 86400000) + 'd ago';
+  const d = Date.now() - ts;
+  if (d < 60000) return 'just now';
+  if (d < 3600000) return Math.floor(d / 60000) + 'm ago';
+  if (d < 86400000) return Math.floor(d / 3600000) + 'h ago';
+  return Math.floor(d / 86400000) + 'd ago';
 }
 
 function updateHistoryBadge() {
   const btn = document.getElementById('ve-history-btn');
   if (!btn) return;
-  const activeCount = editHistory.filter(e => !e.undone).length;
   btn.style.display = editHistory.length > 0 ? '' : 'none';
-  let badge = btn.querySelector('.ve-history-badge');
+  let b = btn.querySelector('.ve-history-badge');
   if (editHistory.length > 0) {
-    if (!badge) {
-      badge = document.createElement('span');
-      badge.className = 've-history-badge';
-      btn.appendChild(badge);
-    }
-    badge.textContent = editHistory.length;
-  } else if (badge) {
-    badge.remove();
-  }
+    if (!b) { b = document.createElement('span'); b.className = 've-history-badge'; btn.appendChild(b); }
+    b.textContent = editHistory.length;
+  } else if (b) b.remove();
 }

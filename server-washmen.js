@@ -9,7 +9,7 @@ dotenv.config();
 const AUTH_TOKEN = process.env.VIBE_AUTH_TOKEN || randomUUID();
 
 import express from "express";
-import { createServer } from "http";
+import http, { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { getDb, createSession, getSession, addMessage, addCost, getTotalCost, getSessionByBranch, getNotes, saveNotes, getBranchCosts, undoLastTurn } from "./db.js";
 import { handleWashmenWs, getSessionChangedFiles } from "./server/ws-handler-washmen.js";
@@ -34,6 +34,85 @@ app.get("/", (_req, res) => {
 // Legacy UI — redirect to v2
 app.get("/v1", (_req, res) => res.redirect("/"));
 app.use(express.static(join(__dirname, "public"), { etag: false, maxAge: 0 }));
+
+// ── Preview Proxy with Visual Bridge Injection ──────────────────────
+// Proxies /preview-proxy/* to the frontend app (localhost:<frontendPort>)
+// and injects the visual-bridge script into HTML responses.
+// Uses <base href> so all relative resources (JS, CSS, images) load from the frontend.
+// The bridge script uses an absolute URL to load from the vibe-ui server.
+
+app.get("/__visual-bridge.js", (_req, res) => {
+  res.type("application/javascript");
+  res.sendFile(join(__dirname, "public", "visual-bridge.js"));
+});
+
+app.use("/preview-proxy", (req, res) => {
+  const frontendPort = getFrontendPort();
+  const vibePort = process.env.PORT || 4000;
+  const targetPath = req.url || "/";
+  const bridgeScriptTag = `<script src="http://localhost:${vibePort}/__visual-bridge.js" defer></script>`;
+  const baseTag = `<base href="http://localhost:${frontendPort}/">`;
+
+  const options = {
+    hostname: "localhost",
+    port: frontendPort,
+    path: targetPath,
+    method: req.method,
+    headers: { ...req.headers, host: `localhost:${frontendPort}` },
+  };
+  // Remove accept-encoding to get uncompressed response for injection
+  delete options.headers["accept-encoding"];
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    const contentType = proxyRes.headers["content-type"] || "";
+    const isHtml = contentType.includes("text/html");
+
+    if (isHtml) {
+      // Buffer HTML response to inject bridge script and base tag
+      const chunks = [];
+      proxyRes.on("data", (chunk) => chunks.push(chunk));
+      proxyRes.on("end", () => {
+        let body = Buffer.concat(chunks).toString("utf8");
+        // Inject <base> tag so all relative URLs resolve to the frontend origin
+        if (body.includes("<head>")) {
+          body = body.replace("<head>", "<head>" + baseTag);
+        } else if (body.includes("<HEAD>")) {
+          body = body.replace("<HEAD>", "<HEAD>" + baseTag);
+        }
+        // Inject bridge script before </body> or at end of HTML
+        if (body.includes("</body>")) {
+          body = body.replace("</body>", bridgeScriptTag + "</body>");
+        } else if (body.includes("</html>")) {
+          body = body.replace("</html>", bridgeScriptTag + "</html>");
+        } else {
+          body += bridgeScriptTag;
+        }
+        // Forward headers (except content-length since we modified the body)
+        const headers = { ...proxyRes.headers };
+        delete headers["content-length"];
+        delete headers["content-encoding"];
+        headers["content-type"] = "text/html; charset=utf-8";
+        res.writeHead(proxyRes.statusCode, headers);
+        res.end(body);
+      });
+    } else {
+      // Stream non-HTML responses directly
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      proxyRes.pipe(res);
+    }
+  });
+
+  proxyReq.on("error", (err) => {
+    console.error("[preview-proxy] Error:", err.message);
+    res.status(502).send(`<html><body><h2>Frontend not reachable</h2><p>Could not connect to localhost:${frontendPort}</p><p>${err.message}</p></body></html>`);
+  });
+
+  // Forward request body for POST/PUT/PATCH
+  if (req.method !== "GET" && req.method !== "HEAD" && req.body) {
+    proxyReq.write(JSON.stringify(req.body));
+  }
+  proxyReq.end();
+});
 
 // Auth middleware for all /api/* routes
 function requireAuth(req, res, next) {
@@ -984,296 +1063,21 @@ app.post("/api/notes", (req, res) => {
   res.json({ ok: true });
 });
 
-// Inspect element at coordinates — for visual edit mode
-// Cached Playwright browser for element inspection — avoids 10s startup per click
+// ── DEPRECATED: Playwright-based inspect (replaced by PostMessage bridge) ──
+// The visual edit mode now uses a bridge script injected into the iframe via
+// the preview proxy. The old Playwright approach is commented out below.
+// See: visual-bridge.js (client) + visual-edit.js (parent)
+
+/*
 let inspectBrowser = null;
 let inspectPage = null;
 let inspectLastPath = null;
 
-async function getInspectPage(targetPath) {
-  if (!inspectBrowser) {
-    let chromium;
-    try { ({ chromium } = await import("playwright")); }
-    catch {
-      try { ({ chromium } = await import(`${getWorkspaceDir()}/vibe-ui/node_modules/playwright/index.mjs`)); }
-      catch { ({ chromium } = await import(`${getWorkspaceDir()}/node_modules/playwright/index.mjs`)); }
-    }
-    inspectBrowser = await chromium.launch();
-    inspectPage = await inspectBrowser.newPage({ viewport: { width: 1280, height: 720 } });
-    // Login by actually clicking the Login button (sets Redux state + Axios headers properly)
-    await inspectPage.goto(`http://localhost:${getFrontendPort()}`, { waitUntil: "networkidle", timeout: 15000 });
-    await inspectPage.waitForTimeout(1000);
-    try {
-      // The login page has pre-filled email and a Login button
-      const loginBtn = await inspectPage.$('button:has-text("Login"), button:has-text("LOGIN")');
-      if (loginBtn) {
-        await loginBtn.click();
-        await inspectPage.waitForNavigation({ waitUntil: "networkidle", timeout: 10000 }).catch(() => {});
-        await inspectPage.waitForTimeout(1500);
-      }
-    } catch (e) {
-      console.log("[inspect] Login click failed, trying localStorage fallback");
-      await inspectPage.evaluate(() => { localStorage.setItem("auth_token", "mock-jwt-token-usr-001"); });
-      await inspectPage.reload({ waitUntil: "networkidle", timeout: 10000 });
-      await inspectPage.waitForTimeout(1000);
-    }
-    console.log("[inspect] Browser cached, URL:", inspectPage.url());
-    inspectLastPath = new URL(inspectPage.url()).pathname;
-  }
-  // Navigate if path changed
-  if (targetPath && targetPath !== inspectLastPath) {
-    await inspectPage.goto(`http://localhost:${getFrontendPort()}` + targetPath, { waitUntil: "networkidle", timeout: 10000 }).catch(() => {});
-    await inspectPage.waitForTimeout(500);
-    inspectLastPath = targetPath;
-  }
-  return inspectPage;
-}
+async function getInspectPage(targetPath) { ... }
+*/
 
-// Inject visual edit helper script into the frontend iframe (cross-origin workaround)
-app.post("/api/inject-visual-helper", async (req, res) => {
-  try {
-    const page = await getInspectPage(null);
-    await page.evaluate(() => {
-      if (window.__veHelperActive) return;
-      window.__veHelperActive = true;
-
-      // Tag-to-friendly-name mapping
-      const TAG_NAMES = {
-        button:'Button',a:'Link',img:'Image',p:'Paragraph',input:'Input Field',
-        textarea:'Text Area',select:'Dropdown',table:'Table',tr:'Table Row',
-        td:'Table Cell',th:'Table Cell',ul:'List',ol:'List',li:'List Item',
-        nav:'Navigation',header:'Header',footer:'Footer',form:'Form',label:'Label',
-        span:'Text',div:'Section',svg:'Icon',h1:'Heading',h2:'Heading',h3:'Heading',
-        h4:'Heading',h5:'Heading',h6:'Heading',section:'Section',main:'Main Content',
-      };
-      const MUI_NAMES = {
-        MuiButton:'Button',MuiCard:'Card',MuiAppBar:'Top Navigation Bar',
-        MuiDrawer:'Sidebar',MuiTable:'Table',MuiTextField:'Text Field',
-        MuiSelect:'Dropdown',MuiChip:'Tag',MuiAvatar:'Avatar',MuiDialog:'Dialog',
-        MuiPaper:'Panel',MuiList:'List',MuiIconButton:'Icon Button',MuiToolbar:'Toolbar',
-        MuiTypography:'Text',MuiContainer:'Container',MuiGrid:'Grid Layout',
-      };
-      function getName(el) {
-        const cls = el.className || '';
-        for (const [k,v] of Object.entries(MUI_NAMES)) { if (cls.includes(k)) return v; }
-        return TAG_NAMES[el.tagName?.toLowerCase()] || el.tagName?.toLowerCase() || 'Element';
-      }
-
-      let highlightEl = null;
-      const style = document.createElement('style');
-      style.textContent = '.ve-iframe-highlight { outline: 2px solid rgba(66,133,244,0.8) !important; background-color: rgba(66,133,244,0.08) !important; } .ve-iframe-selected { outline: 2px solid #33d17a !important; box-shadow: 0 0 0 3px rgba(51,209,122,0.2) !important; background-color: rgba(51,209,122,0.06) !important; }';
-      document.head.appendChild(style);
-
-      window.addEventListener('message', (e) => {
-        const msg = e.data;
-        if (!msg || !msg.type?.startsWith('ve-')) return;
-
-        if (msg.type === 've-mousemove') {
-          const el = document.elementFromPoint(msg.x, msg.y);
-          if (highlightEl) highlightEl.classList.remove('ve-iframe-highlight');
-          if (el && el !== document.body && el !== document.documentElement) {
-            highlightEl = el;
-            el.classList.add('ve-iframe-highlight');
-            const r = el.getBoundingClientRect();
-            window.parent.postMessage({
-              source: 've-helper', type: 've-hover',
-              rect: { left: r.left, top: r.top, width: r.width, height: r.height, bottom: r.bottom },
-              name: getName(el),
-              tag: el.tagName?.toLowerCase(),
-              classes: el.className || '',
-              text: (el.textContent || '').trim().slice(0, 80),
-            }, '*');
-          }
-        } else if (msg.type === 've-click') {
-          const el = document.elementFromPoint(msg.x, msg.y);
-          if (highlightEl) highlightEl.classList.remove('ve-iframe-highlight');
-          document.querySelectorAll('.ve-iframe-selected').forEach(e => e.classList.remove('ve-iframe-selected'));
-          if (el && el !== document.body && el !== document.documentElement) {
-            el.classList.add('ve-iframe-selected');
-            const r = el.getBoundingClientRect();
-            const cs = getComputedStyle(el);
-            window.parent.postMessage({
-              source: 've-helper', type: 've-click',
-              rect: { left: r.left, top: r.top, width: r.width, height: r.height },
-              name: getName(el),
-              tag: el.tagName?.toLowerCase(),
-              classes: el.className || '',
-              text: (el.textContent || '').trim().slice(0, 80),
-              styles: { color: cs.color, backgroundColor: cs.backgroundColor, fontSize: cs.fontSize, padding: cs.padding },
-            }, '*');
-          }
-        } else if (msg.type === 've-deactivate') {
-          if (highlightEl) highlightEl.classList.remove('ve-iframe-highlight');
-          document.querySelectorAll('.ve-iframe-selected').forEach(e => e.classList.remove('ve-iframe-selected'));
-          window.__veHelperActive = false;
-        }
-      });
-    });
-    res.json({ ok: true });
-  } catch (e) {
-    res.json({ ok: false, error: e.message });
-  }
-});
-
-app.post("/api/inspect-element", async (req, res) => {
-  const { x, y, pctX, pctY, currentUrl } = req.body;
-  // Accept either absolute x,y or percentage pctX,pctY
-  if (x == null && pctX == null) return res.status(400).json({ error: "Missing coordinates" });
-
-  try {
-    // Extract just the pathname from the URL bar value
-    // URL bar may contain: "localhost:3000", "localhost:3000/users", "codespace-3000.app.github.dev", "/users", etc.
-    let targetPath = "/";
-    if (currentUrl) {
-      try {
-        const full = currentUrl.startsWith("http") ? currentUrl : "http://" + currentUrl;
-        targetPath = new URL(full).pathname || "/";
-      } catch {
-        targetPath = currentUrl.startsWith("/") ? currentUrl : "/";
-      }
-    }
-    console.log(`[inspect] targetPath="${targetPath}" from currentUrl="${currentUrl}"`);
-    const page = await getInspectPage(targetPath);
-
-    // Scale coordinates from preview iframe size to actual page size
-    // The preview iframe might be a different size than 1280x720
-    // Convert percentage to actual viewport pixels
-    const viewportSize = page.viewportSize();
-    const actualX = pctX != null ? Math.round(pctX * viewportSize.width) : x;
-    const actualY = pctY != null ? Math.round(pctY * viewportSize.height) : y;
-    console.log(`[inspect] coordinates: pct=(${pctX},${pctY}) actual=(${actualX},${actualY}) viewport=${viewportSize.width}x${viewportSize.height}`);
-    // Debug: save what the inspect browser actually sees
-    const { writeFileSync: wfs } = await import("fs");
-    const debugScreenshot = await page.screenshot({ type: "png" });
-    wfs("/tmp/inspect-debug.png", debugScreenshot);
-    console.log("[inspect] debug screenshot saved to /tmp/inspect-debug.png");
-    const debugUrl = page.url();
-    console.log("[inspect] current URL:", debugUrl);
-
-    const info = await page.evaluate(({ cx, cy }) => {
-      // Sample the click point and surrounding area, find the best (most specific) element
-      const points = [[cx, cy]];
-      for (const [dx, dy] of [[0,20],[0,40],[0,-20],[20,0],[-20,0],[20,20],[-20,20],[0,60],[0,-40],[40,20],[-40,20],[0,80]]) {
-        points.push([cx + dx, cy + dy]);
-      }
-
-      // Find all unique elements at these points
-      const candidates = [];
-      const seen = new Set();
-      for (const [px, py] of points) {
-        const e = document.elementFromPoint(px, py);
-        if (!e || seen.has(e)) continue;
-        seen.add(e);
-
-        // Find the closest data-component ancestor
-        let compEl = e;
-        while (compEl && compEl !== document.body) {
-          if (compEl.dataset && compEl.dataset.component) break;
-          compEl = compEl.parentElement;
-        }
-        const comp = compEl?.dataset?.component || null;
-        const area = e.offsetWidth * e.offsetHeight;
-        candidates.push({ el: e, comp, area, compEl });
-      }
-
-      // Pick the best candidate: prefer smallest element with a data-component
-      candidates.sort((a, b) => {
-        // Prefer elements with data-component
-        if (a.comp && !b.comp) return -1;
-        if (!a.comp && b.comp) return 1;
-        // Among those with component, prefer the smallest (most specific)
-        return a.area - b.area;
-      });
-
-      const best = candidates[0];
-      if (!best) return null;
-      const el = best.comp ? best.compEl : best.el;
-      if (!el) return null;
-
-      // Component already found by the candidate selection above
-      const comp = best.comp;
-      const node = el;
-
-      // Get element details
-      const tag = el.tagName.toLowerCase();
-      const classes = el.className ? String(el.className).split(" ").filter(Boolean).slice(0, 3).join(".") : "";
-      const text = (el.textContent || "").trim().slice(0, 50);
-      const id = el.id || "";
-      const role = el.getAttribute("role") || "";
-      const ariaLabel = el.getAttribute("aria-label") || "";
-
-      // Get computed styles
-      const style = window.getComputedStyle(el);
-      const currentStyles = {
-        color: style.color,
-        backgroundColor: style.backgroundColor,
-        fontSize: style.fontSize,
-        padding: style.padding,
-      };
-
-      // Build a CSS selector path
-      let selectorParts = [];
-      let n = el;
-      for (let i = 0; i < 3 && n && n !== document.body; i++) {
-        let part = n.tagName.toLowerCase();
-        if (n.id) part += "#" + n.id;
-        else if (n.className && typeof n.className === "string") {
-          const cls = n.className.trim().split(/\s+/).slice(0, 2).join(".");
-          if (cls) part += "." + cls;
-        }
-        selectorParts.unshift(part);
-        n = n.parentElement;
-      }
-      const selector = selectorParts.join(" > ");
-
-      // Get parent component context
-      let parentComp = null;
-      if (node && node.parentElement) {
-        let p = node.parentElement;
-        while (p && p !== document.body) {
-          if (p.dataset && p.dataset.component) {
-            parentComp = p.dataset.component;
-            break;
-          }
-          p = p.parentElement;
-        }
-      }
-
-      return {
-        tag, classes, text, id, role, ariaLabel,
-        component: comp,
-        parentComponent: parentComp,
-        selector,
-        currentStyles,
-        outerHTML: el.outerHTML.slice(0, 200),
-      };
-    }, { cx: actualX, cy: actualY });
-
-    // Take a screenshot
-    const screenshot = await page.screenshot({ type: "png" });
-
-    if (!info) return res.json({ found: false });
-
-    // Build a human-readable description
-    let description = "";
-    if (info.component) {
-      const [name, file, line] = info.component.split(":");
-      description = `Component: ${name} in ${file}${line ? `:${line}` : ""}`;
-    } else {
-      description = `<${info.tag}${info.classes ? "." + info.classes : ""}>${info.text ? ' "' + info.text + '"' : ""}`;
-    }
-
-    res.json({
-      found: true,
-      description,
-      element: info,
-      screenshot: screenshot.toString("base64"),
-    });
-  } catch (err) {
-    console.error("[inspect]", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
+// DEPRECATED: /api/inject-visual-helper and /api/inspect-element removed.
+// Visual edit now uses the PostMessage bridge (visual-bridge.js injected via preview proxy).
 
 // Restart service — looks up dev command from workspace.json
 app.post("/api/restart-service", (req, res) => {
