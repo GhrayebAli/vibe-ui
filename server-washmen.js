@@ -342,12 +342,62 @@ app.post("/api/switch-branch", async (req, res) => {
     const currentBranchFile = join(workspaceDir, ".active-branch");
     const leavingBranch = existsSync(currentBranchFile) ? readFileSync(currentBranchFile, "utf-8").trim() : null;
     if (leavingBranch && leavingBranch !== branch && leavingBranch.startsWith("mvp/")) {
-      const repoPath = join(workspaceDir, configRepos[0]?.name);
-      const defBranch = detectDefaultBranch(discoverRepos());
-      const diffStat = execSync(`git -C "${repoPath}" diff ${defBranch}..HEAD --stat 2>/dev/null`, { stdio: "pipe", timeout: 5000 }).toString().trim();
-      const logSummary = execSync(`git -C "${repoPath}" log ${defBranch}..HEAD --oneline 2>/dev/null`, { stdio: "pipe", timeout: 5000 }).toString().trim();
-      if (diffStat || logSummary) {
-        const notes = `## Auto-generated summary\n\n### Commits\n${logSummary || 'None'}\n\n### Changes\n${diffStat || 'None'}`;
+      const repos = discoverRepos();
+      const defBranch = detectDefaultBranch(repos);
+      const sections = [];
+      let totalCommits = 0, totalFiles = 0;
+
+      for (const repo of repos) {
+        try {
+          const count = parseInt(execSync(`git -C "${repo.path}" rev-list --count ${defBranch}..HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim()) || 0;
+          if (count === 0) continue;
+          totalCommits += count;
+          const files = execSync(`git -C "${repo.path}" diff --name-only ${defBranch}..HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim().split("\n").filter(Boolean);
+          totalFiles += files.length;
+          const stat = execSync(`git -C "${repo.path}" diff --stat ${defBranch}..HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim();
+          const lastLine = stat.split("\n").pop() || '';
+          sections.push(`**${repo.name}** — ${count} commits, ${files.length} files\n${files.map(f => '- `' + f + '`').join('\n')}\n${lastLine}`);
+        } catch {}
+      }
+
+      // Get session title for context
+      const session = getSessionByBranch(leavingBranch);
+      const title = session?.title || session?.project_name || leavingBranch.replace('mvp/', '');
+
+      if (sections.length > 0) {
+        // Build a change summary from chat messages (what the user asked + what the AI did)
+        let changeSummary = '';
+        if (session) {
+          try {
+            const msgs = getDb().prepare(
+              "SELECT role, substr(content, 1, 500) as preview FROM messages WHERE session_id = ? ORDER BY created_at ASC"
+            ).all(session.id);
+            const turns = [];
+            let currentUserMsg = '';
+            for (const m of msgs) {
+              try {
+                const parsed = JSON.parse(m.preview);
+                if (m.role === 'user' && parsed.text) {
+                  currentUserMsg = parsed.text.replace(/\[Attached image:[^\]]+\]\s*/g, '').trim();
+                } else if (m.role === 'assistant' && parsed.text && currentUserMsg) {
+                  // Extract first sentence of AI response as the action taken
+                  const firstSentence = parsed.text.split(/[.!?\n]/)[0]?.trim();
+                  if (firstSentence && firstSentence.length > 10) {
+                    turns.push(`- **${currentUserMsg}** → ${firstSentence}`);
+                  } else {
+                    turns.push(`- ${currentUserMsg}`);
+                  }
+                  currentUserMsg = '';
+                }
+              } catch {}
+            }
+            if (turns.length > 0) {
+              changeSummary = `\n\n### What was done\n${turns.join('\n')}`;
+            }
+          } catch {}
+        }
+
+        const notes = `## ${title}\n\n**${totalCommits} commits** across **${totalFiles} files** in ${sections.length} repo${sections.length > 1 ? 's' : ''}${changeSummary}\n\n### Files changed\n\n${sections.join('\n\n---\n\n')}`;
         saveNotes(leavingBranch, notes);
       }
     }
