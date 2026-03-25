@@ -622,6 +622,19 @@ app.post("/api/sessions/:id/undo", async (req, res) => {
 });
 
 // File read API — for Code tab (restricted to workspace)
+// Serve uploaded images
+app.get("/api/uploads/*", (req, res) => {
+  try {
+    const fileName = req.params[0];
+    if (!fileName || fileName.includes('..')) return res.status(400).json({ error: "Invalid path" });
+    const filePath = join(getWorkspaceDir(), "tmp", "uploads", fileName);
+    if (!existsSync(filePath)) return res.status(404).json({ error: "Not found" });
+    res.sendFile(filePath);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/file", (req, res) => {
   try {
     const filePath = req.query.path;

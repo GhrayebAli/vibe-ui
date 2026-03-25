@@ -331,7 +331,22 @@ export function loadMessages(msgs) {
       toolBatch = [];
       if (m.role === 'user') {
         finalizeTurnFooter();
-        addUserMsg(text);
+        // Parse out attached images from stored text
+        const imgRegex = /\[Attached image: ([^\]]+)\]\s*/g;
+        const images = [];
+        let cleanText = text;
+        let match;
+        while ((match = imgRegex.exec(text)) !== null) {
+          images.push(match[1]);
+        }
+        cleanText = text.replace(imgRegex, '').trim();
+        const attachHtml = images.length > 0
+          ? images.map(src => {
+              const fileName = src.split('/').pop();
+              return `<img src="/api/uploads/${encodeURIComponent(fileName)}" class="attach-thumb" alt="attached">`;
+            }).join('')
+          : '';
+        addUserMsg(cleanText, attachHtml);
       } else if (m.role === 'assistant') addAgentMsg(text, false);
       else if (m.role === 'result') {
         showTurnCost(parsed.cost_usd, parsed.model);
