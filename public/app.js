@@ -48,8 +48,7 @@ async function showLanding() {
   homeBtn.style.display = 'none';
   $('notes-btn').style.display = 'none';
   // Hide mode toggle and model select on landing (not relevant yet)
-  $('mode-toggle').style.display = 'none';
-  $('model-picker').style.display = 'none';
+  $('controls-bar').style.display = 'none';
 
   try {
     const resp = await fetch('/api/workspace');
@@ -123,8 +122,7 @@ function hideLanding() {
   $('input-dock').style.display = '';
   $('home-btn').style.display = '';
   // Restore mode toggle and model select
-  $('mode-toggle').style.display = '';
-  $('model-picker').style.display = '';
+  $('controls-bar').style.display = '';
   // Notes button shown dynamically when branch has changes
 }
 
@@ -139,8 +137,7 @@ function showSwitchProgress(branchName, steps) {
   chat.style.display = 'none';
   $('input-dock').style.display = 'none';
   $('home-btn').style.display = 'none';
-  $('mode-toggle').style.display = 'none';
-  $('model-picker').style.display = 'none';
+  $('controls-bar').style.display = 'none';
 
   title.textContent = `Switching to ${branchName}...`;
   stepsEl.innerHTML = '';
@@ -172,8 +169,7 @@ function hideSwitchProgress() {
   chat.style.display = '';
   $('input-dock').style.display = '';
   $('home-btn').style.display = '';
-  $('mode-toggle').style.display = '';
-  $('model-picker').style.display = '';
+  $('controls-bar').style.display = '';
 }
 
 function startDiscover() {

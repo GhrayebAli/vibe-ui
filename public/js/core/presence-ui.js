@@ -1,6 +1,9 @@
 /**
  * Presence UI — Multi-User Awareness (Phase 4)
- * Renders online user avatars, build lock indicator, and presence dropdown.
+ *
+ * Renders into two separate containers:
+ *   #presence-bar  — top bar: online count + avatar stack + dropdown toggle
+ *   #status-strip  — below controls bar: build lock + branch conflict (only visible when active)
  */
 
 import { getIdentity } from './identity.js';
@@ -55,21 +58,24 @@ export function onBuildLockReleased() {
 }
 
 function render() {
+  renderPresenceBar();
+  renderStatusStrip();
+}
+
+/** Render #presence-bar — compact: count + avatars + toggle */
+function renderPresenceBar() {
   const container = document.getElementById('presence-bar');
   if (!container) return;
 
-  // Close any open dropdown before re-rendering (prevents orphaned DOM + stale listeners)
+  // Close any open dropdown before re-rendering
   const openDD = document.getElementById('presence-dropdown');
   if (openDD) openDD.remove();
 
   const identity = getIdentity();
   const myName = identity?.name;
-
-  // Filter out current user from the avatar stack
   const others = _users.filter(u => u.name !== myName);
   const total = _users.length;
 
-  // Build HTML
   let html = '';
 
   // Online count pill
@@ -77,50 +83,20 @@ function render() {
     <span class="presence-dot"></span>${total}
   </div>`;
 
-  // Avatar stack (max 5)
+  // Avatar stack (max 4)
   if (others.length > 0) {
     html += '<div class="presence-avatars">';
-    const shown = others.slice(0, 5);
+    const shown = others.slice(0, 4);
     for (const u of shown) {
       const initials = u.name.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
       const color = roleColors[u.role] || roleColors.other;
-      const statusDot = u.status === 'building' ? ' presence-building' : (u.status === 'active' ? ' presence-active' : '');
-      html += `<div class="presence-avatar${statusDot}" style="background:${color}" title="${esc(u.name)} (${esc(u.role)}) — ${esc(u.status)}${u.branch ? ' on ' + esc(u.branch) : ''}">${initials}</div>`;
+      const ring = u.status === 'building' ? ' presence-building' : (u.status === 'active' ? ' presence-active' : '');
+      html += `<div class="presence-avatar${ring}" style="background:${color}" title="${esc(u.name)} (${esc(u.role)}) — ${esc(u.status)}${u.branch ? ' on ' + esc(u.branch) : ''}">${initials}</div>`;
     }
-    if (others.length > 5) {
-      html += `<div class="presence-avatar presence-more" title="${others.length - 5} more">+${others.length - 5}</div>`;
+    if (others.length > 4) {
+      html += `<div class="presence-avatar presence-more" title="${others.length - 4} more">+${others.length - 4}</div>`;
     }
     html += '</div>';
-  }
-
-  // Build lock indicator
-  if (_buildLock) {
-    const isMe = _buildLock.userName === myName;
-    if (isMe) {
-      html += `<div class="presence-lock presence-lock-mine" title="You hold the build lock">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        <span>You're building</span>
-        <button class="presence-lock-release" title="Release lock">✕</button>
-      </div>`;
-    } else {
-      html += `<div class="presence-lock presence-lock-other" title="${esc(_buildLock.userName)} is building">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        <span>${esc(_buildLock.userName)} building</span>
-        <button class="presence-lock-takeover" title="Take over build lock">Take over</button>
-      </div>`;
-    }
-  }
-
-  // Branch conflict warning — others on same branch
-  if (_currentBranch) {
-    const sameBranch = others.filter(u => u.branch === _currentBranch);
-    if (sameBranch.length > 0) {
-      const names = sameBranch.map(u => u.name).join(', ');
-      html += `<div class="presence-branch-warn" title="${esc(names)} also on ${esc(_currentBranch)}">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <span>${sameBranch.length === 1 ? esc(sameBranch[0].name) : sameBranch.length + ' others'} on same branch</span>
-      </div>`;
-    }
   }
 
   // Dropdown toggle
@@ -131,25 +107,7 @@ function render() {
   container.innerHTML = html;
   container.style.display = total > 0 ? 'flex' : 'none';
 
-  // Wire up event listeners
-  const releaseBtn = container.querySelector('.presence-lock-release');
-  if (releaseBtn) {
-    releaseBtn.onclick = () => {
-      if (_ws?.readyState === 1) {
-        _ws.send(JSON.stringify({ type: 'release_lock' }));
-      }
-    };
-  }
-
-  const takeoverBtn = container.querySelector('.presence-lock-takeover');
-  if (takeoverBtn) {
-    takeoverBtn.onclick = () => {
-      if (_ws?.readyState === 1) {
-        _ws.send(JSON.stringify({ type: 'take_over' }));
-      }
-    };
-  }
-
+  // Wire dropdown toggle
   const toggle = container.querySelector('.presence-toggle');
   if (toggle) {
     toggle.onclick = (e) => {
@@ -157,6 +115,67 @@ function render() {
       toggleDropdown();
     };
   }
+}
+
+/** Render #status-strip — build lock + branch conflict warnings */
+function renderStatusStrip() {
+  const strip = document.getElementById('status-strip');
+  if (!strip) return;
+
+  const identity = getIdentity();
+  const myName = identity?.name;
+  const others = _users.filter(u => u.name !== myName);
+
+  let items = [];
+
+  // Build lock indicator
+  if (_buildLock) {
+    const isMe = _buildLock.userName === myName;
+    if (isMe) {
+      items.push(`<div class="status-chip status-lock-mine">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span>You're building</span>
+        <button class="status-chip-action" data-action="release" title="Release lock">&times;</button>
+      </div>`);
+    } else {
+      items.push(`<div class="status-chip status-lock-other">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span>${esc(_buildLock.userName)} is building</span>
+        <button class="status-chip-action status-chip-takeover" data-action="takeover">Take over</button>
+      </div>`);
+    }
+  }
+
+  // Branch conflict warning
+  if (_currentBranch) {
+    const sameBranch = others.filter(u => u.branch === _currentBranch);
+    if (sameBranch.length > 0) {
+      const names = sameBranch.map(u => u.name).join(', ');
+      items.push(`<div class="status-chip status-branch-warn" title="${esc(names)} also on ${esc(_currentBranch)}">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>${sameBranch.length === 1 ? esc(sameBranch[0].name) : sameBranch.length + ' others'} on same branch</span>
+      </div>`);
+    }
+  }
+
+  if (items.length === 0) {
+    strip.style.display = 'none';
+    strip.innerHTML = '';
+    return;
+  }
+
+  strip.innerHTML = items.join('');
+  strip.style.display = 'flex';
+
+  // Wire actions
+  strip.querySelectorAll('[data-action]').forEach(btn => {
+    btn.onclick = () => {
+      if (!_ws || _ws.readyState !== 1) return;
+      const action = btn.dataset.action;
+      if (action === 'release') _ws.send(JSON.stringify({ type: 'release_lock' }));
+      if (action === 'takeover') _ws.send(JSON.stringify({ type: 'take_over' }));
+    };
+  });
 }
 
 function toggleDropdown() {
@@ -187,7 +206,7 @@ function toggleDropdown() {
         <div class="presence-dd-avatar" style="background:${color}">${initials}</div>
         <div class="presence-dd-info">
           <div class="presence-dd-name">${esc(u.name)}${isMe ? ' <span class="presence-dd-you">(you)</span>' : ''}</div>
-          <div class="presence-dd-meta">${u.role}${u.branch ? ' · ' + esc(u.branch) : ''}${isBuilding ? ' · 🔨 building' : ''}</div>
+          <div class="presence-dd-meta">${esc(u.role)}${u.branch ? ' · ' + esc(u.branch) : ''}${isBuilding ? ' · building' : ''}</div>
         </div>
       </div>`;
     }
