@@ -495,7 +495,9 @@ pre:hover .code-copy { opacity: 1; }
 .switch-step.done { color: var(--green); }
 
 /* ── Landing Screen ── */
-.landing { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 24px 16px; gap: 20px; animation: fadeIn .3s ease; }
+.landing { display: flex; flex-direction: column; align-items: center; flex: 1; padding: 24px 16px; gap: 16px; animation: fadeIn .3s ease; overflow-y: auto; }
+.landing::before { content: ''; flex: 1; }
+.landing::after { content: ''; flex: 1; }
 .landing-header { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .landing-logo { margin-bottom: 4px; }
 .landing-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
