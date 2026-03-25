@@ -44,7 +44,13 @@ const ALLOWED_DEV_PATTERNS = [
   /^nodemon\s+/,
 ];
 
+// Env var prefix pattern: KEY=value (no shell metacharacters in value)
+const ENV_PREFIX_RE = /^([A-Z_][A-Z0-9_]*=[\w\-\.\/\+:]+\s+)+/;
+
 export function validateDevCommand(cmd) {
   if (!cmd || typeof cmd !== "string") return false;
-  return ALLOWED_DEV_PATTERNS.some((p) => p.test(cmd.trim()));
+  let trimmed = cmd.trim();
+  // Strip safe env var prefixes (e.g. NODE_OPTIONS=--openssl-legacy-provider)
+  trimmed = trimmed.replace(ENV_PREFIX_RE, "");
+  return ALLOWED_DEV_PATTERNS.some((p) => p.test(trimmed));
 }

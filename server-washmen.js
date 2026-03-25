@@ -494,6 +494,20 @@ app.post("/api/switch-branch", async (req, res) => {
     }
   }
 
+  // Set all service ports to public in Codespaces
+  if (process.env.CODESPACES === "true") {
+    const publicPorts = getConfig().repos.filter(r => r.port && r.type === "frontend").map(r => r.port);
+    // Also include backend ports that the frontend calls directly
+    getConfig().repos.filter(r => r.port).forEach(r => publicPorts.push(r.port));
+    const uniquePorts = [...new Set(publicPorts)];
+    if (uniquePorts.length > 0) {
+      setTimeout(() => {
+        const portsArg = uniquePorts.map(p => `${p}:public`).join(" ");
+        try { execSync(`gh codespace ports visibility ${portsArg} 2>/dev/null`, { stdio: "pipe", timeout: 10000 }); } catch {}
+      }, 5000);
+    }
+  }
+
   // Save active branch for codespace restarts
   try {
     writeFileSync(join(workspaceDir, ".active-branch"), branch);
@@ -1299,6 +1313,12 @@ app.post("/api/restart-service", (req, res) => {
       console.error(`[spawn] ${repo.name} failed:`, err.message);
       wsBroadcast({ type: "system", text: `Failed to start ${repo.name}: ${err.message}` });
     });
+    // Set port to public in Codespaces
+    if (process.env.CODESPACES === "true" && repo.port) {
+      setTimeout(() => {
+        try { execSync(`gh codespace ports visibility ${repo.port}:public 2>/dev/null`, { stdio: "pipe", timeout: 10000 }); } catch {}
+      }, 5000);
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
