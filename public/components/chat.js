@@ -164,8 +164,6 @@ export function showThinking() {
   thinkingEl.innerHTML = '<div class="think-dots"><span></span><span></span><span></span></div> Thinking\u2026';
   chatEl.appendChild(thinkingEl);
   scrollBottom();
-  // Start the persistent working indicator
-  showWorking();
 }
 
 export function hideThinking() {
@@ -209,6 +207,9 @@ export function showActivity(tool, input) {
   const { icon, label } = getToolLabel(tool, input);
 
   activityLog.push({ icon, label, ts: Date.now() });
+
+  // Start working indicator on first tool use (replaces Thinking...)
+  if (!workingEl) showWorking();
 
   if (!activityEl) {
     activityEl = document.createElement('div');
