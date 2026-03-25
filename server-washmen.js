@@ -716,6 +716,16 @@ app.get("/api/file", (req, res) => {
   }
 });
 
+// Serve uploaded images for chat history replay
+app.get("/api/uploads/:filename", (req, res) => {
+  const uploadDir = join(getWorkspaceDir(), "tmp", "uploads");
+  const filename = req.params.filename.replace(/[^a-zA-Z0-9._-]/g, "");
+  const filePath = join(uploadDir, filename);
+  res.sendFile(filePath, (err) => {
+    if (err) res.status(404).json({ error: "File not found" });
+  });
+});
+
 // File upload API — saves to workspace /tmp/uploads/ for agent to read
 app.post("/api/upload", (req, res) => {
   try {
