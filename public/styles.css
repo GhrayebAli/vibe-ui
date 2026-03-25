@@ -492,8 +492,10 @@ pre:hover .code-copy { opacity: 1; }
 
 /* ── Landing Screen ── */
 .landing { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 24px 16px; gap: 20px; animation: fadeIn .3s ease; }
-.landing-header { text-align: center; }
+.landing-header { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.landing-logo { margin-bottom: 4px; }
 .landing-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.topbar-logo { flex-shrink: 0; margin-right: 4px; }
 .landing-subtitle { font-size: 14px; color: var(--text-dim); }
 .landing-cards { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 400px; }
 .landing-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; cursor: pointer; transition: all var(--transition); display: flex; gap: 12px; align-items: flex-start; text-align: left; color: var(--text); font-family: var(--font); }

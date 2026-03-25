@@ -1,4 +1,4 @@
-// Guided tour — uses Driver.js to walk users through Washmen Ops v2 features
+// Guided tour — uses Driver.js to walk users through WashVibe features
 const TOUR_KEY = 'claudeck-tour-completed';
 
 function buildSteps() {

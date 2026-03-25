@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Washmen Ops</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <title>WashVibe</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%239b87f5'/><path d='M9 10l4 6-4 6' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/><path d='M17 10h6M17 16h4M17 22h6' stroke='white' stroke-width='2' stroke-linecap='round'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
@@ -22,7 +22,8 @@
     <!-- Top Bar -->
     <div class="top-bar">
       <div class="top-bar-left">
-        <input class="project-name" id="project-name" value="Washmen Ops" spellcheck="false">
+        <svg class="topbar-logo" width="20" height="20" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M9 10l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 10h6M17 16h4M17 22h6" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+        <input class="project-name" id="project-name" value="WashVibe" spellcheck="false">
         <button id="home-btn" class="strip-btn" title="Home" style="display:none">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
@@ -57,7 +58,14 @@
     <!-- Landing Screen (replaces chat on load) -->
     <div id="landing" class="landing">
       <div class="landing-header">
-        <div class="landing-title">Washmen Ops</div>
+        <div class="landing-logo">
+          <svg width="40" height="40" viewBox="0 0 32 32" fill="none">
+            <rect width="32" height="32" rx="8" fill="var(--accent)"/>
+            <path d="M9 10l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M17 10h6M17 16h4M17 22h6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="landing-title">WashVibe</div>
         <div class="landing-subtitle">What would you like to do?</div>
       </div>
       <div class="landing-cards">
@@ -247,10 +255,14 @@
 <div id="welcome-overlay" class="hidden">
   <div class="welcome-inner">
     <div class="welcome-logo">
-      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
+        <rect width="32" height="32" rx="8" fill="var(--accent)"/>
+        <path d="M9 10l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M17 10h6M17 16h4M17 22h6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      </svg>
     </div>
-    <div class="welcome-title">Washmen Ops</div>
-    <div class="welcome-subtitle">AI-powered workspace for building features</div>
+    <div class="welcome-title">WashVibe</div>
+    <div class="welcome-subtitle">Vibe-code features, ship MVPs</div>
     <div class="welcome-features">
       <div class="welcome-feature">
         <span class="welcome-feature-dot"></span>
