@@ -154,6 +154,9 @@ export function addErrorMsg(text, onFix) {
   scrollBottom();
 }
 
+let workingEl = null;
+let workingTimer = null;
+
 export function showThinking() {
   if (thinkingEl) return;
   thinkingEl = document.createElement('div');
@@ -161,10 +164,32 @@ export function showThinking() {
   thinkingEl.innerHTML = '<div class="think-dots"><span></span><span></span><span></span></div> Thinking\u2026';
   chatEl.appendChild(thinkingEl);
   scrollBottom();
+  // Start the persistent working indicator
+  showWorking();
 }
 
 export function hideThinking() {
   if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
+}
+
+function showWorking() {
+  if (workingEl) return;
+  const startTime = Date.now();
+  workingEl = document.createElement('div');
+  workingEl.className = 'working-indicator';
+  workingEl.innerHTML = '<span class="working-dot"></span><span class="working-text">Working\u2026</span><span class="working-elapsed"></span>';
+  chatEl.appendChild(workingEl);
+  workingTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const elapsedEl = workingEl?.querySelector('.working-elapsed');
+    if (elapsedEl) elapsedEl.textContent = `${elapsed}s`;
+  }, 1000);
+  scrollBottom();
+}
+
+export function hideWorking() {
+  if (workingEl) { workingEl.remove(); workingEl = null; }
+  if (workingTimer) { clearInterval(workingTimer); workingTimer = null; }
 }
 
 function getToolLabel(tool, input) {
@@ -199,8 +224,12 @@ export function showActivity(tool, input) {
     activityEl.querySelector('.activity-current').onclick = () => activityEl.classList.toggle('expanded');
   }
 
-  // Always keep activity feed at the bottom of chat
-  chatEl.appendChild(activityEl);
+  // Always keep activity feed at the bottom of chat (but above working indicator)
+  if (workingEl) {
+    chatEl.insertBefore(activityEl, workingEl);
+  } else {
+    chatEl.appendChild(activityEl);
+  }
 
   // Ensure spinner is visible (hideActivity may have hidden it)
   const spinner = activityEl.querySelector('.activity-spinner');
@@ -253,6 +282,8 @@ export function clearChat() {
   currentAgentText = '';
   activityLog = [];
   currentTurnFooter = null;
+  hideWorking();
+  workingEl = null;
 }
 
 export function addScreenshot(base64, caption) {

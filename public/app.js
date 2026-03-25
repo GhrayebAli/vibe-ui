@@ -1,4 +1,4 @@
-import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, showDiffSummary, showTurnCost, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion, getTurnFooter, finalizeTurnFooter } from './components/chat.js';
+import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, hideWorking, showDiffSummary, showTurnCost, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion, getTurnFooter, finalizeTurnFooter } from './components/chat.js';
 import { initPreview, refreshPreview, setDevice, navigatePreview } from './components/preview.js';
 import { initNotes, onNotesOpen, onNotesGenerated } from './components/notes.js';
 import { initStatus, checkHealth } from './components/status.js';
@@ -351,7 +351,8 @@ function handleMessage(msg) {
 
     case 'assistant_done':
       hideThinking();
-      hideActivity(); // Clear any stuck spinners from the turn
+      hideActivity();
+      hideWorking();
       addAgentMsg(null, false); // finalize
       // Add undo button only when files were changed
       if (sid && msg.filesChanged > 0) attachUndoButton();
@@ -423,6 +424,7 @@ function handleMessage(msg) {
     case 'error':
       hideThinking();
       hideActivity();
+      hideWorking();
       addErrorMsg(msg.text, () => {
         // "Try to Fix" callback
         doSend('Fix this error: ' + msg.text);
