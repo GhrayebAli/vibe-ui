@@ -8,6 +8,7 @@ import { getIdentity } from './identity.js';
 let _users = [];
 let _buildLock = null;
 let _ws = null;
+let _currentBranch = null;
 
 const roleColors = {
   pm: '#f59e0b',
@@ -32,6 +33,12 @@ export function initPresenceUI(ws) {
 /** Update WS reference on reconnect */
 export function setPresenceWs(ws) {
   _ws = ws;
+}
+
+/** Update current branch — call when branch changes */
+export function setPresenceBranch(branch) {
+  _currentBranch = branch;
+  render();
 }
 
 /** Called when server sends presence_update */
@@ -102,6 +109,18 @@ function render() {
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         <span>${esc(_buildLock.userName)} building</span>
         <button class="presence-lock-takeover" title="Take over build lock">Take over</button>
+      </div>`;
+    }
+  }
+
+  // Branch conflict warning — others on same branch
+  if (_currentBranch) {
+    const sameBranch = others.filter(u => u.branch === _currentBranch);
+    if (sameBranch.length > 0) {
+      const names = sameBranch.map(u => u.name).join(', ');
+      html += `<div class="presence-branch-warn" title="${esc(names)} also on ${esc(_currentBranch)}">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>${sameBranch.length === 1 ? esc(sameBranch[0].name) : sameBranch.length + ' others'} on same branch</span>
       </div>`;
     }
   }
@@ -198,4 +217,4 @@ function esc(str) {
   return d.innerHTML;
 }
 
-export default { initPresenceUI, setPresenceWs, updatePresence, onBuildLockAcquired, onBuildLockReleased };
+export default { initPresenceUI, setPresenceWs, setPresenceBranch, updatePresence, onBuildLockAcquired, onBuildLockReleased };

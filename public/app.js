@@ -6,7 +6,7 @@ import { initBudget, updateBudget } from './components/budget.js';
 import './js/features/welcome.js';
 import { initVisualEdit, toggleVisualEdit, deactivate as deactivateVisualEdit, highlightChange, getPendingChangeSelector, toggleHistory } from './components/visual-edit.js';
 import { requireIdentity, getIdentity } from './js/core/identity.js';
-import { initPresenceUI, setPresenceWs, updatePresence, onBuildLockAcquired, onBuildLockReleased } from './js/core/presence-ui.js';
+import { initPresenceUI, setPresenceWs, setPresenceBranch, updatePresence, onBuildLockAcquired, onBuildLockReleased } from './js/core/presence-ui.js';
 
 /* ═══ DOM refs ═══ */
 const $ = id => document.getElementById(id);
@@ -62,6 +62,7 @@ async function showLanding() {
   // Track the server-reported active branch
   if (workspaceData.activeBranch) {
     currentBranch = workspaceData.activeBranch;
+    setPresenceBranch(currentBranch);
     // Show branch badge on landing if on an mvp branch
     const badge = $('branch-badge');
     if (badge && currentBranch.startsWith('mvp/')) {
@@ -215,6 +216,8 @@ async function resumeBranch(branch) {
 
   mode = 'build';
   currentBranch = branch.name;
+  setPresenceBranch(currentBranch);
+  if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'branch_switch', branch: currentBranch }));
   const badge = $('branch-badge');
   if (badge) { badge.textContent = branch.name; badge.style.display = ''; }
 
@@ -265,6 +268,8 @@ async function startNewFeature() {
 
     mode = 'build';
     currentBranch = result.branch;
+    setPresenceBranch(currentBranch);
+    if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'branch_switch', branch: currentBranch }));
     sid = null;
 
     const badge = $('branch-badge');
@@ -476,6 +481,7 @@ function handleMessage(msg) {
 
     case 'branch_created':
       currentBranch = msg.branch;
+      setPresenceBranch(currentBranch);
       const badge = $('branch-badge');
       if (badge) { badge.textContent = msg.branch; badge.style.display = ''; }
       break;

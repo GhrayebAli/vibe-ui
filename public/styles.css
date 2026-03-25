@@ -714,6 +714,11 @@ pre:hover .code-copy { opacity: 1; }
 .presence-lock-release:hover, .presence-lock-takeover:hover { opacity: 1; }
 .presence-lock-takeover { text-decoration: underline; }
 
+/* Branch conflict warning */
+.presence-branch-warn { display: flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 8px; border-radius: var(--radius-pill); background: var(--orange-soft); color: var(--orange); white-space: nowrap; animation: presenceWarnPulse 3s ease-in-out infinite; }
+.presence-branch-warn svg { flex-shrink: 0; }
+@keyframes presenceWarnPulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+
 /* Dropdown toggle */
 .presence-toggle { width: 28px; height: 28px; border-radius: var(--radius-sm); border: none; background: transparent; color: var(--text-dim); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all var(--transition); }
 .presence-toggle:hover { background: var(--accent-soft); color: var(--accent); }

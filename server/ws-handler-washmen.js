@@ -227,6 +227,13 @@ export function handleWashmenWs(ws, sessionIds, presence = null) {
       return;
     }
 
+    if (msg.type === "branch_switch") {
+      if (presence && ws.__id && msg.branch) {
+        presence.switchBranch(ws.__id, msg.branch);
+      }
+      return;
+    }
+
     if (msg.type === "release_lock") {
       if (presence && ws.__id) {
         presence.releaseLock(ws.__id);
