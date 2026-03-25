@@ -100,8 +100,8 @@ async function showLanding() {
       if (b.cost > 0) details.push(`$${b.cost.toFixed(2)}`);
       if (meta) details.push(meta);
       item.innerHTML = `
-        <span class="landing-branch-name">${escapeHtml(b.name.replace('mvp/', ''))}</span>
-        <span class="landing-branch-meta">${details.join(' · ')}</span>
+        <div class="landing-branch-name">${escapeHtml(b.name.replace('mvp/', ''))}</div>
+        <div class="landing-branch-meta">${details.join(' · ')}</div>
       `;
       item.onclick = () => resumeBranch(b);
       branchList.appendChild(item);
