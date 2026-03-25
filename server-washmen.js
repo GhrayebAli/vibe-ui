@@ -225,25 +225,37 @@ app.get("/api/workspace", (_req, res) => {
           seenBranches.add(name);
           const session = getSessionByBranch(name);
           const msgCount = session ? getDb().prepare("SELECT COUNT(*) as c FROM messages WHERE session_id = ?").get(session.id)?.c || 0 : 0;
+          // Aggregate stats across all repos for this branch
           let commitCount = 0, lastCommitMsg = '', filesChanged = 0;
-          try {
-            commitCount = parseInt(execSync(
-              `git -C "${repoPath}" rev-list --count ${sanitizeBranchName(defaultBranch)}..${sanitizeBranchName(name)}`,
-              { stdio: "pipe" }
-            ).toString().trim()) || 0;
-          } catch {}
-          try {
-            lastCommitMsg = execSync(
-              `git -C "${repoPath}" log -1 --pretty=%s ${sanitizeBranchName(name)}`,
-              { stdio: "pipe" }
-            ).toString().trim().slice(0, 100);
-          } catch {}
-          try {
-            filesChanged = execSync(
-              `git -C "${repoPath}" diff --name-only ${sanitizeBranchName(defaultBranch)}..${sanitizeBranchName(name)}`,
-              { stdio: "pipe" }
-            ).toString().trim().split("\n").filter(Boolean).length;
-          } catch {}
+          let latestCommitTs = 0;
+          for (const repo of repos) {
+            try {
+              const c = parseInt(execSync(
+                `git -C "${repo.path}" rev-list --count ${sanitizeBranchName(defaultBranch)}..${sanitizeBranchName(name)}`,
+                { stdio: "pipe" }
+              ).toString().trim()) || 0;
+              commitCount += c;
+              if (c > 0) {
+                const files = execSync(
+                  `git -C "${repo.path}" diff --name-only ${sanitizeBranchName(defaultBranch)}..${sanitizeBranchName(name)}`,
+                  { stdio: "pipe" }
+                ).toString().trim().split("\n").filter(Boolean).length;
+                filesChanged += files;
+                // Use the most recent commit message across repos
+                const ts = parseInt(execSync(
+                  `git -C "${repo.path}" log -1 --format=%ct ${sanitizeBranchName(name)}`,
+                  { stdio: "pipe" }
+                ).toString().trim()) || 0;
+                if (ts > latestCommitTs) {
+                  latestCommitTs = ts;
+                  lastCommitMsg = execSync(
+                    `git -C "${repo.path}" log -1 --pretty=%s ${sanitizeBranchName(name)}`,
+                    { stdio: "pipe" }
+                  ).toString().trim().slice(0, 100);
+                }
+              }
+            } catch {}
+          }
           branches.push({
             name,
             local: true,
