@@ -27,7 +27,14 @@ let rafId = null;
 export function initVisualEdit(frame, sendFn) {
   previewFrame = frame;
   onSendPrompt = sendFn;
-  window.addEventListener('message', handleBridgeMessage);
+  console.log('[visual-edit] initVisualEdit called, frame:', !!frame, 'frame.id:', frame?.id);
+  window.addEventListener('message', (e) => {
+    // Debug: log ALL messages to see if bridge messages arrive
+    if (e.data && typeof e.data === 'object' && e.data.type && typeof e.data.type === 'string' && e.data.type.startsWith('VE_')) {
+      console.log('[visual-edit] postMessage received:', e.data.type, 'from:', e.origin);
+    }
+    handleBridgeMessage(e);
+  });
 }
 
 export function toggleVisualEdit() {
@@ -134,6 +141,10 @@ function postToBridge(msg) {
 
 function handleBridgeMessage(e) {
   const msg = e.data;
+  if (!msg || typeof msg !== 'object') return;
+  if (typeof msg.type === 'string' && msg.type.startsWith('VE_')) {
+    console.log('[visual-edit] Received bridge message:', msg.type);
+  }
   if (!msg || typeof msg.type !== 'string' || !msg.type.startsWith('VE_')) return;
 
   if (msg.type === 'VE_BRIDGE_READY' || msg.type === 'VE_PONG') {
