@@ -121,7 +121,7 @@ app.get("/api/prompts", (_req, res) => {
 // ── Workspace auto-discovery ──
 function discoverRepos() {
   const workspaceDir = getWorkspaceDir();
-  const exclude = ["vibe-ui", "node_modules", ".git", ".devcontainer", ".claude", ".github"];
+  const exclude = ["vibe-ui", "core", "node_modules", ".git", ".devcontainer", ".claude", ".github", "docs", "tmp"];
   const repos = [];
   try {
     const entries = readdirSync(workspaceDir, { withFileTypes: true });
@@ -183,7 +183,8 @@ function detectDefaultBranch(repos) {
 
 app.get("/api/workspace", (_req, res) => {
   try {
-    const repos = discoverRepos();
+    const cfg = getConfig();
+    const repos = (cfg && cfg.repos && cfg.repos.length > 0) ? cfg.repos : discoverRepos();
     const defaultBranch = detectDefaultBranch(repos);
     const workspaceDir = getWorkspaceDir();
 
