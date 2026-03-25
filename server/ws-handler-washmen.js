@@ -185,6 +185,13 @@ function createMvpBranches(featureName) {
   return results;
 }
 
+// Per-session changed files tracking (sessionId -> Set of file paths with metadata)
+const sessionChangedFiles = new Map();
+
+export function getSessionChangedFiles(sessionId) {
+  return sessionChangedFiles.get(sessionId) || [];
+}
+
 export function handleWashmenWs(ws, sessionIds) {
   let currentSessionId = null;
   let currentQuery = null;
@@ -471,6 +478,32 @@ export function handleWashmenWs(ws, sessionIds) {
               if (ws.readyState === 1) {
                 ws.send(JSON.stringify({ type: "tool_complete", tool: toolName }));
               }
+
+              // Emit file_changed for Edit/Write tools
+              const toolInput = input.tool_input || {};
+              if ((toolName === "Edit" || toolName === "Write" || toolName === "edit" || toolName === "write") && toolInput.file_path) {
+                const filePath = toolInput.file_path;
+                const action = (toolName === "Write" || toolName === "write") ? "write" : "edit";
+
+                // Determine repo from path
+                let repo = "";
+                const repoNames = getRepoNames();
+                for (const rn of repoNames) {
+                  if (filePath.includes(`/${rn}/`)) { repo = rn; break; }
+                }
+
+                // Track in session set
+                if (!sessionChangedFiles.has(sessionId)) sessionChangedFiles.set(sessionId, []);
+                const sessionFiles = sessionChangedFiles.get(sessionId);
+                if (!sessionFiles.find(f => f.filePath === filePath)) {
+                  sessionFiles.push({ filePath, repo, action, timestamp: Date.now() });
+                }
+
+                if (ws.readyState === 1) {
+                  ws.send(JSON.stringify({ type: "file_changed", filePath, repo, action }));
+                }
+              }
+
               return {};
             }],
           }],
