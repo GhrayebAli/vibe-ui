@@ -51,10 +51,7 @@ input, textarea { font-family: var(--font); }
 
 /* Top bar */
 .top-bar { height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--surface); }
-.top-bar-left { display: flex; align-items: center; gap: 10px; }
-.project-name { background: none; border: none; color: var(--text); font-size: 14px; font-weight: 600; font-family: var(--font); padding: 2px 6px; border-radius: var(--radius-sm); width: 140px; transition: all var(--transition); }
-.project-name:hover { background: var(--surface2); }
-.project-name:focus { outline: none; background: var(--surface2); border: 1px solid var(--accent); padding: 1px 5px; }
+.top-bar-left { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .health-dots { display: flex; gap: 5px; align-items: center; }
 .h-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border); transition: background .3s; }
 .h-dot.ok { background: var(--green); box-shadow: 0 0 5px rgba(34,197,94,.4); }
@@ -495,7 +492,10 @@ pre:hover .code-copy { opacity: 1; }
 .landing-header { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .landing-logo { margin-bottom: 4px; }
 .landing-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-.topbar-logo { flex-shrink: 0; margin-right: 4px; }
+.topbar-logo { flex-shrink: 0; }
+.topbar-name { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.topbar-workspace { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-name::after { content: ''; display: inline-block; width: 1px; height: 12px; background: var(--border); margin: 0 6px; vertical-align: middle; }
 .landing-subtitle { font-size: 14px; color: var(--text-dim); }
 .landing-cards { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 400px; }
 .landing-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; cursor: pointer; transition: all var(--transition); display: flex; gap: 12px; align-items: flex-start; text-align: left; color: var(--text); font-family: var(--font); }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WashVibe</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%239b87f5'/><path d='M9 10l4 6-4 6' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/><path d='M17 10h6M17 16h4M17 22h6' stroke='white' stroke-width='2' stroke-linecap='round'/></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><defs><linearGradient id='g' x1='0' y1='0' x2='40' y2='40'><stop offset='0%25' stop-color='%237c5ce7'/><stop offset='100%25' stop-color='%239b87f5'/></linearGradient></defs><rect width='40' height='40' rx='10' fill='url(%23g)'/><path d='M10 12c0 0 3 14 5 14s4-10 5-10 3 10 5 10 5-14 5-14' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
@@ -22,8 +22,13 @@
     <!-- Top Bar -->
     <div class="top-bar">
       <div class="top-bar-left">
-        <svg class="topbar-logo" width="20" height="20" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M9 10l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 10h6M17 16h4M17 22h6" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
-        <input class="project-name" id="project-name" value="WashVibe" spellcheck="false">
+        <svg class="topbar-logo" width="22" height="22" viewBox="0 0 40 40" fill="none">
+          <defs><linearGradient id="wv-grad" x1="0" y1="0" x2="40" y2="40"><stop offset="0%" stop-color="#7c5ce7"/><stop offset="100%" stop-color="#9b87f5"/></linearGradient></defs>
+          <rect width="40" height="40" rx="10" fill="url(#wv-grad)"/>
+          <path d="M10 12c0 0 3 14 5 14s4-10 5-10 3 10 5 10 5-14 5-14" stroke="white" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <span class="topbar-name">WashVibe</span>
+        <span class="topbar-workspace" id="workspace-name"></span>
         <button id="home-btn" class="strip-btn" title="Home" style="display:none">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
@@ -59,10 +64,10 @@
     <div id="landing" class="landing">
       <div class="landing-header">
         <div class="landing-logo">
-          <svg width="40" height="40" viewBox="0 0 32 32" fill="none">
-            <rect width="32" height="32" rx="8" fill="var(--accent)"/>
-            <path d="M9 10l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M17 10h6M17 16h4M17 22h6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <svg width="52" height="52" viewBox="0 0 40 40" fill="none">
+            <defs><linearGradient id="wv-grad-lg" x1="0" y1="0" x2="40" y2="40"><stop offset="0%" stop-color="#7c5ce7"/><stop offset="100%" stop-color="#9b87f5"/></linearGradient></defs>
+            <rect width="40" height="40" rx="10" fill="url(#wv-grad-lg)"/>
+            <path d="M10 12c0 0 3 14 5 14s4-10 5-10 3 10 5 10 5-14 5-14" stroke="white" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
           </svg>
         </div>
         <div class="landing-title">WashVibe</div>
@@ -255,10 +260,10 @@
 <div id="welcome-overlay" class="hidden">
   <div class="welcome-inner">
     <div class="welcome-logo">
-      <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
-        <rect width="32" height="32" rx="8" fill="var(--accent)"/>
-        <path d="M9 10l4 6-4 6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M17 10h6M17 16h4M17 22h6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      <svg width="56" height="56" viewBox="0 0 40 40" fill="none">
+        <defs><linearGradient id="wv-grad-wl" x1="0" y1="0" x2="40" y2="40"><stop offset="0%" stop-color="#7c5ce7"/><stop offset="100%" stop-color="#9b87f5"/></linearGradient></defs>
+        <rect width="40" height="40" rx="10" fill="url(#wv-grad-wl)"/>
+        <path d="M10 12c0 0 3 14 5 14s4-10 5-10 3 10 5 10 5-14 5-14" stroke="white" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
       </svg>
     </div>
     <div class="welcome-title">WashVibe</div>

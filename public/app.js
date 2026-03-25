@@ -304,6 +304,11 @@ function connect() {
         const cfg = await resp.json();
         window.__workspaceConfig = cfg;
       } catch { window.__workspaceConfig = { frontendPort: 3000, previewPath: '/', repos: [] }; }
+      // Show workspace name in top bar
+      const wsNameEl = $('workspace-name');
+      if (wsNameEl && window.__workspaceConfig.name) {
+        wsNameEl.textContent = window.__workspaceConfig.name;
+      }
       checkHealth();
       showLanding();
       const cfg = window.__workspaceConfig;
