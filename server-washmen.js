@@ -92,7 +92,7 @@ app.get("/api/service-health", async (_req, res) => {
 // Cost tracking endpoint
 app.get("/api/cost", (_req, res) => {
   const totalCost = getTotalCost();
-  const dailyBudget = 30;
+  const dailyBudget = 60;
   res.json({ totalCost, dailyBudget, remaining: Math.max(0, dailyBudget - totalCost), budgetExceeded: totalCost >= dailyBudget });
 });
 
@@ -302,7 +302,7 @@ app.get("/api/workspace", (_req, res) => {
       activeBranch,
       repos,
       branches,
-      budget: { spent: totalCost, limit: 30, remaining: Math.max(0, 30 - totalCost) },
+      budget: { spent: totalCost, limit: 60, remaining: Math.max(0, 60 - totalCost) },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
