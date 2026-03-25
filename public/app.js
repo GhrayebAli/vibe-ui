@@ -6,6 +6,7 @@ import { initBudget, updateBudget } from './components/budget.js';
 import './js/features/welcome.js';
 import { initVisualEdit, toggleVisualEdit, deactivate as deactivateVisualEdit, highlightChange, getPendingChangeSelector, toggleHistory } from './components/visual-edit.js';
 import { requireIdentity, getIdentity } from './js/core/identity.js';
+import { initPresenceUI, setPresenceWs, updatePresence, onBuildLockAcquired, onBuildLockReleased } from './js/core/presence-ui.js';
 
 /* ═══ DOM refs ═══ */
 const $ = id => document.getElementById(id);
@@ -324,6 +325,7 @@ function connect() {
       const cfg = window.__workspaceConfig;
       initPreview(portUrl(cfg.frontendPort) + cfg.previewPath);
       initVisualEdit($('preview-frame'), doSend);
+      initPresenceUI(ws);
       setInterval(checkHealth, 10000);
 
       // Start heartbeat — tell server we're still alive every 30s
@@ -335,6 +337,7 @@ function connect() {
     } else {
       // Reconnect — just restore health checks, don't reset UI
       console.log('[ws] reconnected — UI preserved');
+      setPresenceWs(ws);
       checkHealth();
     }
   };
@@ -478,22 +481,20 @@ function handleMessage(msg) {
       break;
 
     case 'presence_update':
-      // msg.users = [{ id, name, role, status, branch }]
-      // Future: render active user avatars in the UI
-      console.log('[presence]', msg.users?.length, 'users online');
+      updatePresence(msg.users, msg.buildLock);
       break;
 
     case 'build_locked':
-      // Another user holds the build lock
-      addSystemMsg(`Build locked by ${msg.lockedBy} — switch to Plan mode or wait.`);
+      addSystemMsg(`🔒 Build locked by ${msg.lockedBy} — switch to Plan mode or take over.`);
       break;
 
     case 'build_lock_acquired':
-      addSystemMsg(`You now have the build lock.`);
+      onBuildLockAcquired(msg);
       break;
 
     case 'build_lock_released':
-      addSystemMsg(`Build lock released by ${msg.releasedBy}.`);
+      onBuildLockReleased();
+      if (msg.releasedBy) addSystemMsg(`Build lock released by ${msg.releasedBy}.`);
       break;
   }
 }
