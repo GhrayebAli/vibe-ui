@@ -14,6 +14,10 @@ export function loadWorkspaceConfig() {
   if (existsSync(configPath)) {
     try {
       _config = JSON.parse(readFileSync(configPath, "utf8"));
+      // Resolve path for each repo
+      for (const repo of _config.repos) {
+        if (!repo.path) repo.path = join(workspaceDir, repo.name);
+      }
       console.log(`[workspace] Loaded config: ${_config.name} (${_config.repos.length} repos)`);
     } catch (e) {
       console.error("[workspace] Failed to parse workspace.json:", e.message);
