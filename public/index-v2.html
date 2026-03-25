@@ -115,8 +115,8 @@
       <div class="overlay-header"><h3>Service Status</h3><button class="overlay-close">&times;</button></div>
       <div id="status-list"></div>
     </div>
-    <div class="overlay" id="overlay-notes" role="dialog" aria-modal="true" aria-label="Branch Summary">
-      <div class="overlay-header"><h3>Branch Summary</h3><button class="overlay-close">&times;</button></div>
+    <div class="overlay" id="overlay-notes" role="dialog" aria-modal="true" aria-label="Release Notes">
+      <div class="overlay-header"><h3>Release Notes</h3><button class="overlay-close">&times;</button></div>
       <div class="notes-area" id="notes-area">
         <textarea id="notes-editor" placeholder="MVP notes will appear here..."></textarea>
         <div class="notes-actions">
@@ -167,7 +167,7 @@
     <!-- Tabs + status indicators -->
     <div class="panel-tabs">
       <div class="tabs-left">
-        <button id="notes-btn" class="strip-btn" title="Branch Summary" style="display:none" data-overlay="notes">
+        <button id="notes-btn" class="strip-btn" title="Release Notes" style="display:none" data-overlay="notes">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8m8 4H8"/></svg>
         </button>
         <span class="branch-badge" id="branch-badge" style="display:none"></span>
