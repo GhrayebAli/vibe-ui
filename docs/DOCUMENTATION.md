@@ -66,7 +66,7 @@ browser ──────── WebSocket ──────── server.js �
    │   ├── features/ (chat, voice, welcome, tour) │   ├── tasks/ (client.js, server.js)
    │   │                              │   ├── claude-editor/ (client.js, client.css)
    │   └── panels/  (bot, tips, docs) │   ├── event-stream/ (client.js, client.css)
-   │                                  │   └── ... (tic-tac-toe, sudoku)
+   │                                  │   └── ...
    ├── css/
    │   ├── core/       (variables, reset, responsive)
    │   ├── ui/         (messages, sessions, layout)
@@ -1344,9 +1344,7 @@ plugins/                   Full-stack plugins (client.js, server.js, config.json
     ├── repos/             Repository management with server-side routes
     ├── tasks/             Todo + brags with server-side routes
     ├── claude-editor/     CLAUDE.md editor (client-only)
-    ├── event-stream/      WebSocket event viewer (client-only)
-    ├── tic-tac-toe/       Tic-tac-toe game (client-only)
-    └── sudoku/            Sudoku game (client-only)
+    └── event-stream/      WebSocket event viewer (client-only)
 ```
 
 ---

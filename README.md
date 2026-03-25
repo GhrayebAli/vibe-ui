@@ -211,7 +211,7 @@ See [CONFIGURATION.md](docs/CONFIGURATION.md) for the full guide.
 
 ## Plugins
 
-Claudeck includes 7 built-in plugins and supports user plugins via `~/.claudeck/plugins/`:
+Claudeck includes 5 built-in plugins and supports user plugins via `~/.claudeck/plugins/`:
 
 | Plugin | Description |
 |--------|-------------|
@@ -220,7 +220,6 @@ Claudeck includes 7 built-in plugins and supports user plugins via `~/.claudeck/
 | **Repos** | Repository management with tree view |
 | **Claude Editor** | Edit CLAUDE.md project instructions in-app |
 | **Event Stream** | Real-time WebSocket event viewer |
-| **Games** | Tic-tac-toe and Sudoku |
 
 **Create your own** — drop files in `~/.claudeck/plugins/<name>/` (persists across upgrades) with `client.js` and optionally `server.js`, `client.css`, `config.json`. No fork needed. See [CONFIGURATION.md](docs/CONFIGURATION.md#user-plugins) for details.
 
@@ -241,8 +240,6 @@ npx skills add https://github.com/hamedafarag/claudeck-skills
 | [DOCUMENTATION.md](docs/DOCUMENTATION.md) | Full feature docs, API reference, database schema |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | User data directory, config files, plugin system |
 | [AGENT-ARCHITECTURE.md](docs/AGENT-ARCHITECTURE.md) | How agents, chains, DAGs, and orchestrator work |
-| [CROSS-PLATFORM-AUDIT.md](docs/CROSS-PLATFORM-AUDIT.md) | Windows/Linux compatibility |
-| [COMPETITIVE-ANALYSIS.md](docs/COMPETITIVE-ANALYSIS.md) | Feature comparison with similar tools |
 
 ---
 

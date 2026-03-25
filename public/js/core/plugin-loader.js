@@ -24,8 +24,6 @@ const pluginMeta = {
   'repos':            { description: 'Git repository and group management with tree view',        icon: '📁', order: 20 },
   'linear':           { description: 'Linear issue tracking with settings and team management',   icon: '📋', order: 25 },
   'tasks':            { description: 'Todo list with priority levels and brag tracking',           icon: '✅', order: 30 },
-  'tic-tac-toe':      { description: 'Classic tic-tac-toe game',                                   icon: '🎮', order: 90 },
-  'sudoku':           { description: 'Sudoku puzzle game',                                         icon: '🧩', order: 91 },
 };
 const defaultMeta = { description: 'A tab-sdk plugin', icon: '🧩', order: 100 };
 
