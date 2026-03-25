@@ -1112,11 +1112,10 @@ function getServiceColor(source) {
   return serviceColorMap.get(source);
 }
 
-function getServiceAbbrev(source) {
+function getServiceLabel(source) {
   if (!source) return '??';
-  const parts = source.replace(/^mock-/, '').split('-');
-  if (parts.length === 1) return parts[0].slice(0, 3);
-  return parts.map(p => p[0]).join('');
+  // Strip mock- prefix and return readable name (e.g., "mock-ops-frontend" → "Ops Frontend")
+  return source.replace(/^mock-/, '').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
 function escapeHtml(str) {
@@ -1139,13 +1138,13 @@ function shouldShowEntry(entry) {
 function renderEntryHTML(entry) {
   const ts = new Date(entry.timestamp || Date.now()).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const color = getServiceColor(entry.source);
-  const abbrev = getServiceAbbrev(entry.source);
+  const shortName = entry.source ? entry.source.replace(/^mock-/, '').split('-')[0] : '';
   let msgHtml = escapeHtml(entry.message);
   if (consoleSearchTerm) {
     msgHtml = highlightSearchTerm(msgHtml, consoleSearchTerm);
   }
   const sourceBadge = entry.source
-    ? `<span class="source-badge" style="background:${color.bg};color:${color.fg}" title="${escapeHtml(entry.source)}">${escapeHtml(abbrev)}</span>`
+    ? `<span class="source-badge" style="background:${color.bg};color:${color.fg}" title="${escapeHtml(entry.source)}">${escapeHtml(shortName)}</span>`
     : '';
   return `<span class="ts">${ts}</span>${sourceBadge}<span class="lvl ${entry.level}">${entry.level.toUpperCase()}</span><span class="msg">${msgHtml}</span>`;
 }
@@ -1262,7 +1261,7 @@ function addServiceTab(source) {
   const btn = document.createElement('button');
   btn.className = 'console-service-btn';
   btn.dataset.service = source;
-  btn.textContent = getServiceAbbrev(source);
+  btn.textContent = getServiceLabel(source);
   btn.title = source;
   const color = getServiceColor(source);
   btn.style.color = color.fg;
