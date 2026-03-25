@@ -821,9 +821,11 @@ const explicitLogSources = process.env.LOG_SOURCES
 
 function getLogSources() {
   if (explicitLogSources) return explicitLogSources;
+  // Only watch logs for configured services (from workspace.json)
+  const serviceNames = new Set(getConfig().repos.map(r => r.name));
   try {
     return readdirSync("/tmp")
-      .filter(f => f.endsWith(".log"))
+      .filter(f => f.endsWith(".log") && serviceNames.has(f.replace(/\.log$/, "")))
       .map(f => [f.replace(/\.log$/, ""), f]);
   } catch { return []; }
 }
