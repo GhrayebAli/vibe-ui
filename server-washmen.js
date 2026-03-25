@@ -317,6 +317,12 @@ app.post("/api/switch-branch", async (req, res) => {
   if (!branch) return res.status(400).json({ error: "Missing branch" });
   try { sanitizeBranchName(branch); } catch (e) { return res.status(400).json({ error: e.message }); }
 
+  // Block branch switch while someone holds the build lock
+  const lock = presence.getPresence().buildLock;
+  if (lock) {
+    return res.status(423).json({ error: "locked", lockedBy: lock.userName, branch: lock.branch });
+  }
+
   const workspaceDir = getWorkspaceDir();
   const configRepos = getConfig().repos;
 

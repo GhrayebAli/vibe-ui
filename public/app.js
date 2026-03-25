@@ -202,6 +202,11 @@ async function resumeBranch(branch) {
       body: JSON.stringify({ branch: branch.name }),
     });
     const result = await resp.json();
+    if (result.error === 'locked') {
+      hideSwitchProgress();
+      addSystemMsg(`Branch switch blocked — ${result.lockedBy} is currently building. Wait for them to finish or take over the build lock.`);
+      return;
+    }
     if (!result.ok) throw new Error(result.error || 'Switch failed');
     wasSkipped = result.skipped;
   } catch (e) {
