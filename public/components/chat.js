@@ -343,7 +343,7 @@ export function loadMessages(msgs) {
         const attachHtml = images.length > 0
           ? images.map(src => {
               const fileName = src.split('/').pop();
-              return `<img src="/api/uploads/${encodeURIComponent(fileName)}" class="attach-thumb" alt="attached">`;
+              return `<div class="attach-placeholder" title="${escapeHtml(fileName)}"><img src="/api/uploads/${encodeURIComponent(fileName)}" class="attach-thumb" alt="screenshot" onerror="this.style.display='none';this.parentElement.classList.add('missing')"><span class="attach-missing-label">Screenshot</span></div>`;
             }).join('')
           : '';
         addUserMsg(cleanText, attachHtml);
