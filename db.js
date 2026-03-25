@@ -294,7 +294,8 @@ const stmts = {
   getMessagesNoChatId: db.prepare(
     `SELECT * FROM messages WHERE session_id = ? AND chat_id IS NULL ORDER BY id ASC`
   ),
-  getTotalCost: db.prepare(`SELECT COALESCE(SUM(cost_usd), 0) AS total FROM costs`),
+  getTotalCost: db.prepare(`SELECT COALESCE(SUM(cost_usd), 0) AS total FROM costs WHERE created_at >= unixepoch('now', 'start of day')`),
+  getAllTimeCost: db.prepare(`SELECT COALESCE(SUM(cost_usd), 0) AS total FROM costs`),
   getProjectCost: db.prepare(
     `SELECT COALESCE(SUM(c.cost_usd), 0) AS total
      FROM costs c JOIN sessions s ON c.session_id = s.id
