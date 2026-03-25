@@ -20,6 +20,9 @@ let currentBranch = 'main';
 let pendingAttachments = []; // { path, name, type, preview }
 let workspaceData = null;
 
+// Live file sync — track files changed by Claude in the current session
+const sessionChangedFiles = new Map(); // filePath -> { action, repo, timestamp }
+
 /* ═══ Port URL resolver ═══ */
 export function portUrl(port) {
   const host = location.hostname;
@@ -397,6 +400,10 @@ function handleMessage(msg) {
       // Trigger change confirmation pulse if a visual edit is pending
       { const sel = getPendingChangeSelector();
         if (sel) setTimeout(() => highlightChange(sel), 1500); }
+      break;
+
+    case 'file_changed':
+      handleFileChanged(msg);
       break;
 
     case 'screenshot':
@@ -931,18 +938,23 @@ inputDock.addEventListener('drop', (e) => {
 
 /* ═══ Code Tab ═══ */
 let codeFilesLoaded = false;
+let currentCodePath = null;
+
+function isCodeTabActive() {
+  const codeTab = $('tab-code');
+  return codeTab && codeTab.classList.contains('active');
+}
 
 function updateCodeTab(path, content) {
   const codePath = $('code-path');
   const codeContent = $('code-content');
   if (codePath) codePath.textContent = path || 'Select a file to view';
+  currentCodePath = path || null;
   if (codeContent && content) {
-    // Detect language for syntax highlighting
     const ext = (path || '').split('.').pop();
     const langMap = { tsx: 'typescript', ts: 'typescript', jsx: 'javascript', js: 'javascript', json: 'json', css: 'css', scss: 'scss', md: 'markdown', html: 'html' };
     const lang = langMap[ext] || 'plaintext';
 
-    // Reset and re-highlight — hljs needs clean textContent + language class
     codeContent.textContent = content;
     codeContent.removeAttribute('data-highlighted');
     codeContent.className = 'language-' + lang;
@@ -951,11 +963,113 @@ function updateCodeTab(path, content) {
     } catch (e) {
       console.warn('hljs error:', e);
     }
+
+    // Add line numbers after highlighting
+    addLineNumbers(codeContent, path);
   }
   // Highlight active file in sidebar
   document.querySelectorAll('.tree-file').forEach(f => {
     f.classList.toggle('active', f.dataset.path === path);
   });
+}
+
+function addLineNumbers(codeEl, filePath) {
+  if (!codeEl) return;
+  const html = codeEl.innerHTML;
+  const lines = html.split('\n');
+  const wrapped = lines.map((line, i) => {
+    const lineNum = i + 1;
+    return `<span class="code-line" data-line="${lineNum}"><span class="code-line-number" data-path="${escapeHtml(filePath || '')}" data-ln="${lineNum}">${lineNum}</span><span class="code-line-content">${line}</span></span>`;
+  }).join('\n');
+  codeEl.innerHTML = wrapped;
+
+  codeEl.querySelectorAll('.code-line-number').forEach(ln => {
+    ln.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const text = `${ln.dataset.path}:${ln.dataset.ln}`;
+      navigator.clipboard.writeText(text).then(() => {
+        const tooltip = document.createElement('span');
+        tooltip.className = 'line-number-tooltip';
+        tooltip.textContent = 'Copied!';
+        ln.style.position = 'relative';
+        ln.appendChild(tooltip);
+        setTimeout(() => tooltip.remove(), 1500);
+      });
+    });
+  });
+}
+
+function flashCodeRefresh() {
+  const codeView = $('tab-code')?.querySelector('.code-view');
+  if (!codeView) return;
+  codeView.classList.add('code-refresh-flash');
+  setTimeout(() => codeView.classList.remove('code-refresh-flash'), 2000);
+}
+
+function handleFileChanged(msg) {
+  const { filePath, repo, action } = msg;
+  sessionChangedFiles.set(filePath, { action, repo, timestamp: Date.now() });
+  updateTreeIndicators();
+
+  if (isCodeTabActive()) {
+    loadCodeFile(filePath).then(() => flashCodeRefresh());
+  } else {
+    showFileChangeToast(filePath, action);
+  }
+
+  if (action === 'create') {
+    codeFilesLoaded = false;
+    if (isCodeTabActive()) loadCodeFiles();
+  }
+}
+
+function updateTreeIndicators() {
+  document.querySelectorAll('.tree-file').forEach(item => {
+    const path = item.dataset.path;
+    item.querySelectorAll('.tree-change-indicator').forEach(el => el.remove());
+    if (!path) return;
+    for (const [changedPath, info] of sessionChangedFiles) {
+      if (changedPath.endsWith('/' + path) || changedPath === path) {
+        const indicator = document.createElement('span');
+        if (info.action === 'create') {
+          indicator.className = 'tree-change-indicator tree-change-new';
+          indicator.textContent = '+';
+          indicator.title = 'New file';
+        } else {
+          indicator.className = 'tree-change-indicator tree-change-modified';
+          indicator.title = 'Modified by Claude';
+        }
+        item.appendChild(indicator);
+        break;
+      }
+    }
+  });
+}
+
+function showFileChangeToast(filePath, action) {
+  const fileName = filePath.split('/').pop();
+  const verb = action === 'create' ? 'created' : 'modified';
+  document.querySelectorAll('.file-change-toast').forEach(t => t.remove());
+
+  const toast = document.createElement('div');
+  toast.className = 'file-change-toast';
+  toast.innerHTML = `<span class="toast-icon">${action === 'create' ? '+' : '~'}</span> <span class="toast-text">${escapeHtml(fileName)} was ${verb}</span>`;
+  toast.title = filePath;
+  toast.addEventListener('click', () => {
+    document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    const codeTabBtn = document.querySelector('.panel-tab[data-tab="code"]');
+    if (codeTabBtn) codeTabBtn.classList.add('active');
+    $('tab-code')?.classList.add('active');
+    loadCodeFiles();
+    loadCodeFile(filePath);
+    toast.remove();
+  });
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('toast-fade-out');
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
 }
 
 async function loadCodeFile(path) {
@@ -1043,7 +1157,7 @@ async function loadCodeFiles() {
           const ext = file.name.split('.').pop();
           const colors = { tsx: '#61dafb', ts: '#3178c6', js: '#f7df1e', jsx: '#61dafb', json: '#cb8742', css: '#563d7c', scss: '#c6538c', md: '#519aba', html: '#e44d26' };
           const color = colors[ext] || '#555';
-          item.innerHTML = `<span class="tree-dot" style="background:${color}"></span>${file.name}`;
+          item.innerHTML = `<span class="tree-dot" style="background:${color}"></span><span class="tree-file-name">${file.name}</span>`;
           item.dataset.path = file.path;
           item.title = file.path;
           item.onclick = () => {
@@ -1074,6 +1188,9 @@ async function loadCodeFiles() {
       repoGroup.appendChild(repoChildren);
       sidebar.appendChild(repoGroup);
     }
+
+    // Apply change indicators to freshly rendered tree
+    updateTreeIndicators();
 
     // Auto-load first file
     if (data.files.length > 0) {

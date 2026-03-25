@@ -12,7 +12,7 @@ import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { getDb, createSession, getSession, addMessage, addCost, getTotalCost, getSessionByBranch, getNotes, saveNotes, getBranchCosts, undoLastTurn } from "./db.js";
-import { handleWashmenWs } from "./server/ws-handler-washmen.js";
+import { handleWashmenWs, getSessionChangedFiles } from "./server/ws-handler-washmen.js";
 import { loadWorkspaceConfig, getWorkspaceDir, getConfig, getFrontendRepo, getFrontendPort, getServicesConfig, getRepoNames, getClientConfig } from "./server/workspace-config.js";
 import { sanitizeBranchName, sanitizePort, validateDevCommand } from "./server/sanitize.js";
 
@@ -723,6 +723,14 @@ app.get("/api/file", (req, res) => {
   } catch (err) {
     res.status(404).json({ error: err.message });
   }
+});
+
+// Session changed files — returns files changed by Claude in the current session
+app.get("/api/session-changes", (req, res) => {
+  const sessionId = req.query.sessionId;
+  if (!sessionId) return res.json({ files: [] });
+  const files = getSessionChangedFiles(sessionId);
+  res.json({ files });
 });
 
 // File upload API — saves to filesystem for agent AND persists to DB for durability
