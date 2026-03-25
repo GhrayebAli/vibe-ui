@@ -156,8 +156,8 @@ pre:hover .code-copy { opacity: 1; }
 .diff-summary.expanded .diff-files { display: block; }
 .diff-file { padding: 5px 10px; font-size: 12px; font-family: var(--mono); display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); }
 .diff-file:last-child { border-bottom: none; }
-.diff-file .fname { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.diff-file .fstat { color: var(--text-muted); }
+.diff-file .fname { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.diff-file .fstat { color: var(--text-muted); flex-shrink: 0; margin-left: 8px; }
 .diff-file .fstat .plus { color: var(--green); }
 .diff-file .fstat .minus { color: var(--red); }
 

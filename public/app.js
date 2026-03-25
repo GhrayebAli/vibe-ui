@@ -336,6 +336,7 @@ function connect() {
 function handleMessage(msg) {
   switch (msg.type) {
     case 'thinking':
+      finalizeTurnFooter();
       showThinking();
       break;
 
