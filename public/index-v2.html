@@ -243,6 +243,9 @@
     <!-- Console Tab -->
     <div class="tab-content" id="tab-console" style="position:relative">
       <div class="console-toolbar">
+        <div class="console-service-tabs" id="console-service-tabs">
+          <button class="console-service-btn active" data-service="all">All</button>
+        </div>
         <div class="console-filters">
           <button class="console-filter-btn active" data-filter="all">All</button>
           <button class="console-filter-btn" data-filter="error">Errors</button>
@@ -251,7 +254,11 @@
         </div>
         <button class="console-clear" id="console-clear">Clear</button>
       </div>
+      <div class="console-search-bar">
+        <input type="text" id="console-search" placeholder="Search console..." autocomplete="off" />
+      </div>
       <div class="console-view" id="console-view"></div>
+      <button class="console-jump-btn hidden" id="console-jump">&#x25BC; Jump to latest</button>
     </div>
   </div>
 

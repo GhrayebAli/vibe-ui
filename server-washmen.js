@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import { join, dirname, resolve, sep } from "path";
 import { fileURLToPath } from "url";
-import { readFileSync, writeFileSync, readdirSync, existsSync, statSync, mkdirSync } from "fs";
+import { readFileSync, writeFileSync, readdirSync, existsSync, statSync, mkdirSync, watch, openSync, readSync, fstatSync, closeSync } from "fs";
 import { execSync, spawn } from "child_process";
 import { createHash, randomUUID } from "crypto";
 dotenv.config();
@@ -821,9 +821,11 @@ const explicitLogSources = process.env.LOG_SOURCES
 
 function getLogSources() {
   if (explicitLogSources) return explicitLogSources;
+  // Only watch logs for configured services (from workspace.json)
+  const serviceNames = new Set(getConfig().repos.map(r => r.name));
   try {
     return readdirSync("/tmp")
-      .filter(f => f.endsWith(".log"))
+      .filter(f => f.endsWith(".log") && serviceNames.has(f.replace(/\.log$/, "")))
       .map(f => [f.replace(/\.log$/, ""), f]);
   } catch { return []; }
 }
@@ -1308,6 +1310,129 @@ app.post("/api/stop-service", (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ── Real-time Console Log Streaming via WebSocket ──────────────────────
+// Uses fs.watch() to detect changes, reads new bytes, classifies severity, pushes via WS
+
+const logWatchers = new Map();   // logFile -> { watcher, bytePos }
+const LOG_BATCH_MS = 100;        // Debounce window
+let pendingLogEntries = [];
+let logBatchTimer = null;
+
+function classifyLogLine(trimmed) {
+  const lower = trimmed.toLowerCase();
+  let level = "info";
+  if (lower.includes("error") || lower.includes("err:") || lower.includes("eaddrinuse") || lower.includes("enoent") ||
+      lower.includes("eacces") || lower.includes("econnrefused") || lower.includes("uncaught") || lower.includes("unhandled") ||
+      lower.includes("throw ") || lower.includes("fatal") || lower.includes("crash") || lower.includes("failed") ||
+      lower.includes("typeerror") || lower.includes("referenceerror") || lower.includes("syntaxerror") || lower.includes("rangeerror") ||
+      lower.includes("cannot read prop") || lower.includes("is not defined") || lower.includes("is not a function") ||
+      lower.includes("module not found") || lower.includes("command failed") || lower.includes("exit code") ||
+      (lower.includes("missing") && (lower.includes("env") || lower.includes("variable") || lower.includes("module") || lower.includes("package"))) ||
+      (lower.includes("undefined") && (lower.includes("env") || lower.includes("variable") || lower.includes("config"))) ||
+      lower.match(/^\s*at\s+/) || lower.startsWith("error")) {
+    level = "error";
+  } else if (lower.includes("warn") || lower.includes("deprecat") || lower.includes("experimental") ||
+             lower.includes("not recommended") || lower.includes("will be removed")) {
+    level = "warn";
+  }
+  return level;
+}
+
+function isNoiseLine(trimmed) {
+  if (!trimmed || trimmed.length < 3) return true;
+  if (trimmed.match(/^[\s\-=~_.·•|\\/<>,'`^]+$/)) return true;
+  if (trimmed.match(/^\s*(info|debug|verbose|silly|trace|error|warn):\s*$/i)) return true;
+  if (trimmed.match(/^\[(tool|agent|session|push|context|checkpoint|console|workspace|code|inspect|screenshot|cost|db|switch|create-branch)\]/)) return true;
+  return false;
+}
+
+function flushLogBatch() {
+  logBatchTimer = null;
+  if (pendingLogEntries.length === 0) return;
+  const entries = pendingLogEntries.splice(0, pendingLogEntries.length);
+  wsBroadcast({ type: "console_entries", entries });
+}
+
+function queueLogEntry(entry) {
+  pendingLogEntries.push(entry);
+  if (!logBatchTimer) {
+    logBatchTimer = setTimeout(flushLogBatch, LOG_BATCH_MS);
+  }
+}
+
+function readNewBytes(logFile, sourceName) {
+  const filePath = `/tmp/${logFile}`;
+  try {
+    const fd = openSync(filePath, "r");
+    const stat = fstatSync(fd);
+    const watcher = logWatchers.get(logFile);
+    const startPos = watcher ? watcher.bytePos : Math.max(0, stat.size - 2048);
+    if (stat.size <= startPos) { closeSync(fd); return; }
+    const bytesToRead = stat.size - startPos;
+    const buf = Buffer.alloc(bytesToRead);
+    readSync(fd, buf, 0, bytesToRead, startPos);
+    closeSync(fd);
+    if (watcher) watcher.bytePos = stat.size;
+
+    const text = buf.toString("utf8");
+    const lines = text.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (isNoiseLine(trimmed)) continue;
+      const level = classifyLogLine(trimmed);
+      queueLogEntry({
+        source: sourceName,
+        level,
+        message: trimmed,
+        timestamp: Date.now(),
+      });
+    }
+  } catch {}
+}
+
+function startLogWatcher(logFile, sourceName) {
+  if (logWatchers.has(logFile)) return;
+  const filePath = `/tmp/${logFile}`;
+  if (!existsSync(filePath)) return;
+
+  // Initialize byte position to current file size (don't replay old content)
+  let bytePos;
+  try {
+    const stat = statSync(filePath);
+    bytePos = stat.size;
+  } catch { bytePos = 0; }
+
+  try {
+    const fsWatcher = watch(filePath, { persistent: false }, (eventType) => {
+      if (eventType === "change") {
+        readNewBytes(logFile, sourceName);
+      }
+    });
+    logWatchers.set(logFile, { watcher: fsWatcher, bytePos });
+    console.log(`[console] Watching ${logFile} for ${sourceName}`);
+  } catch {
+    // fs.watch not supported — fallback to polling via setInterval
+    const pollId = setInterval(() => {
+      readNewBytes(logFile, sourceName);
+    }, 500);
+    logWatchers.set(logFile, { watcher: null, bytePos, pollId });
+    console.log(`[console] Polling ${logFile} for ${sourceName} (fs.watch unavailable)`);
+  }
+}
+
+// Periodically discover new log files and start watchers
+function refreshLogWatchers() {
+  for (const [name, logFile] of getLogSources()) {
+    startLogWatcher(logFile, name);
+  }
+}
+
+// Start watchers after server is ready
+setTimeout(() => {
+  refreshLogWatchers();
+  setInterval(refreshLogWatchers, 15000);
+}, 2000);
 
 // Broadcast to all connected WebSocket clients
 function wsBroadcast(data) {

@@ -444,6 +444,12 @@ function handleMessage(msg) {
       onNotesGenerated(msg.content);
       break;
 
+    case 'console_entries':
+      if (msg.entries && msg.entries.length > 0) {
+        msg.entries.forEach(e => addConsoleEntry(e.level, e.message, e.source, e.timestamp));
+      }
+      break;
+
     case 'branch_created':
       currentBranch = msg.branch;
       const badge = $('branch-badge');
@@ -837,7 +843,20 @@ $('preview-url').onkeydown = e => {
 };
 
 /* ═══ Console ═══ */
-$('console-clear').onclick = () => { $('console-view').innerHTML = ''; };
+$('console-clear').onclick = () => {
+  $('console-view').innerHTML = '';
+  consoleEntries = [];
+  consoleServiceFilter = 'all';
+  consoleSearchTerm = '';
+  const searchInput = $('console-search');
+  if (searchInput) searchInput.value = '';
+  knownServices.clear();
+  const tabsContainer = $('console-service-tabs');
+  if (tabsContainer) {
+    tabsContainer.innerHTML = '<button class="console-service-btn active" data-service="all">All</button>';
+    tabsContainer.querySelector('[data-service="all"]').onclick = () => setConsoleServiceFilter('all');
+  }
+};
 // Wire up filter buttons (can't use inline onclick with ES modules)
 document.querySelectorAll('.console-filter-btn').forEach(btn => {
   btn.onclick = () => setConsoleFilter(btn.dataset.filter);
@@ -1065,36 +1084,121 @@ async function loadCodeFiles() {
 
 
 /* ═══ Console ═══ */
-const CONSOLE_MAX_ENTRIES = 500;
+const CONSOLE_MAX_ENTRIES = 1000;
 let consoleFilter = 'all'; // 'all' | 'error' | 'warn' | 'info'
+let consoleServiceFilter = 'all';
+let consoleSearchTerm = '';
+let consoleSearchDebounce = null;
 let consoleUnread = 0;
+let consoleEntries = []; // { level, message, source, timestamp, el }
+let consoleAutoScroll = true;
+const knownServices = new Set();
+
+// Service badge colors — rotate through a palette
+const SERVICE_COLORS = [
+  { bg: 'rgba(59,130,246,0.15)', fg: '#3b82f6' },  // blue
+  { bg: 'rgba(16,185,129,0.15)', fg: '#10b981' },   // green
+  { bg: 'rgba(139,92,246,0.15)', fg: '#8b5cf6' },   // purple
+  { bg: 'rgba(245,158,11,0.15)', fg: '#f59e0b' },   // amber
+  { bg: 'rgba(236,72,153,0.15)', fg: '#ec4899' },    // pink
+  { bg: 'rgba(6,182,212,0.15)', fg: '#06b6d4' },     // cyan
+];
+const serviceColorMap = new Map();
+function getServiceColor(source) {
+  if (!source) return SERVICE_COLORS[0];
+  if (!serviceColorMap.has(source)) {
+    serviceColorMap.set(source, SERVICE_COLORS[serviceColorMap.size % SERVICE_COLORS.length]);
+  }
+  return serviceColorMap.get(source);
+}
+
+function getServiceLabel(source) {
+  if (!source) return '??';
+  // Strip mock- prefix and return readable name (e.g., "mock-ops-frontend" → "Ops Frontend")
+  return source.replace(/^mock-/, '').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
 
 function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function addConsoleEntry(level, message) {
+function highlightSearchTerm(html, term) {
+  if (!term) return html;
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return html.replace(new RegExp(`(${escaped})`, 'gi'), '<span class="search-highlight">$1</span>');
+}
+
+function shouldShowEntry(entry) {
+  if (consoleFilter !== 'all' && entry.level !== consoleFilter) return false;
+  if (consoleServiceFilter !== 'all' && entry.source !== consoleServiceFilter) return false;
+  if (consoleSearchTerm && !entry.message.toLowerCase().includes(consoleSearchTerm.toLowerCase())) return false;
+  return true;
+}
+
+function renderEntryHTML(entry) {
+  const ts = new Date(entry.timestamp || Date.now()).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const color = getServiceColor(entry.source);
+  const shortName = entry.source ? entry.source.replace(/^mock-/, '').split('-')[0] : '';
+  let msgHtml = escapeHtml(entry.message);
+  if (consoleSearchTerm) {
+    msgHtml = highlightSearchTerm(msgHtml, consoleSearchTerm);
+  }
+  const sourceBadge = entry.source
+    ? `<span class="source-badge" style="background:${color.bg};color:${color.fg}" title="${escapeHtml(entry.source)}">${escapeHtml(shortName)}</span>`
+    : '';
+  return `<span class="ts">${ts}</span>${sourceBadge}<span class="lvl ${entry.level}">${entry.level.toUpperCase()}</span><span class="msg">${msgHtml}</span>`;
+}
+
+function addConsoleEntry(level, message, source, timestamp) {
   const view = $('console-view');
   if (!view) return;
 
+  // Extract source from message if not provided (legacy format: "[name] message")
+  if (!source) {
+    const match = message.match(/^\[([^\]]+)\]\s*(.*)/);
+    if (match) {
+      source = match[1];
+      message = match[2];
+    }
+  }
+
+  const entryData = { level, message, source: source || '', timestamp: timestamp || Date.now() };
+
+  // Track service and add tab if new
+  if (source && !knownServices.has(source)) {
+    knownServices.add(source);
+    addServiceTab(source);
+  }
+
   // Cap entries
-  while (view.children.length >= CONSOLE_MAX_ENTRIES) {
-    view.removeChild(view.firstChild);
+  while (consoleEntries.length >= CONSOLE_MAX_ENTRIES) {
+    const removed = consoleEntries.shift();
+    if (removed.el && removed.el.parentNode) removed.el.parentNode.removeChild(removed.el);
   }
 
   const entry = document.createElement('div');
   entry.className = 'console-entry';
   entry.dataset.level = level;
-  const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  entry.innerHTML = `<span class="ts">${ts}</span><span class="lvl ${level}">${level.toUpperCase()}</span><span class="msg">${escapeHtml(message)}</span>`;
+  entry.dataset.source = source || '';
+  entry.innerHTML = renderEntryHTML(entryData);
+  entryData.el = entry;
+  consoleEntries.push(entryData);
 
-  // Apply current filter
-  if (consoleFilter !== 'all' && level !== consoleFilter) {
+  // Apply current filters
+  if (!shouldShowEntry(entryData)) {
     entry.style.display = 'none';
   }
 
+  // Smart auto-scroll: check before appending
+  const wasAtBottom = consoleAutoScroll;
   view.appendChild(entry);
-  view.scrollTop = view.scrollHeight;
+
+  if (wasAtBottom) {
+    view.scrollTop = view.scrollHeight;
+  } else {
+    const jumpBtn = $('console-jump');
+    if (jumpBtn) jumpBtn.classList.remove('hidden');
+  }
 
   // Update unread badge (errors only) if console tab is not active
   const consoleTab = document.querySelector('[data-tab="console"]');
@@ -1124,21 +1228,91 @@ function updateConsoleBadge() {
 
 function setConsoleFilter(filter) {
   consoleFilter = filter;
-  // Update active filter button
   document.querySelectorAll('.console-filter-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.filter === filter);
   });
-  // Show/hide entries
-  const view = $('console-view');
-  if (!view) return;
-  for (const entry of view.children) {
-    if (filter === 'all' || entry.dataset.level === filter) {
-      entry.style.display = '';
-    } else {
-      entry.style.display = 'none';
+  applyConsoleFilters();
+}
+
+function setConsoleServiceFilter(service) {
+  consoleServiceFilter = service;
+  document.querySelectorAll('.console-service-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.service === service);
+  });
+  applyConsoleFilters();
+}
+
+function applyConsoleFilters() {
+  for (const entry of consoleEntries) {
+    if (!entry.el) continue;
+    const show = shouldShowEntry(entry);
+    entry.el.style.display = show ? '' : 'none';
+    // Re-render to update search highlights
+    if (show && consoleSearchTerm) {
+      entry.el.innerHTML = renderEntryHTML(entry);
     }
   }
 }
+
+function addServiceTab(source) {
+  const container = $('console-service-tabs');
+  if (!container) return;
+  if (container.querySelector(`[data-service="${CSS.escape(source)}"]`)) return;
+  const btn = document.createElement('button');
+  btn.className = 'console-service-btn';
+  btn.dataset.service = source;
+  btn.textContent = getServiceLabel(source);
+  btn.title = source;
+  const color = getServiceColor(source);
+  btn.style.color = color.fg;
+  btn.onclick = () => setConsoleServiceFilter(source);
+  container.appendChild(btn);
+  // Re-wire the "All" button
+  const allBtn = container.querySelector('[data-service="all"]');
+  if (allBtn) allBtn.onclick = () => setConsoleServiceFilter('all');
+}
+
+// Smart auto-scroll detection
+(() => {
+  const view = $('console-view');
+  if (!view) return;
+  view.addEventListener('scroll', () => {
+    const threshold = 50;
+    const atBottom = view.scrollHeight - view.scrollTop - view.clientHeight < threshold;
+    consoleAutoScroll = atBottom;
+    if (atBottom) {
+      const jumpBtn = $('console-jump');
+      if (jumpBtn) jumpBtn.classList.add('hidden');
+    }
+  });
+})();
+
+// Jump to latest button
+(() => {
+  const jumpBtn = $('console-jump');
+  if (!jumpBtn) return;
+  jumpBtn.onclick = () => {
+    const view = $('console-view');
+    if (view) {
+      view.scrollTop = view.scrollHeight;
+      consoleAutoScroll = true;
+    }
+    jumpBtn.classList.add('hidden');
+  };
+})();
+
+// Console search
+(() => {
+  const searchInput = $('console-search');
+  if (!searchInput) return;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(consoleSearchDebounce);
+    consoleSearchDebounce = setTimeout(() => {
+      consoleSearchTerm = searchInput.value.trim();
+      applyConsoleFilters();
+    }, 300);
+  });
+})();
 
 // Clear unread when switching to console tab
 document.addEventListener('click', (e) => {
@@ -1154,7 +1328,7 @@ const _origShowActivity = showActivity;
 // Override showActivity to also log to console
 const origHandleMessage = handleMessage;
 
-// Poll for console output from the server
+// Poll for console output from the server (fallback — reduced to 30s)
 async function pollConsole() {
   try {
     const resp = await fetch('/api/console');
@@ -1164,17 +1338,31 @@ async function pollConsole() {
     }
   } catch {}
 }
-setInterval(pollConsole, 5000);
+setInterval(pollConsole, 30000);
 
-// Add initial console message — dynamically fetch service status
+// Wire up initial "All" service tab button
+(() => {
+  const allBtn = document.querySelector('.console-service-btn[data-service="all"]');
+  if (allBtn) allBtn.onclick = () => setConsoleServiceFilter('all');
+})();
+
+// Add initial console message and load initial entries
 setTimeout(async () => {
-  addConsoleEntry('info', 'vibe-ui console connected');
+  addConsoleEntry('info', 'vibe-ui console connected (real-time streaming active)', 'vibe-ui');
   try {
     const resp = await fetch('/api/service-health');
     const data = await resp.json();
     if (data.services) {
-      const summary = data.services.map(s => `${s.name} :${s.port} ${s.status === 'healthy' ? '✓' : '✗'}`).join(', ');
-      addConsoleEntry('info', `Services: ${summary}`);
+      const summary = data.services.map(s => `${s.name} :${s.port} ${s.status === 'healthy' ? '\u2713' : '\u2717'}`).join(', ');
+      addConsoleEntry('info', `Services: ${summary}`, 'vibe-ui');
+    }
+  } catch {}
+  // Load initial console entries via HTTP (last batch from each source)
+  try {
+    const resp = await fetch('/api/console?reset=true');
+    const data = await resp.json();
+    if (data.entries && data.entries.length > 0) {
+      data.entries.forEach(e => addConsoleEntry(e.level, e.message));
     }
   } catch {}
 }, 1000);
