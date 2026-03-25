@@ -9,7 +9,7 @@ dotenv.config();
 const AUTH_TOKEN = process.env.VIBE_AUTH_TOKEN || randomUUID();
 
 import express from "express";
-import http, { createServer } from "http";
+import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { getDb, createSession, getSession, addMessage, addCost, getTotalCost, getSessionByBranch, getNotes, saveNotes, getBranchCosts, undoLastTurn } from "./db.js";
 import { handleWashmenWs, getSessionChangedFiles } from "./server/ws-handler-washmen.js";
@@ -35,88 +35,10 @@ app.get("/", (_req, res) => {
 app.get("/v1", (_req, res) => res.redirect("/"));
 app.use(express.static(join(__dirname, "public"), { etag: false, maxAge: 0 }));
 
-// ── Preview Proxy with Visual Bridge Injection ──────────────────────
-// Proxies /preview-proxy/* to the frontend app (localhost:<frontendPort>)
-// and injects the visual-bridge script into HTML responses.
-// Uses <base href> so all relative resources (JS, CSS, images) load from the frontend.
-// The bridge script uses an absolute URL to load from the vibe-ui server.
-
+// Visual bridge script — served for reference/fallback
 app.get("/__visual-bridge.js", (_req, res) => {
   res.type("application/javascript");
   res.sendFile(join(__dirname, "public", "visual-bridge.js"));
-});
-
-// Serve bridge script also under the proxy path (base href redirects /__visual-bridge.js here)
-app.get("/preview-proxy/__visual-bridge.js", (_req, res) => {
-  res.type("application/javascript");
-  res.sendFile(join(__dirname, "public", "visual-bridge.js"));
-});
-
-app.use("/preview-proxy", (req, res) => {
-  const frontendPort = getFrontendPort();
-  const targetPath = req.url || "/";
-  const bridgeScriptTag = `<script src="/__visual-bridge.js" defer></script>`;
-  const baseTag = `<base href="/preview-proxy/">`;
-
-  const options = {
-    hostname: "localhost",
-    port: frontendPort,
-    path: targetPath,
-    method: req.method,
-    headers: { ...req.headers, host: `localhost:${frontendPort}` },
-  };
-  // Remove accept-encoding to get uncompressed response for injection
-  delete options.headers["accept-encoding"];
-
-  const proxyReq = http.request(options, (proxyRes) => {
-    const contentType = proxyRes.headers["content-type"] || "";
-    const isHtml = contentType.includes("text/html");
-
-    if (isHtml) {
-      // Buffer HTML response to inject bridge script and base tag
-      const chunks = [];
-      proxyRes.on("data", (chunk) => chunks.push(chunk));
-      proxyRes.on("end", () => {
-        let body = Buffer.concat(chunks).toString("utf8");
-        // Inject <base> tag so all relative URLs resolve to the frontend origin
-        if (body.includes("<head>")) {
-          body = body.replace("<head>", "<head>" + baseTag);
-        } else if (body.includes("<HEAD>")) {
-          body = body.replace("<HEAD>", "<HEAD>" + baseTag);
-        }
-        // Inject bridge script before </body> or at end of HTML
-        if (body.includes("</body>")) {
-          body = body.replace("</body>", bridgeScriptTag + "</body>");
-        } else if (body.includes("</html>")) {
-          body = body.replace("</html>", bridgeScriptTag + "</html>");
-        } else {
-          body += bridgeScriptTag;
-        }
-        // Forward headers (except content-length since we modified the body)
-        const headers = { ...proxyRes.headers };
-        delete headers["content-length"];
-        delete headers["content-encoding"];
-        headers["content-type"] = "text/html; charset=utf-8";
-        res.writeHead(proxyRes.statusCode, headers);
-        res.end(body);
-      });
-    } else {
-      // Stream non-HTML responses directly
-      res.writeHead(proxyRes.statusCode, proxyRes.headers);
-      proxyRes.pipe(res);
-    }
-  });
-
-  proxyReq.on("error", (err) => {
-    console.error("[preview-proxy] Error:", err.message);
-    res.status(502).send(`<html><body><h2>Frontend not reachable</h2><p>Could not connect to localhost:${frontendPort}</p><p>${err.message}</p></body></html>`);
-  });
-
-  // Forward request body for POST/PUT/PATCH
-  if (req.method !== "GET" && req.method !== "HEAD" && req.body) {
-    proxyReq.write(JSON.stringify(req.body));
-  }
-  proxyReq.end();
 });
 
 // Auth middleware for all /api/* routes

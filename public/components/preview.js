@@ -15,10 +15,8 @@ export function initPreview(url) {
   urlInput.value = url.replace(/^https?:\/\//, '');
 
   frame.onload = () => {
-    // Check if the iframe actually loaded content (not an error page)
     let loaded = false;
     try {
-      // Same-origin (via proxy): can read contentDocument
       const doc = frame.contentDocument || frame.contentWindow.document;
       loaded = doc && doc.body && doc.body.innerHTML.length > 0;
     } catch {
@@ -31,39 +29,18 @@ export function initPreview(url) {
       loader.classList.add('hidden');
       try {
         const path = frame.contentWindow.location.pathname;
-        if (path && path !== '/' && path !== '/preview-proxy/') {
-          const displayPath = path.replace(/^\/preview-proxy/, '');
+        if (path && path !== '/') {
           const base = urlInput.value.split('/')[0];
-          urlInput.value = base + displayPath;
+          urlInput.value = base + path;
         }
       } catch {}
     }
   };
 
-  frame.onerror = () => {
-    // Don't hide loader on error — retry will handle it
-  };
+  frame.onerror = () => {};
 
-  // Load through the preview proxy so the visual-bridge script is injected
-  frame.src = toProxyUrl(url);
-}
-
-/**
- * Convert a frontend URL to a /preview-proxy/* path.
- * This routes through vibe-ui's server which proxies to the frontend
- * and injects the visual-bridge script into HTML responses.
- */
-function toProxyUrl(url) {
-  try {
-    const u = new URL(url);
-    return '/preview-proxy' + u.pathname + u.search + u.hash;
-  } catch {
-    if (url.startsWith('/preview-proxy')) return url;
-    if (url.startsWith('/')) return '/preview-proxy' + url;
-    const i = url.indexOf('/');
-    if (i > 0) return '/preview-proxy' + url.slice(i);
-    return '/preview-proxy/';
-  }
+  // Load directly from the frontend URL — bridge is injected by Vite plugin
+  frame.src = url;
 }
 
 function clearRetry() {
@@ -75,9 +52,8 @@ export function refreshPreview() {
   clearRetry();
   loader.classList.remove('hidden');
 
-  // Poll until the service responds, then load the iframe
   let attempts = 0;
-  const maxAttempts = 30; // 30s max
+  const maxAttempts = 30;
   retryTimer = setInterval(async () => {
     attempts++;
     try {
@@ -120,6 +96,6 @@ export function navigatePreview(url) {
   if (!frame) return;
   clearRetry();
   loader.classList.remove('hidden');
-  frame.src = toProxyUrl(url);
+  frame.src = url;
   urlInput.value = url.replace(/^https?:\/\//, '');
 }
