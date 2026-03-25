@@ -454,38 +454,52 @@ app.post("/api/switch-branch", async (req, res) => {
       }
       wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `checkout-${cfgRepo.name}`, status: 'done' });
 
-      // Check if lockfile changed → reinstall
+      // Diff files changed on this branch vs default branch
+      let changedFilesInRepo = [];
       wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `deps-${cfgRepo.name}`, status: 'active' });
       if (switched.includes(cfgRepo.name)) {
-        const lockfile = existsSync(join(repoPath, "yarn.lock")) ? "yarn.lock" : "package-lock.json";
         try {
-          const changed = execSync(`git -C "${repoPath}" diff HEAD~1 --name-only 2>/dev/null`, { stdio: "pipe" }).toString();
-          if (changed.includes(lockfile)) {
-            const installCmd = existsSync(join(repoPath, "yarn.lock")) ? "yarn install" : "npm install";
+          changedFilesInRepo = execSync(`git -C "${repoPath}" diff ${sanitizeBranchName(defaultBranch)}..HEAD --name-only 2>/dev/null`, { stdio: "pipe" }).toString().trim().split("\n").filter(Boolean);
+        } catch {}
+
+        // Check if lockfile changed → reinstall
+        const lockfile = existsSync(join(repoPath, "yarn.lock")) ? "yarn.lock" : "package-lock.json";
+        if (changedFilesInRepo.includes(lockfile)) {
+          const installCmd = existsSync(join(repoPath, "yarn.lock")) ? "yarn install" : "npm install";
+          try {
             execSync(`cd "${repoPath}" && ${installCmd}`, { stdio: "pipe", timeout: 120000 });
             installed.push(cfgRepo.name);
-          }
-        } catch {}
+          } catch {}
+        }
       }
       wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `deps-${cfgRepo.name}`, status: 'done' });
 
-      // Restart service using workspace.json dev command
+      // Restart service — skip if no files changed or frontend with only src/ changes (HMR handles it)
       if (cfgRepo.port && cfgRepo.dev) {
         const safePort = sanitizePort(cfgRepo.port);
         if (!validateDevCommand(cfgRepo.dev)) {
           console.warn(`[switch] Blocked unsafe dev command for ${cfgRepo.name}: ${cfgRepo.dev}`);
         } else {
-        wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `restart-${cfgRepo.name}`, status: 'active' });
-        try { execSync(`kill $(lsof -ti:${safePort} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
-        const logFile = `/tmp/${cfgRepo.name}.log`;
-        try { writeFileSync(logFile, ""); } catch {} // Truncate on restart
-        const child = spawn("bash", ["-c", `cd "${repoPath}" && ${cfgRepo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" });
-        child.unref();
-        child.on("error", (err) => {
-          console.error(`[spawn] ${cfgRepo.name} failed:`, err.message);
-          wsBroadcast({ type: "system", text: `Failed to start ${cfgRepo.name}: ${err.message}` });
-        });
-        restarted.push(cfgRepo.name);
+        const needsRestart = !switched.includes(cfgRepo.name) ? false
+          : changedFilesInRepo.length === 0 ? false
+          : cfgRepo.type === "frontend" && changedFilesInRepo.every(f => f.startsWith("src/")) ? false
+          : true;
+
+        if (needsRestart) {
+          wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `restart-${cfgRepo.name}`, status: 'active' });
+          try { execSync(`kill $(lsof -ti:${safePort} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+          const logFile = `/tmp/${cfgRepo.name}.log`;
+          try { writeFileSync(logFile, ""); } catch {}
+          const child = spawn("bash", ["-c", `cd "${repoPath}" && ${cfgRepo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" });
+          child.unref();
+          child.on("error", (err) => {
+            console.error(`[spawn] ${cfgRepo.name} failed:`, err.message);
+            wsBroadcast({ type: "system", text: `Failed to start ${cfgRepo.name}: ${err.message}` });
+          });
+          restarted.push(cfgRepo.name);
+        } else {
+          console.log(`[switch] ${cfgRepo.name}: no restart needed (${changedFilesInRepo.length} files changed, HMR or unchanged)`);
+        }
         wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `restart-${cfgRepo.name}`, status: 'done' });
         }
       }
