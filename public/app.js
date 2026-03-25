@@ -5,6 +5,7 @@ import { initStatus, checkHealth } from './components/status.js';
 import { initBudget, updateBudget } from './components/budget.js';
 import './js/features/welcome.js';
 import { initVisualEdit, toggleVisualEdit, deactivate as deactivateVisualEdit, highlightChange, getPendingChangeSelector, toggleHistory } from './components/visual-edit.js';
+import { requireIdentity, getIdentity } from './js/core/identity.js';
 
 /* ═══ DOM refs ═══ */
 const $ = id => document.getElementById(id);
@@ -299,6 +300,12 @@ function connect() {
   ws.onopen = async () => {
     console.log('[ws] connected');
 
+    // Send identify message so server knows who this client is
+    const identity = getIdentity();
+    if (identity) {
+      ws.send(JSON.stringify({ type: 'identify', name: identity.name, role: identity.role }));
+    }
+
     if (!wsInitialized) {
       // First connection — full initialization
       wsInitialized = true;
@@ -318,6 +325,13 @@ function connect() {
       initPreview(portUrl(cfg.frontendPort) + cfg.previewPath);
       initVisualEdit($('preview-frame'), doSend);
       setInterval(checkHealth, 10000);
+
+      // Start heartbeat — tell server we're still alive every 30s
+      setInterval(() => {
+        if (ws?.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'heartbeat' }));
+        }
+      }, 30000);
     } else {
       // Reconnect — just restore health checks, don't reset UI
       console.log('[ws] reconnected — UI preserved');
@@ -462,6 +476,25 @@ function handleMessage(msg) {
       const badge = $('branch-badge');
       if (badge) { badge.textContent = msg.branch; badge.style.display = ''; }
       break;
+
+    case 'presence_update':
+      // msg.users = [{ id, name, role, status, branch }]
+      // Future: render active user avatars in the UI
+      console.log('[presence]', msg.users?.length, 'users online');
+      break;
+
+    case 'build_locked':
+      // Another user holds the build lock
+      addSystemMsg(`Build locked by ${msg.lockedBy} — switch to Plan mode or wait.`);
+      break;
+
+    case 'build_lock_acquired':
+      addSystemMsg(`You now have the build lock.`);
+      break;
+
+    case 'build_lock_released':
+      addSystemMsg(`Build lock released by ${msg.releasedBy}.`);
+      break;
   }
 }
 
@@ -511,6 +544,7 @@ function doSend(text) {
   sendBtn.style.display = 'none';
   stopBtn.style.display = 'flex';
 
+  const identity = getIdentity();
   ws.send(JSON.stringify({
     type: 'chat',
     text: fullText,
@@ -518,6 +552,8 @@ function doSend(text) {
     model,
     mode,
     branch: currentBranch,
+    user_name: identity?.name || 'anonymous',
+    user_role: identity?.role || 'other',
   }));
 }
 
@@ -1490,4 +1526,8 @@ initNotes($('notes-editor'), $('notes-gen'), $('notes-save'), $('notes-copy'), (
 initStatus($('status-list'));
 initBudget($('budget-fill'), $('budget-amount'));
 
-connect();
+// Identity-first flow: show modal → wait for name → connect WebSocket → show landing
+(async () => {
+  await requireIdentity();
+  connect();
+})();
