@@ -221,47 +221,81 @@ export function handleWashmenWs(ws, sessionIds) {
         ws.send(JSON.stringify({ type: "system", text: "Service restart failed — try refreshing the Codespace" }));
       }
     } else if (msg.type === "generate_mvp_notes") {
-      // Generate notes via direct API call — no agent, no chat pollution
+      // Generate notes using the same template as auto-notes on branch switch
       const noteBranch = msg.branch || "main";
-      const workspaceDir = getWorkspaceDir();
-      let diffContext = "";
-      for (const repo of getRepoNames()) {
-        try {
-          const log = execSync(`git -C "${workspaceDir}/${repo}" log --oneline main..HEAD 2>/dev/null || git -C "${workspaceDir}/${repo}" log --oneline master..HEAD 2>/dev/null`, { stdio: "pipe", timeout: 5000 }).toString().trim();
-          const diff = execSync(`git -C "${workspaceDir}/${repo}" diff main..HEAD --stat 2>/dev/null || git -C "${workspaceDir}/${repo}" diff master..HEAD --stat 2>/dev/null`, { stdio: "pipe", timeout: 5000 }).toString().trim();
-          if (log || diff) {
-            diffContext += `\n## ${repo}\nCommits:\n${log || "(no commits)"}\n\nFiles changed:\n${diff || "(none)"}\n`;
-          } else {
-            diffContext += `\n## ${repo}\n(no changes on this branch)\n`;
-          }
-        } catch { diffContext += `\n## ${repo}\n(no changes or not on a feature branch)\n`; }
-      }
-
       try {
-        const apiKey = process.env.ANTHROPIC_API_KEY;
-        if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
+        const { getWorkspaceDir: getWsDir, getConfig: getCfg } = await import("./workspace-config.js");
+        const { saveNotes, getSessionByBranch: getSessionByBr, getDb: getDatabase } = await import("../db.js");
+        const { sanitizeBranchName: sanitizeBr } = await import("./sanitize.js");
+        const workspaceDir = getWsDir();
 
-        const resp = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "x-api-key": apiKey,
-            "content-type": "application/json",
-            "anthropic-version": "2023-06-01",
-          },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 1024,
-            messages: [{
-              role: "user",
-              content: `Summarize what was built on branch "${noteBranch}". Write for stakeholders, not engineers. Be concise.\n\n${diffContext}\n\nUse Slack formatting (NOT Markdown). Rules:\n- *bold* for section headers (not ## or **)\n- • for bullet points (not -)\n- \`code\` for file/component names\n- _italic_ for emphasis\n- No # headers, no ** bold\n\nFormat:\n*What was built*\nOne paragraph summary\n\n*Changes delivered*\n• Change 1\n• Change 2\n\n*Status*\nWhat works and what's pending`,
-            }],
-          }),
-        });
-        const data = await resp.json();
-        const notes = data.content?.[0]?.text || "No changes found on this branch.";
+        // Detect default branch
+        let defBranch = "main";
+        const cfgRepos = getCfg().repos || [];
+        for (const r of cfgRepos) {
+          try {
+            const ref = execSync(`git -C "${workspaceDir}/${r.name}" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null`, { stdio: "pipe" }).toString().trim();
+            defBranch = ref.replace("refs/remotes/origin/", "");
+            if (defBranch) break;
+          } catch {}
+        }
 
-        // Save to DB and send directly to notes panel
-        const { saveNotes } = await import("../db.js");
+        const featureName = noteBranch.replace('mvp/', '').replace(/-/g, ' ');
+        const session = getSessionByBr(noteBranch);
+
+        // Build change log from chat
+        const changes = [];
+        if (session) {
+          const msgs = getDatabase().prepare(
+            "SELECT role, substr(content, 1, 500) as preview FROM messages WHERE session_id = ? AND role IN ('user', 'assistant') ORDER BY created_at ASC"
+          ).all(session.id);
+          let lastUserMsg = '';
+          for (const m of msgs) {
+            try {
+              const parsed = JSON.parse(m.preview);
+              if (m.role === 'user' && parsed.text) {
+                lastUserMsg = parsed.text.replace(/\[Attached image:[^\]]+\]\s*/g, '').trim();
+              } else if (m.role === 'assistant' && parsed.text && lastUserMsg) {
+                const response = parsed.text.replace(/^(Done!?|Here'?s?|I'll|Let me|OK|Sure|Perfect)[.!,\s]*/i, '').trim();
+                const summary = response.split(/[.\n]/)[0]?.trim();
+                if (summary && summary.length > 15 && !summary.startsWith('What') && !summary.startsWith('Which')) {
+                  changes.push(`• ${summary}`);
+                } else if (lastUserMsg.length > 5) {
+                  changes.push(`• ${lastUserMsg}`);
+                }
+                lastUserMsg = '';
+              }
+            } catch {}
+          }
+        }
+
+        // Build per-repo sections
+        const repoSections = [];
+        let totalCommits = 0, totalFiles = 0;
+        const repoNames = cfgRepos.map(r => r.name);
+        for (const repo of repoNames) {
+          try {
+            const repoPath = `${workspaceDir}/${repo}`;
+            const count = parseInt(execSync(`git -C "${repoPath}" rev-list --count ${sanitizeBr(defBranch)}..${sanitizeBr(noteBranch)} 2>/dev/null`, { stdio: "pipe" }).toString().trim()) || 0;
+            if (count === 0) continue;
+            totalCommits += count;
+            const files = execSync(`git -C "${repoPath}" diff --name-only ${sanitizeBr(defBranch)}..${sanitizeBr(noteBranch)} 2>/dev/null`, { stdio: "pipe" }).toString().trim().split("\n").filter(Boolean);
+            totalFiles += files.length;
+            const stat = execSync(`git -C "${repoPath}" diff --stat ${sanitizeBr(defBranch)}..${sanitizeBr(noteBranch)} 2>/dev/null`, { stdio: "pipe" }).toString().trim();
+            const lastLine = stat.split("\n").pop() || '';
+            repoSections.push(`*${repo}* — ${files.length} files\n${files.map(f => '  • \`' + f + '\`').join('\n')}\n  ${lastLine}`);
+          } catch {}
+        }
+
+        const header = `*Feature: ${featureName}*`;
+        const branchLine = `\n\`${noteBranch}\``;
+        const overview = `\n${totalCommits} changes across ${totalFiles} files in ${repoSections.length} project${repoSections.length > 1 ? 's' : ''}`;
+        const changeLog = changes.length > 0 ? `\n\n*Changes delivered*\n${changes.join('\n')}` : '';
+        const technical = repoSections.length > 0 ? `\n\n*Projects touched*\n\n${repoSections.join('\n\n')}` : '';
+        const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const status = `\n\n—\n_Auto-generated on ${date}_`;
+
+        const notes = `${header}${branchLine}${overview}${changeLog}${technical}${status}`;
         saveNotes(noteBranch, notes);
         ws.send(JSON.stringify({ type: "notes_generated", branch: noteBranch, content: notes }));
       } catch (e) {
