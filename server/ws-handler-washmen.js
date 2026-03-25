@@ -253,7 +253,7 @@ export function handleWashmenWs(ws, sessionIds) {
             max_tokens: 1024,
             messages: [{
               role: "user",
-              content: `Summarize what was built on branch "${noteBranch}". Be concise — 4 sections max.\n\n${diffContext}\n\nFormat:\n## What was built\n## What works\n## What's left\n## Questions for engineers`,
+              content: `Summarize what was built on branch "${noteBranch}". Write for stakeholders, not engineers. Be concise.\n\n${diffContext}\n\nUse Slack formatting (NOT Markdown). Rules:\n- *bold* for section headers (not ## or **)\n- • for bullet points (not -)\n- \`code\` for file/component names\n- _italic_ for emphasis\n- No # headers, no ** bold\n\nFormat:\n*What was built*\nOne paragraph summary\n\n*Changes delivered*\n• Change 1\n• Change 2\n\n*Status*\nWhat works and what's pending`,
             }],
           }),
         });
