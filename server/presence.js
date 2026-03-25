@@ -269,14 +269,21 @@ export class PresenceManager {
   /** Cleanup stale connections (missed heartbeats) */
   _cleanup() {
     const now = Date.now();
+    const stale = [];
     for (const [wsId, user] of this.users) {
       if (now - user.lastHeartbeat > this.HEARTBEAT_TIMEOUT) {
+        stale.push(wsId);
+      }
+    }
+    for (const wsId of stale) {
+      const user = this.users.get(wsId);
+      if (user) {
         console.log(`[presence] Stale connection: ${user.name} (${wsId}) — removing`);
         logUserEvent(user.name, user.role, "idle", user.branch, null, {
           lastHeartbeat: user.lastHeartbeat,
         });
-        this.removeUser(wsId);
       }
+      this.removeUser(wsId);
     }
   }
 

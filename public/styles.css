@@ -725,7 +725,7 @@ pre:hover .code-copy { opacity: 1; }
 .presence-toggle:hover { background: var(--accent-soft); color: var(--accent); }
 
 /* Presence dropdown */
-.presence-dropdown { position: absolute; top: calc(100% + 6px); right: 0; width: 240px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 0; z-index: 100; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: fadeIn .15s ease; }
+.presence-dropdown { position: fixed; width: 240px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 0; z-index: 9000; box-shadow: 0 8px 24px rgba(0,0,0,.4); animation: fadeIn .15s ease; }
 .presence-dd-title { font-size: 11px; font-weight: 600; color: var(--text-dim); padding: 4px 12px 8px; text-transform: uppercase; letter-spacing: .5px; }
 .presence-dd-empty { font-size: 12px; color: var(--text-muted); padding: 8px 12px; }
 .presence-dd-user { display: flex; align-items: center; gap: 8px; padding: 6px 12px; }

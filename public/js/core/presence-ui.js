@@ -18,12 +18,6 @@ const roleColors = {
   other: '#8E8EA0',
 };
 
-const statusIcons = {
-  idle: '💤',
-  active: '💬',
-  building: '🔨',
-};
-
 /** Initialize presence UI — call once after DOM ready */
 export function initPresenceUI(ws) {
   _ws = ws;
@@ -64,6 +58,10 @@ function render() {
   const container = document.getElementById('presence-bar');
   if (!container) return;
 
+  // Close any open dropdown before re-rendering (prevents orphaned DOM + stale listeners)
+  const openDD = document.getElementById('presence-dropdown');
+  if (openDD) openDD.remove();
+
   const identity = getIdentity();
   const myName = identity?.name;
 
@@ -87,7 +85,7 @@ function render() {
       const initials = u.name.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
       const color = roleColors[u.role] || roleColors.other;
       const statusDot = u.status === 'building' ? ' presence-building' : (u.status === 'active' ? ' presence-active' : '');
-      html += `<div class="presence-avatar${statusDot}" style="background:${color}" title="${esc(u.name)} (${u.role}) — ${u.status}${u.branch ? ' on ' + u.branch : ''}">${initials}</div>`;
+      html += `<div class="presence-avatar${statusDot}" style="background:${color}" title="${esc(u.name)} (${esc(u.role)}) — ${esc(u.status)}${u.branch ? ' on ' + esc(u.branch) : ''}">${initials}</div>`;
     }
     if (others.length > 5) {
       html += `<div class="presence-avatar presence-more" title="${others.length - 5} more">+${others.length - 5}</div>`;
@@ -197,9 +195,14 @@ function toggleDropdown() {
 
   dd.innerHTML = html;
 
-  const bar = document.getElementById('presence-bar');
-  bar.style.position = 'relative';
-  bar.appendChild(dd);
+  // Position dropdown below the toggle button
+  const toggle = document.querySelector('.presence-toggle');
+  if (toggle) {
+    const rect = toggle.getBoundingClientRect();
+    dd.style.top = (rect.bottom + 6) + 'px';
+    dd.style.right = (window.innerWidth - rect.right) + 'px';
+  }
+  document.body.appendChild(dd);
 
   // Close on outside click
   const close = (e) => {
