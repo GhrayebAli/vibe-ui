@@ -192,7 +192,7 @@ export function getSessionChangedFiles(sessionId) {
   return sessionChangedFiles.get(sessionId) || [];
 }
 
-export function handleWashmenWs(ws, sessionIds) {
+export function handleWashmenWs(ws, sessionIds, presence = null, broadcastToBranch = null) {
   let currentSessionId = null;
   let currentQuery = null;
 
@@ -201,6 +201,43 @@ export function handleWashmenWs(ws, sessionIds) {
     try {
       msg = JSON.parse(raw.toString());
     } catch {
+      return;
+    }
+
+    // ── Multi-user presence message types ──
+    if (msg.type === "identify") {
+      if (presence && ws.__id) {
+        presence.addUser(ws.__id, msg.name || "anonymous", msg.role || "other");
+      }
+      return;
+    }
+
+    if (msg.type === "heartbeat") {
+      if (presence && ws.__id) {
+        presence.heartbeat(ws.__id);
+      }
+      return;
+    }
+
+    if (msg.type === "take_over") {
+      if (presence && ws.__id) {
+        const result = presence.takeOver(ws.__id);
+        ws.send(JSON.stringify({ type: result.ok ? "build_lock_acquired" : "build_locked", ...result }));
+      }
+      return;
+    }
+
+    if (msg.type === "branch_switch") {
+      if (presence && ws.__id && msg.branch) {
+        presence.switchBranch(ws.__id, msg.branch);
+      }
+      return;
+    }
+
+    if (msg.type === "release_lock") {
+      if (presence && ws.__id) {
+        presence.releaseLock(ws.__id);
+      }
       return;
     }
 
@@ -216,6 +253,22 @@ export function handleWashmenWs(ws, sessionIds) {
     }
 
     if (msg.type === "chat") {
+      // Check build lock for build mode (skip for discover/plan)
+      const chatMode = msg.mode || "build";
+      if (chatMode === "build" && presence && ws.__id) {
+        const lockResult = presence.acquireLock(ws.__id);
+        if (!lockResult.ok) {
+          ws.send(JSON.stringify({
+            type: "build_locked",
+            lockedBy: lockResult.lockedBy,
+            lockedSince: lockResult.lockedSince,
+            branch: lockResult.branch,
+          }));
+          return;
+        }
+        // Log chat event and update branch
+        presence.onChatSent(ws.__id, msg.branch, msg.sessionId);
+      }
       await handleChat(msg, ws, sessionIds);
     } else if (msg.type === "restart_services") {
       ws.send(JSON.stringify({ type: "system", text: "Restarting services..." }));
@@ -297,12 +350,31 @@ export function handleWashmenWs(ws, sessionIds) {
         const header = `*Feature: ${featureName}*`;
         const branchLine = `\n\`${noteBranch}\``;
         const overview = `\n${totalCommits} changes across ${totalFiles} files in ${repoSections.length} project${repoSections.length > 1 ? 's' : ''}`;
+
+        // Build stakeholder summary from changes and touched repos
+        let stakeholderSummary = '';
+        if (changes.length > 0 || repoSections.length > 0) {
+          const repoNames = cfgRepos.map(r => r.name);
+          const touchedRepos = repoNames.filter(name => repoSections.some(s => s.startsWith(`*${name}*`)));
+          const summaryParts = [];
+          if (changes.length > 0) {
+            const topChanges = changes.slice(0, 5).map(c => c.replace(/^• /, '').trim());
+            summaryParts.push(topChanges.join('; '));
+          }
+          if (touchedRepos.length > 0) {
+            summaryParts.push(`Affected areas: ${touchedRepos.join(', ')}`);
+          }
+          stakeholderSummary = `\n\n*Stakeholder summary*\n${summaryParts.join('. ')}.`;
+        }
+
         const changeLog = changes.length > 0 ? `\n\n*Changes delivered*\n${changes.join('\n')}` : '';
         const technical = repoSections.length > 0 ? `\n\n*Projects touched*\n\n${repoSections.join('\n\n')}` : '';
-        const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        const status = `\n\n—\n_Auto-generated on ${date}_`;
+        const now = new Date();
+        const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        const status = `\n\n—\n_Auto-generated on ${date} at ${time}_`;
 
-        const notes = `${header}${branchLine}${overview}${changeLog}${technical}${status}`;
+        const notes = `${header}${branchLine}${overview}${stakeholderSummary}${changeLog}${technical}${status}`;
         saveNotes(noteBranch, notes);
         ws.send(JSON.stringify({ type: "notes_generated", branch: noteBranch, content: notes }));
       } catch (e) {
@@ -323,6 +395,14 @@ export function handleWashmenWs(ws, sessionIds) {
     const model = MODEL_MAP[msg.model] || DEFAULT_MODEL;
     const mode = msg.mode || "build";
     currentSessionId = sessionId;
+
+    // Helper: send to builder + all watchers on the same branch
+    const chatBranch = msg.branch || null;
+    function sendAll(data) {
+      const payload = JSON.stringify(data);
+      if (ws.readyState === 1) ws.send(payload);
+      if (broadcastToBranch && chatBranch) broadcastToBranch(ws.__id, chatBranch, data);
+    }
 
     // Build system prompt based on mode
     let systemPrompt = undefined;
@@ -423,7 +503,12 @@ export function handleWashmenWs(ws, sessionIds) {
       }
     }
     if (mode !== "discover") {
-      addMessage(sessionId, "user", JSON.stringify({ text }));
+      const userName = msg.user_name || "anonymous";
+      addMessage(sessionId, "user", JSON.stringify({ text, user_name: userName }));
+      // Broadcast user message to watchers
+      if (broadcastToBranch && chatBranch) {
+        broadcastToBranch(ws.__id, chatBranch, { type: "watcher_user_msg", text, user_name: userName, sessionId });
+      }
     }
 
     // Determine workspace directories
@@ -464,9 +549,7 @@ export function handleWashmenWs(ws, sessionIds) {
               }
               try { getDb().prepare("INSERT INTO activity_events (session_id, event_type, tool, input_summary) VALUES (?, ?, ?, ?)").run(sessionId, "tool_start", toolName, JSON.stringify(toolInput).slice(0, 200)); } catch {}
               pendingEvents.push({ type: "tool_activity", tool: toolName, input: toolInput });
-              if (ws.readyState === 1) {
-                ws.send(JSON.stringify({ type: "tool_activity", tool: toolName, input: toolInput }));
-              }
+              sendAll({ type: "tool_activity", tool: toolName, input: toolInput });
               return {};
             }],
           }],
@@ -475,9 +558,7 @@ export function handleWashmenWs(ws, sessionIds) {
             hooks: [async (input, toolUseId, { signal }) => {
               const toolName = input.tool_name;
               try { getDb().prepare("INSERT INTO activity_events (session_id, event_type, tool) VALUES (?, ?, ?)").run(sessionId, "tool_end", toolName); } catch {}
-              if (ws.readyState === 1) {
-                ws.send(JSON.stringify({ type: "tool_complete", tool: toolName }));
-              }
+              sendAll({ type: "tool_complete", tool: toolName });
 
               // Emit file_changed for Edit/Write tools
               const toolInput = input.tool_input || {};
@@ -499,9 +580,7 @@ export function handleWashmenWs(ws, sessionIds) {
                   sessionFiles.push({ filePath, repo, action, timestamp: Date.now() });
                 }
 
-                if (ws.readyState === 1) {
-                  ws.send(JSON.stringify({ type: "file_changed", filePath, repo, action }));
-                }
+                sendAll({ type: "file_changed", filePath, repo, action });
               }
 
               return {};
@@ -509,6 +588,17 @@ export function handleWashmenWs(ws, sessionIds) {
           }],
         },
       };
+
+      // Inject branch context so Claude knows which branch + repos to work in
+      if (branch) {
+        const repoNames = getRepoNames();
+        const branchContext = `\n\nCurrent branch: ${branch}\nWorkspace directory: ${workspaceDir}\nRepos: ${repoNames.join(", ")}\nWhen running git commands, always use the sub-repo directories (e.g. git -C "${workspaceDir}/${repoNames[0]}"), not the workspace root. The workspace root is a meta-repo — your code changes live in the sub-repos.`;
+        if (systemPrompt && systemPrompt.append) {
+          systemPrompt.append += branchContext;
+        } else if (systemPrompt) {
+          systemPrompt.append = (systemPrompt.append || '') + branchContext;
+        }
+      }
 
       // Use systemPrompt for mode constraints (more authoritative than text injection)
       if (systemPrompt) {
@@ -529,7 +619,7 @@ export function handleWashmenWs(ws, sessionIds) {
       currentQuery = q;
 
       // Signal thinking state
-      ws.send(JSON.stringify({ type: "thinking", sessionId }));
+      sendAll({ type: "thinking", sessionId });
 
       let fullText = "";
       let gotFirstChunk = false;
@@ -569,10 +659,10 @@ export function handleWashmenWs(ws, sessionIds) {
             if (block.type === "text" && block.text) {
               if (!gotFirstChunk) {
                 gotFirstChunk = true;
-                if (wsOpen) ws.send(JSON.stringify({ type: "thinking_done", sessionId }));
+                sendAll({ type: "thinking_done", sessionId });
               }
               fullText += block.text;
-              if (wsOpen) ws.send(JSON.stringify({ type: "assistant_chunk", text: block.text, sessionId }));
+              sendAll({ type: "assistant_chunk", text: block.text, sessionId });
             }
             // Tool use block — track file changes (guardrail runs in PreToolUse hook)
             if (block.type === "tool_use") {
@@ -651,13 +741,13 @@ export function handleWashmenWs(ws, sessionIds) {
                 return { ...f, additions: 0, deletions: 0 };
               }
             });
-            if (wsOpen) ws.send(JSON.stringify({ type: "file_diff", files: filesWithDiff }));
+            sendAll({ type: "file_diff", files: filesWithDiff });
             pendingEvents.push({ type: "file_diff", files: filesWithDiff });
           }
           if (lastEditedFile) {
             try {
               const content = readFileSync(lastEditedFile, "utf8");
-              if (wsOpen) ws.send(JSON.stringify({ type: "code_update", path: lastEditedFile, content }));
+              sendAll({ type: "code_update", path: lastEditedFile, content });
             } catch (e) { console.error("[code]", e.message); }
           }
 
@@ -678,9 +768,9 @@ export function handleWashmenWs(ws, sessionIds) {
               } catch (e) { console.error(`[auto-restart] ${repo.name} failed:`, e.message); }
             }
           }
-          if (restartedServices.length > 0 && wsOpen) {
+          if (restartedServices.length > 0) {
             const restartMsg = `Auto-restarted: ${restartedServices.join(", ")}`;
-            ws.send(JSON.stringify({ type: "system", text: restartMsg }));
+            sendAll({ type: "system", text: restartMsg });
             pendingEvents.push({ type: "system", text: restartMsg });
           }
 
@@ -691,23 +781,23 @@ export function handleWashmenWs(ws, sessionIds) {
             try {
               const screenshotData = await takeScreenshot();
               if (screenshotData) {
-                if (wsOpen) ws.send(JSON.stringify({
+                sendAll({
                   type: "screenshot",
                   image: screenshotData,
                   caption: changedFiles.filter(f => f.name.includes(frontendName)).map(f => f.name.split("/").pop()).join(", "),
-                }));
+                });
               }
             } catch (e) { console.error("[screenshot]", e.message); }
           }
 
-          if (wsOpen) ws.send(JSON.stringify({
+          sendAll({
             type: "assistant_done",
             text: fullText,
             sessionId,
             cost,
             totalCost: getTotalCost(),
             filesChanged: changedFiles.length,
-          }));
+          });
 
           if (mode !== "discover") {
             try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.error("[db]", e.message); }
@@ -734,16 +824,18 @@ export function handleWashmenWs(ws, sessionIds) {
       }
 
       // If loop ended without a result event, still send done
-      if (!gotResult && fullText) {
-        console.log("[agent] stream ended without result event — sending done");
-        try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.warn("[agent] failed to save message:", e.message); }
-        ws.send(JSON.stringify({
-          type: "assistant_done",
-          text: fullText,
-          sessionId,
-          cost: lastCost,
-          totalCost: getTotalCost(),
-        }));
+      if (!gotResult) {
+        if (fullText) {
+          console.log("[agent] stream ended without result event — sending done");
+          try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.warn("[agent] failed to save message:", e.message); }
+          sendAll({
+            type: "assistant_done",
+            text: fullText,
+            sessionId,
+            cost: lastCost,
+            totalCost: getTotalCost(),
+          });
+        }
       }
 
       if (!gotFirstChunk) {

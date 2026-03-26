@@ -15,6 +15,7 @@ import { getDb, createSession, getSession, addMessage, addCost, getTotalCost, ge
 import { handleWashmenWs, getSessionChangedFiles } from "./server/ws-handler-washmen.js";
 import { loadWorkspaceConfig, getWorkspaceDir, getConfig, getFrontendRepo, getFrontendPort, getServicesConfig, getRepoNames, getClientConfig } from "./server/workspace-config.js";
 import { sanitizeBranchName, sanitizePort, validateDevCommand } from "./server/sanitize.js";
+import { PresenceManager } from "./server/presence.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -316,6 +317,12 @@ app.post("/api/switch-branch", async (req, res) => {
   if (!branch) return res.status(400).json({ error: "Missing branch" });
   try { sanitizeBranchName(branch); } catch (e) { return res.status(400).json({ error: e.message }); }
 
+  // During a build lock: allow joining the builder's branch, block switching elsewhere
+  const lock = presence.getPresence().buildLock;
+  if (lock && lock.branch !== branch) {
+    return res.status(423).json({ error: "locked", lockedBy: lock.userName, branch: lock.branch });
+  }
+
   const workspaceDir = getWorkspaceDir();
   const configRepos = getConfig().repos;
 
@@ -405,16 +412,34 @@ app.post("/api/switch-branch", async (req, res) => {
         const header = `*Feature: ${featureName}*`;
         const branchLine = `\n\`${leavingBranch}\``;
         const overview = `\n${totalCommits} changes across ${totalFiles} files in ${repoSections.length} project${repoSections.length > 1 ? 's' : ''}`;
+
+        // Build stakeholder summary from changes and touched repos
+        let stakeholderSummary = '';
+        if (changes.length > 0 || repoSections.length > 0) {
+          const touchedRepos = repos.filter(r => repoSections.some(s => s.startsWith(`*${r.name}*`))).map(r => r.name);
+          const summaryParts = [];
+          if (changes.length > 0) {
+            const topChanges = changes.slice(0, 5).map(c => c.replace(/^- /, '').trim());
+            summaryParts.push(topChanges.join('; '));
+          }
+          if (touchedRepos.length > 0) {
+            summaryParts.push(`Affected areas: ${touchedRepos.join(', ')}`);
+          }
+          stakeholderSummary = `\n\n*Stakeholder summary*\n${summaryParts.join('. ')}.`;
+        }
+
         const changeLog = changes.length > 0
           ? `\n\n*Changes delivered*\n${changes.map(c => c.replace(/^- /, '• ')).join('\n')}`
           : '';
         const technical = repoSections.length > 0
           ? `\n\n*Projects touched*\n\n${repoSections.join('\n\n')}`
           : '';
-        const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        const status = `\n\n—\n_Auto-generated on ${date}_`;
+        const now = new Date();
+        const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        const status = `\n\n—\n_Auto-generated on ${date} at ${time}_`;
 
-        saveNotes(leavingBranch, `${header}${branchLine}${overview}${changeLog}${technical}${status}`);
+        saveNotes(leavingBranch, `${header}${branchLine}${overview}${stakeholderSummary}${changeLog}${technical}${status}`);
       }
     }
   } catch (e) {
@@ -534,18 +559,20 @@ app.post("/api/switch-branch", async (req, res) => {
   const startTime = Date.now();
   while (Date.now() - startTime < maxWait) {
     await new Promise(r => setTimeout(r, pollInterval));
-    const allHealthy = await Promise.all(
+    const results = await Promise.all(
       configuredServices.map(async (svc) => {
         try {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 2000);
           const resp = await fetch(svc.url, { signal: controller.signal });
           clearTimeout(timeout);
-          return resp.ok;
-        } catch { return false; }
+          return { name: svc.name, ok: resp.ok };
+        } catch { return { name: svc.name, ok: false }; }
       })
     );
-    if (allHealthy.every(Boolean)) break;
+    const pending = results.filter(r => !r.ok).map(r => r.name);
+    if (pending.length === 0) break;
+    wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: 'services-ready', status: 'active', label: `Waiting for ${pending.join(', ')}` });
   }
   wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: 'services-ready', status: 'done' });
   wsBroadcast({ type: 'switch_progress', phase: 'complete', branch });
@@ -604,6 +631,18 @@ app.get("/api/sessions/:id/messages", (req, res) => {
   const db = getDb();
   const messages = db.prepare("SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC").all(req.params.id);
   res.json(messages);
+});
+
+app.delete("/api/sessions/:id/truncate-last", (req, res) => {
+  try {
+    const db = getDb();
+    const lastMsg = db.prepare("SELECT * FROM messages WHERE session_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1").get(req.params.id);
+    if (!lastMsg) return res.status(404).json({ error: "No user message found" });
+    const result = db.prepare("DELETE FROM messages WHERE session_id = ? AND id >= ?").run(req.params.id, lastMsg.id);
+    res.json({ deleted: result.changes, fromMessageId: lastMsg.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get("/api/sessions/:id/timeline", (req, res) => {
@@ -885,16 +924,24 @@ async function startBrowserConsoleListener() {
     const browser = await chromium.launch();
     const page = await browser.newPage();
 
+    const seenBrowserMsgs = new Set();
     page.on("console", msg => {
       const type = msg.type();
       if (type === "error" || type === "warning" || type === "warn") {
+        const text = msg.text();
+        // Skip source map and dev tooling noise
+        if (text.match(/failed to parse source map|ENOENT.*node_modules.*\.tsx?/i)) return;
+        // Skip duplicates within this browser session
+        if (seenBrowserMsgs.has(text)) return;
+        seenBrowserMsgs.add(text);
+        if (seenBrowserMsgs.size > 200) seenBrowserMsgs.clear(); // reset periodically
         browserConsoleBuffer.push({
           level: type === "warning" || type === "warn" ? "warn" : "error",
-          message: `[browser] ${msg.text()}`,
+          message: `[browser] ${text}`,
           ts: Date.now(),
         });
         // Keep buffer manageable
-        if (browserConsoleBuffer.length > 100) browserConsoleBuffer.splice(0, 50);
+        if (browserConsoleBuffer.length > 50) browserConsoleBuffer.splice(0, 25);
       }
     });
 
@@ -909,10 +956,7 @@ async function startBrowserConsoleListener() {
     await page.goto(`http://localhost:${getFrontendPort()}`, { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
     console.log("[console] Browser console listener started");
 
-    // Periodically reload to catch new errors after HMR
-    setInterval(async () => {
-      try { await page.reload({ waitUntil: "domcontentloaded", timeout: 10000 }); } catch {}
-    }, 30000);
+    // No periodic reload — HMR handles updates; reloading every 30s just creates duplicate errors
   } catch (err) {
     console.error("[console] Failed to start browser listener:", err.message);
     browserConsoleStarted = false;
@@ -924,9 +968,14 @@ setTimeout(() => {
   startBrowserConsoleListener().catch(e => console.error("[console] listener failed:", e.message));
 }, 10000);
 
+// Cross-poll dedup: remember recently sent error messages to avoid re-sending
+const recentlySentErrors = new Map(); // message → timestamp
+const DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
 app.get("/api/console", (req, res) => {
   const entries = [];
   const reset = req.query.reset === "true";
+  if (reset) recentlySentErrors.clear();
 
   // Clean up logPositions for files that no longer exist
   for (const key of Object.keys(logPositions)) {
@@ -953,24 +1002,34 @@ app.get("/api/console", (req, res) => {
         // Skip bare log-level labels with no content (e.g. "info:" or "debug:" alone)
         if (trimmed.match(/^\s*(info|debug|verbose|silly|trace|error|warn):\s*$/i)) continue;
         // Skip vibe-ui agent internal logs (tool calls, agent events) — not service errors
-        if (trimmed.match(/^\[(tool|agent|session|push|context|checkpoint|console|workspace|code|inspect|screenshot|cost|db|switch|create-branch)\]/)) continue;
+        if (trimmed.match(/^\[(tool|agent|session|push|context|checkpoint|console|workspace|code|inspect|screenshot|cost|db|switch|create-branch|memory)\]/)) continue;
+        // Skip stack trace lines — "at " anywhere in the line (from log files the "at" may not be at position 0)
+        if (trimmed.match(/\bat\s+([\w$.]+\s+\(|\/|node:)/)) continue;
+        // Skip webpack/HMR/source-map noise
+        if (trimmed.match(/\b(hot[- ]?update|webpack|hmr|compiled|bundle)\b/i)) continue;
+        if (trimmed.match(/failed to parse source map/i)) continue;
+        if (trimmed.match(/ENOENT.*node_modules.*\.tsx?'/)) continue;
+        // Skip Sentry/framework noise
+        if (trimmed.match(/sentry is not enabled|skipping error capture/i)) continue;
+        // Skip generic framework wrapper messages (e.g. "Custom response `res.serverError()` called with an Error")
+        if (trimmed.match(/custom response.*called with an error/i)) continue;
 
         const lower = trimmed.toLowerCase();
 
-        // Classify severity — broad pattern matching
+        // Classify severity — stricter matching to reduce false positives
         let level = "info";
-        if (lower.includes("error") || lower.includes("err:") || lower.includes("eaddrinuse") || lower.includes("enoent") ||
+        if (lower.includes("eaddrinuse") || lower.includes("enoent") ||
             lower.includes("eacces") || lower.includes("econnrefused") || lower.includes("uncaught") || lower.includes("unhandled") ||
-            lower.includes("throw ") || lower.includes("fatal") || lower.includes("crash") || lower.includes("failed") ||
+            lower.includes("throw ") || lower.includes("fatal") || lower.includes("crash") ||
             lower.includes("typeerror") || lower.includes("referenceerror") || lower.includes("syntaxerror") || lower.includes("rangeerror") ||
             lower.includes("cannot read prop") || lower.includes("is not defined") || lower.includes("is not a function") ||
-            lower.includes("module not found") || lower.includes("command failed") || lower.includes("exit code") ||
+            lower.includes("module not found") || lower.includes("command failed") ||
             (lower.includes("missing") && (lower.includes("env") || lower.includes("variable") || lower.includes("module") || lower.includes("package"))) ||
-            (lower.includes("undefined") && (lower.includes("env") || lower.includes("variable") || lower.includes("config"))) ||
-            lower.match(/^\s*at\s+/) || lower.startsWith("error")) {
+            lower.startsWith("error") || lower.match(/\berr(?:or)?:/)) {
           level = "error";
-        } else if (lower.includes("warn") || lower.includes("deprecat") || lower.includes("experimental") ||
-                   lower.includes("not recommended") || lower.includes("will be removed")) {
+        } else if (lower.includes("deprecat") || lower.includes("experimental") ||
+                   lower.includes("not recommended") || lower.includes("will be removed") ||
+                   lower.startsWith("warn")) {
           level = "warn";
         }
 
@@ -983,7 +1042,38 @@ app.get("/api/console", (req, res) => {
   const browserEntries = browserConsoleBuffer.splice(0, browserConsoleBuffer.length);
   entries.push(...browserEntries);
 
-  res.json({ entries });
+  // Deduplicate within this batch
+  const deduped = [];
+  const seen = new Map();
+  for (const entry of entries) {
+    const key = `${entry.level}|${entry.message}`;
+    if (seen.has(key)) {
+      seen.get(key).count++;
+    } else {
+      const e = { ...entry, count: 1 };
+      seen.set(key, e);
+      deduped.push(e);
+    }
+  }
+  for (const e of deduped) {
+    if (e.count > 1) e.message += ` (×${e.count})`;
+    delete e.count;
+  }
+
+  // Cross-poll dedup: skip errors already sent recently
+  const now = Date.now();
+  // Prune expired entries
+  for (const [k, ts] of recentlySentErrors) {
+    if (now - ts > DEDUP_WINDOW_MS) recentlySentErrors.delete(k);
+  }
+  const fresh = deduped.filter(e => {
+    const key = `${e.level}|${e.message}`;
+    if (recentlySentErrors.has(key)) return false;
+    recentlySentErrors.set(key, now);
+    return true;
+  });
+
+  res.json({ entries: fresh });
 });
 
 // Branch check
@@ -1483,6 +1573,13 @@ function wsBroadcast(data) {
   wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
 }
 
+// ── Multi-User Presence Manager ──
+const presence = new PresenceManager();
+presence.setBroadcast(wsBroadcast);
+
+// Presence API endpoint
+app.get("/api/presence", (_req, res) => res.json(presence.getPresence()));
+
 // WebSocket handling (with auth)
 wss.on("connection", (ws, req) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -1491,7 +1588,29 @@ wss.on("connection", (ws, req) => {
     ws.close(4001, "Unauthorized");
     return;
   }
-  handleWashmenWs(ws, sessionIds);
+
+  // Assign unique ID for presence tracking
+  ws.__id = randomUUID();
+
+  // Handle disconnect — remove from presence
+  ws.on("close", () => {
+    presence.removeUser(ws.__id);
+  });
+
+  // Branch-scoped broadcast: send to all clients on the same branch (except sender)
+  function broadcastToBranch(senderWsId, branch, data) {
+    if (!branch) return;
+    const msg = JSON.stringify(data);
+    const presenceUsers = presence.getPresence().users;
+    const branchUserIds = new Set(presenceUsers.filter(u => u.branch === branch).map(u => u.id));
+    wss.clients.forEach(c => {
+      if (c.readyState === 1 && c.__id !== senderWsId && branchUserIds.has(c.__id)) {
+        c.send(msg);
+      }
+    });
+  }
+
+  handleWashmenWs(ws, sessionIds, presence, broadcastToBranch);
 });
 
 const PORT = process.env.PORT || 4000;

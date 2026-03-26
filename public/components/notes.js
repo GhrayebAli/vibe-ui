@@ -84,7 +84,7 @@ export async function loadNotes(branch) {
   try {
     const resp = await fetch('/api/notes' + branchParam);
     const data = await resp.json();
-    console.log('[notes] load', branch, 'status:', resp.status, 'content:', !!data.content);
+    console.debug('[notes] load', branch, 'status:', resp.status, 'content:', !!data.content);
     if (data.content && data.content.trim()) {
       editorEl.value = data.content;
       if (genBtnEl && genBtnEl.textContent === 'Generate') genBtnEl.textContent = 'Regenerate';

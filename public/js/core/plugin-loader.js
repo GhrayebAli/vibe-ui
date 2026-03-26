@@ -94,7 +94,7 @@ async function loadPlugin(plugin) {
   try {
     await import(`/${plugin.js}`);
     loadedPlugins.add(plugin.name);
-    console.log(`Plugin loaded: ${plugin.name}`);
+    console.debug(`Plugin loaded: ${plugin.name}`);
 
     // Auto-detect which tab ID this plugin registered
     if (before && _getRegisteredTabIds) {

@@ -85,6 +85,29 @@ try { db.exec(`ALTER TABLE todos ADD COLUMN archived INTEGER DEFAULT 0`); } catc
 // Todo priority (0=none, 1=low, 2=medium, 3=high)
 try { db.exec(`ALTER TABLE todos ADD COLUMN priority INTEGER DEFAULT 0`); } catch { /* exists */ }
 
+// Multi-user awareness — Phase 2 migrations
+try { db.exec(`ALTER TABLE sessions ADD COLUMN created_by TEXT DEFAULT NULL`); } catch { /* exists */ }
+try { db.exec(`ALTER TABLE messages ADD COLUMN user_name TEXT DEFAULT NULL`); } catch { /* exists */ }
+try { db.exec(`ALTER TABLE costs ADD COLUMN user_name TEXT DEFAULT NULL`); } catch { /* exists */ }
+
+// User events table — tracks all user activity for analytics (Phase 7)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_name TEXT NOT NULL,
+    user_role TEXT DEFAULT 'other',
+    event_type TEXT NOT NULL,
+    branch TEXT,
+    session_id TEXT,
+    metadata TEXT,
+    created_at INTEGER DEFAULT (unixepoch())
+  );
+  CREATE INDEX IF NOT EXISTS idx_user_events_user ON user_events(user_name);
+  CREATE INDEX IF NOT EXISTS idx_user_events_type ON user_events(event_type);
+  CREATE INDEX IF NOT EXISTS idx_user_events_created ON user_events(created_at);
+  CREATE INDEX IF NOT EXISTS idx_user_events_branch ON user_events(branch);
+`);
+
 // Agent context (shared memory between agents in a chain/orchestration run)
 db.exec(`
   CREATE TABLE IF NOT EXISTS agent_context (
@@ -577,6 +600,19 @@ export function getTotalTokens() {
 
 export function getProjectTokens(projectPath) {
   return stmts.getProjectTokens.get(projectPath);
+}
+
+// ── User events (multi-user awareness) ──
+const userEventStmt = db.prepare(
+  `INSERT INTO user_events (user_name, user_role, event_type, branch, session_id, metadata) VALUES (?, ?, ?, ?, ?, ?)`
+);
+
+export function logUserEvent(userName, userRole, eventType, branch = null, sessionId = null, metadata = null) {
+  userEventStmt.run(userName, userRole || 'other', eventType, branch, sessionId, metadata ? JSON.stringify(metadata) : null);
+}
+
+export function getUserEvents(limit = 100) {
+  return db.prepare('SELECT * FROM user_events ORDER BY created_at DESC LIMIT ?').all(limit);
 }
 
 // ── Error categorization CASE (reused in multiple queries) ────

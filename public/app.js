@@ -1,10 +1,12 @@
-import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, hideWorking, showDiffSummary, showTurnCost, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion, getTurnFooter, finalizeTurnFooter } from './components/chat.js';
+import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, hideWorking, showDiffSummary, showTurnCost, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion, getTurnFooter, finalizeTurnFooter, setEditSendFn, setStreamingState, updateEditButtons } from './components/chat.js';
 import { initPreview, refreshPreview, setDevice, navigatePreview } from './components/preview.js';
 import { initNotes, onNotesOpen, onNotesGenerated } from './components/notes.js';
 import { initStatus, checkHealth } from './components/status.js';
 import { initBudget, updateBudget } from './components/budget.js';
 import './js/features/welcome.js';
 import { initVisualEdit, toggleVisualEdit, deactivate as deactivateVisualEdit, highlightChange, getPendingChangeSelector, toggleHistory } from './components/visual-edit.js';
+import { requireIdentity, getIdentity } from './js/core/identity.js';
+import { initPresenceUI, setPresenceWs, setPresenceBranch, updatePresence, onBuildLockAcquired, onBuildLockReleased } from './js/core/presence-ui.js';
 
 /* ═══ DOM refs ═══ */
 const $ = id => document.getElementById(id);
@@ -46,8 +48,7 @@ async function showLanding() {
   homeBtn.style.display = 'none';
   $('notes-btn').style.display = 'none';
   // Hide mode toggle and model select on landing (not relevant yet)
-  $('mode-toggle').style.display = 'none';
-  $('model-picker').style.display = 'none';
+  $('controls-bar').style.display = 'none';
 
   try {
     const resp = await fetch('/api/workspace');
@@ -60,6 +61,9 @@ async function showLanding() {
   // Track the server-reported active branch
   if (workspaceData.activeBranch) {
     currentBranch = workspaceData.activeBranch;
+    setPresenceBranch(currentBranch);
+    // Tell the server our branch so presence tracking works from the start
+    if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'branch_switch', branch: currentBranch }));
     // Show branch badge on landing if on an mvp branch
     const badge = $('branch-badge');
     if (badge && currentBranch.startsWith('mvp/')) {
@@ -120,8 +124,7 @@ function hideLanding() {
   $('input-dock').style.display = '';
   $('home-btn').style.display = '';
   // Restore mode toggle and model select
-  $('mode-toggle').style.display = '';
-  $('model-picker').style.display = '';
+  $('controls-bar').style.display = '';
   // Notes button shown dynamically when branch has changes
 }
 
@@ -136,8 +139,7 @@ function showSwitchProgress(branchName, steps) {
   chat.style.display = 'none';
   $('input-dock').style.display = 'none';
   $('home-btn').style.display = 'none';
-  $('mode-toggle').style.display = 'none';
-  $('model-picker').style.display = 'none';
+  $('controls-bar').style.display = 'none';
 
   title.textContent = `Switching to ${branchName}...`;
   stepsEl.innerHTML = '';
@@ -151,9 +153,13 @@ function showSwitchProgress(branchName, steps) {
   overlay.style.display = 'flex';
 }
 
-function updateSwitchStep(stepId, status) {
+function updateSwitchStep(stepId, status, label) {
   const el = $(`step-${stepId}`);
   if (!el) return;
+  if (label) {
+    const labelEl = el.querySelector('span:last-child');
+    if (labelEl) labelEl.textContent = label;
+  }
   const iconEl = el.querySelector('.switch-step-icon');
   if (status === 'active') {
     el.className = 'switch-step active';
@@ -169,8 +175,7 @@ function hideSwitchProgress() {
   chat.style.display = '';
   $('input-dock').style.display = '';
   $('home-btn').style.display = '';
-  $('mode-toggle').style.display = '';
-  $('model-picker').style.display = '';
+  $('controls-bar').style.display = '';
 }
 
 function startDiscover() {
@@ -203,6 +208,11 @@ async function resumeBranch(branch) {
       body: JSON.stringify({ branch: branch.name }),
     });
     const result = await resp.json();
+    if (result.error === 'locked') {
+      hideSwitchProgress();
+      addSystemMsg(`Branch switch blocked — ${result.lockedBy} is building on ${result.branch}. You can join their branch to watch, or wait for them to finish.`);
+      return;
+    }
     if (!result.ok) throw new Error(result.error || 'Switch failed');
     wasSkipped = result.skipped;
   } catch (e) {
@@ -213,11 +223,14 @@ async function resumeBranch(branch) {
 
   mode = 'build';
   currentBranch = branch.name;
+  setPresenceBranch(currentBranch);
+  if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'branch_switch', branch: currentBranch }));
   const badge = $('branch-badge');
   if (badge) { badge.textContent = branch.name; badge.style.display = ''; }
 
   if (branch.session) {
     sid = branch.session.id;
+    window.__vibeSid = sid;
     try {
       const msgs = await (await fetch(`/api/sessions/${sid}/messages`)).json();
       if (msgs.length > 0) loadMessages(msgs);
@@ -263,6 +276,8 @@ async function startNewFeature() {
 
     mode = 'build';
     currentBranch = result.branch;
+    setPresenceBranch(currentBranch);
+    if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'branch_switch', branch: currentBranch }));
     sid = null;
 
     const badge = $('branch-badge');
@@ -297,7 +312,13 @@ function connect() {
   ws = new WebSocket(`${proto}//${location.host}/ws?token=${window.__VIBE_TOKEN}`);
 
   ws.onopen = async () => {
-    console.log('[ws] connected');
+    console.debug('[ws] connected');
+
+    // Send identify message so server knows who this client is
+    const identity = getIdentity();
+    if (identity) {
+      ws.send(JSON.stringify({ type: 'identify', name: identity.name, role: identity.role }));
+    }
 
     if (!wsInitialized) {
       // First connection — full initialization
@@ -317,10 +338,19 @@ function connect() {
       const cfg = window.__workspaceConfig;
       initPreview(portUrl(cfg.frontendPort) + cfg.previewPath);
       initVisualEdit($('preview-frame'), doSend);
+      initPresenceUI(ws);
       setInterval(checkHealth, 10000);
+
+      // Start heartbeat — tell server we're still alive every 30s
+      setInterval(() => {
+        if (ws?.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'heartbeat' }));
+        }
+      }, 30000);
     } else {
       // Reconnect — just restore health checks, don't reset UI
-      console.log('[ws] reconnected — UI preserved');
+      console.debug('[ws] reconnected — UI preserved');
+      setPresenceWs(ws);
       checkHealth();
     }
   };
@@ -331,7 +361,7 @@ function connect() {
   };
 
   ws.onclose = () => {
-    console.log('[ws] disconnected — reconnecting...');
+    console.debug('[ws] disconnected — reconnecting...');
     setTimeout(connect, 2000);
   };
 }
@@ -350,7 +380,7 @@ function handleMessage(msg) {
     case 'assistant_chunk':
       hideThinking();
       addAgentMsg(msg.text, true); // streaming=true
-      if (msg.sessionId) sid = msg.sessionId;
+      if (msg.sessionId) { sid = msg.sessionId; window.__vibeSid = sid; }
       break;
 
     case 'assistant_done':
@@ -362,6 +392,7 @@ function handleMessage(msg) {
       if (sid && msg.filesChanged > 0) attachUndoButton();
       showTurnCost(msg.cost, model);
       streaming = false;
+      setStreamingState(false);
       sendBtn.disabled = false;
       sendBtn.style.display = 'flex';
       stopBtn.style.display = 'none';
@@ -419,7 +450,7 @@ function handleMessage(msg) {
       if (msg.phase === 'start') {
         showSwitchProgress(msg.branch, msg.steps);
       } else if (msg.phase === 'step') {
-        updateSwitchStep(msg.stepId, msg.status);
+        updateSwitchStep(msg.stepId, msg.status, msg.label);
       } else if (msg.phase === 'complete') {
         hideSwitchProgress();
       }
@@ -438,6 +469,7 @@ function handleMessage(msg) {
         doSend('Fix this error: ' + msg.text);
       });
       streaming = false;
+      setStreamingState(false);
       sendBtn.disabled = false;
       sendBtn.style.display = 'flex';
       stopBtn.style.display = 'none';
@@ -459,8 +491,31 @@ function handleMessage(msg) {
 
     case 'branch_created':
       currentBranch = msg.branch;
+      setPresenceBranch(currentBranch);
       const badge = $('branch-badge');
       if (badge) { badge.textContent = msg.branch; badge.style.display = ''; }
+      break;
+
+    case 'presence_update':
+      updatePresence(msg.users, msg.buildLock);
+      break;
+
+    case 'build_locked':
+      addSystemMsg(`🔒 Build locked by ${msg.lockedBy} — switch to Plan mode or take over.`);
+      break;
+
+    case 'build_lock_acquired':
+      onBuildLockAcquired(msg);
+      break;
+
+    case 'build_lock_released':
+      onBuildLockReleased();
+      if (msg.releasedBy) addSystemMsg(`Build lock released by ${msg.releasedBy}.`);
+      break;
+
+    case 'watcher_user_msg':
+      // Another user's message — show in chat with their name
+      addUserMsg(msg.text, '', msg.user_name);
       break;
   }
 }
@@ -498,19 +553,21 @@ function doSend(text) {
       .filter(a => a.type === 'image')
       .map(a => `<img src="${a.preview}" class="attach-preview">`)
       .join('');
-    addUserMsg(text, previewHtml);
+    addUserMsg(text, previewHtml, getIdentity()?.name);
     pendingAttachments = [];
     clearAttachmentPreview();
   } else {
-    addUserMsg(text);
+    addUserMsg(text, '', getIdentity()?.name);
   }
 
   hasSent = true;
   streaming = true;
+  setStreamingState(true);
   sendBtn.disabled = true;
   sendBtn.style.display = 'none';
   stopBtn.style.display = 'flex';
 
+  const identity = getIdentity();
   ws.send(JSON.stringify({
     type: 'chat',
     text: fullText,
@@ -518,8 +575,13 @@ function doSend(text) {
     model,
     mode,
     branch: currentBranch,
+    user_name: identity?.name || 'anonymous',
+    user_role: identity?.role || 'other',
   }));
 }
+
+// Register doSend with chat.js for edit & re-prompt feature
+setEditSendFn(doSend);
 
 function send() {
   const text = input.value.trim();
@@ -1490,4 +1552,8 @@ initNotes($('notes-editor'), $('notes-gen'), $('notes-save'), $('notes-copy'), (
 initStatus($('status-list'));
 initBudget($('budget-fill'), $('budget-amount'));
 
-connect();
+// Identity-first flow: show modal → wait for name → connect WebSocket → show landing
+(async () => {
+  await requireIdentity();
+  connect();
+})();

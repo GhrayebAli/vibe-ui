@@ -5,25 +5,34 @@ let renderPending = false;
 let thinkingEl = null;
 let activityEl = null;
 let activityLog = [];
+let _isStreaming = false;
+let _doSendFn = null;
+
+export function setEditSendFn(fn) { _doSendFn = fn; }
+export function setStreamingState(val) { _isStreaming = val; updateEditButtons(); }
 
 export function initChat(el) {
   chatEl = el;
 }
 
-function timeLabel() {
-  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function timeLabel(epoch) {
+  const d = epoch ? new Date(epoch * 1000) : new Date();
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export function addUserMsg(text, attachHtml) {
+export function addUserMsg(text, attachHtml, senderName, createdAt) {
   const div = document.createElement('div');
   div.className = 'msg msg-user';
-  div.innerHTML = `${attachHtml ? `<div class="msg-attachments">${attachHtml}</div>` : ''}<div class="bubble">${escapeHtml(text)}</div><span class="msg-time">${timeLabel()}</span>`;
+  div.dataset.originalText = text;
+  const nameTag = senderName ? `<span class="msg-sender">${escapeHtml(senderName)}</span>` : '';
+  div.innerHTML = `${nameTag}${attachHtml ? `<div class="msg-attachments">${attachHtml}</div>` : ''}<div class="bubble">${escapeHtml(text)}</div><span class="msg-time">${timeLabel(createdAt)}</span>`;
   chatEl.appendChild(div);
   maybeCollapse(div.querySelector('.bubble'));
   scrollBottom();
+  updateEditButtons();
 }
 
-export function addAgentMsg(text, streaming) {
+export function addAgentMsg(text, streaming, createdAt) {
   if (streaming && text) {
     if (!currentAgentBubble) {
       const div = document.createElement('div');
@@ -64,6 +73,18 @@ export function addAgentMsg(text, streaming) {
       maybeCollapse(bubble);
       chatEl.appendChild(div);
     }
+    // If agent only used tools with no text, create a bubble showing what it did
+    if (!currentAgentBubble && activityLog.length > 0) {
+      const div = document.createElement('div');
+      div.className = 'msg msg-agent';
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      const toolSummary = activityLog.map(a => `${a.icon} ${a.label}`).join(', ');
+      bubble.innerHTML = `<p style="color:var(--text-muted);font-style:italic;margin:0">${toolSummary}</p>`;
+      div.appendChild(bubble);
+      chatEl.appendChild(div);
+      currentAgentBubble = bubble;
+    }
     if (currentAgentBubble) {
       // Collapse long streamed messages after finalization
       maybeCollapse(currentAgentBubble);
@@ -78,7 +99,7 @@ export function addAgentMsg(text, streaming) {
       // Add timestamp to the parent msg div
       const timeSpan = document.createElement('span');
       timeSpan.className = 'msg-time';
-      timeSpan.textContent = timeLabel();
+      timeSpan.textContent = timeLabel(createdAt);
       currentAgentBubble.parentElement.appendChild(timeSpan);
     }
     currentAgentBubble = null;
@@ -346,8 +367,8 @@ export function loadMessages(msgs) {
               return `<div class="attach-placeholder" title="${escapeHtml(fileName)}"><img src="/api/uploads/${encodeURIComponent(fileName)}" class="attach-thumb" alt="screenshot" onerror="this.style.display='none';this.parentElement.classList.add('missing')"><span class="attach-missing-label">Screenshot</span></div>`;
             }).join('')
           : '';
-        addUserMsg(cleanText, attachHtml);
-      } else if (m.role === 'assistant') addAgentMsg(text, false);
+        addUserMsg(cleanText, attachHtml, parsed.user_name, m.created_at);
+      } else if (m.role === 'assistant') addAgentMsg(text, false, m.created_at);
       else if (m.role === 'result') {
         showTurnCost(parsed.cost_usd, parsed.model);
         finalizeTurnFooter();
@@ -358,8 +379,8 @@ export function loadMessages(msgs) {
       }
       else addSystemMsg(text);
     } catch {
-      if (m.role === 'user') addUserMsg(m.content);
-      else addAgentMsg(m.content, false);
+      if (m.role === 'user') addUserMsg(m.content, '', null, m.created_at);
+      else addAgentMsg(m.content, false, m.created_at);
     }
   });
   // Flush any remaining tool batch
@@ -381,6 +402,123 @@ function addCopyButtons(container) {
     };
     pre.style.position = 'relative';
     pre.appendChild(btn);
+  });
+}
+
+export function updateEditButtons() {
+  if (!chatEl) return;
+  // Remove all existing edit buttons
+  chatEl.querySelectorAll('.msg-edit-btn').forEach(btn => btn.remove());
+
+  if (_isStreaming) return;
+
+  const userMsgs = chatEl.querySelectorAll('.msg-user');
+  if (userMsgs.length === 0) return;
+  const lastUserMsg = userMsgs[userMsgs.length - 1];
+
+  const bubble = lastUserMsg.querySelector('.bubble');
+  if (!bubble) return;
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'msg-edit-btn';
+  editBtn.title = 'Edit & re-send';
+  editBtn.innerHTML = '&#9998;';
+  editBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    enterEditMode(lastUserMsg);
+  });
+  bubble.appendChild(editBtn);
+}
+
+async function truncateLastExchange(sessionId) {
+  const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/truncate-last`, { method: 'DELETE' });
+  return res.json();
+}
+
+function enterEditMode(msgDiv) {
+  const bubble = msgDiv.querySelector('.bubble');
+  if (!bubble || msgDiv.classList.contains('editing')) return;
+  msgDiv.classList.add('editing');
+
+  const originalText = msgDiv.dataset.originalText || bubble.textContent;
+
+  const textarea = document.createElement('textarea');
+  textarea.className = 'msg-edit-textarea';
+  textarea.value = originalText;
+  textarea.rows = Math.max(2, originalText.split('\n').length);
+
+  const actions = document.createElement('div');
+  actions.className = 'msg-edit-actions';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'msg-edit-save';
+  saveBtn.textContent = 'Send';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'msg-edit-cancel';
+  cancelBtn.textContent = 'Cancel';
+
+  actions.appendChild(saveBtn);
+  actions.appendChild(cancelBtn);
+
+  bubble.style.display = 'none';
+  // Hide edit button and time label while editing
+  const editBtnEl = msgDiv.querySelector('.msg-edit-btn');
+  if (editBtnEl) editBtnEl.style.display = 'none';
+  const timeEl = msgDiv.querySelector('.msg-time');
+  if (timeEl) timeEl.style.display = 'none';
+
+  msgDiv.appendChild(textarea);
+  msgDiv.appendChild(actions);
+  textarea.focus();
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+  function cancel() {
+    msgDiv.classList.remove('editing');
+    bubble.style.display = '';
+    textarea.remove();
+    actions.remove();
+    if (editBtnEl) editBtnEl.style.display = '';
+    if (timeEl) timeEl.style.display = '';
+  }
+
+  async function save() {
+    const newText = textarea.value.trim();
+    if (!newText) return;
+
+    // Delete last exchange from DB
+    const sessionId = window.__vibeSid;
+    if (sessionId) {
+      try { await truncateLastExchange(sessionId); } catch (e) { console.warn('[edit] truncate failed:', e); }
+    }
+
+    // Remove all DOM elements from this message onward
+    let sibling = msgDiv.nextElementSibling;
+    while (sibling) {
+      const next = sibling.nextElementSibling;
+      sibling.remove();
+      sibling = next;
+    }
+    msgDiv.remove();
+
+    // Send the edited message
+    if (_doSendFn) {
+      _doSendFn(newText);
+    }
+  }
+
+  saveBtn.addEventListener('click', save);
+  cancelBtn.addEventListener('click', cancel);
+
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cancel();
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      save();
+    }
   });
 }
 

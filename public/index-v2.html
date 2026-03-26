@@ -19,7 +19,7 @@
 
   <!-- Left Panel -->
   <div class="left-panel" id="left-panel" style="width:30%">
-    <!-- Top Bar -->
+    <!-- Top Bar: Row 1 — branding + presence + identity -->
     <div class="top-bar">
       <div class="top-bar-left">
         <svg class="topbar-logo" width="20" height="20" viewBox="0 0 40 40" fill="none" title="WashVibe">
@@ -36,17 +36,23 @@
         </button>
       </div>
       <div class="top-bar-right">
-        <div class="mode-toggle" id="mode-toggle">
-          <button class="mode-btn" data-mode="plan">Plan</button>
-          <button class="mode-btn active" data-mode="build">Build</button>
-        </div>
-        <div class="model-picker" id="model-picker">
-          <button class="model-chip" data-model="haiku" title="Fast &amp; cheap — quick edits, bug fixes">Haiku</button>
-          <button class="model-chip active" data-model="sonnet" title="Balanced — features, refactoring">Sonnet</button>
-          <button class="model-chip" data-model="opus" title="Most capable — complex architecture, multi-file changes">Opus</button>
-        </div>
+        <div class="presence-bar" id="presence-bar" style="display:none"></div>
       </div>
     </div>
+    <!-- Controls Bar: Row 2 — mode + model pickers -->
+    <div class="controls-bar" id="controls-bar">
+      <div class="mode-toggle" id="mode-toggle">
+        <button class="mode-btn" data-mode="plan">Plan</button>
+        <button class="mode-btn active" data-mode="build">Build</button>
+      </div>
+      <div class="model-picker" id="model-picker">
+        <button class="model-chip" data-model="haiku" title="Fast &amp; cheap — quick edits, bug fixes">Haiku</button>
+        <button class="model-chip active" data-model="sonnet" title="Balanced — features, refactoring">Sonnet</button>
+        <button class="model-chip" data-model="opus" title="Most capable — complex architecture, multi-file changes">Opus</button>
+      </div>
+    </div>
+    <!-- Status Strip: Row 3 — build lock + branch warnings (hidden when inactive) -->
+    <div class="status-strip" id="status-strip" style="display:none"></div>
 
     <!-- Chat + Overlays container -->
     <div style="flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:0">
@@ -57,6 +63,32 @@
         <div class="switch-progress-spinner"></div>
         <div class="switch-progress-title" id="switch-progress-title">Switching branch...</div>
         <div class="switch-progress-steps" id="switch-progress-steps"></div>
+      </div>
+    </div>
+
+    <!-- Identity Modal (blocks page until name entered) -->
+    <div id="identity-modal" class="identity-modal" style="display:none">
+      <div class="identity-inner">
+        <div class="identity-logo">
+          <svg width="44" height="44" viewBox="0 0 40 40" fill="none">
+            <defs><linearGradient id="wv-grad-id" x1="0" y1="0" x2="40" y2="40"><stop offset="0%" stop-color="#7c5ce7"/><stop offset="100%" stop-color="#9b87f5"/></linearGradient></defs>
+            <rect width="40" height="40" rx="10" fill="url(#wv-grad-id)"/>
+            <path d="M9 12c1 8 3 16 6 16s4.5-9 5-12" stroke="white" stroke-width="3" stroke-linecap="round" fill="none"/>
+            <path d="M20 16c.5 3 2 12 5 12s5-8 6-12" stroke="#5ce6c8" stroke-width="3" stroke-linecap="round" fill="none"/>
+          </svg>
+        </div>
+        <div class="identity-title">Who's vibing?</div>
+        <div class="identity-subtitle">Enter your name so the team knows who's building.</div>
+        <input type="text" id="identity-name" class="identity-input" placeholder="Your name" maxlength="40" autocomplete="off">
+        <select id="identity-role" class="identity-select">
+          <option value="pm">Product Manager</option>
+          <option value="engineer">Engineer</option>
+          <option value="designer">Designer</option>
+          <option value="qa">QA</option>
+          <option value="other">Other</option>
+        </select>
+        <div id="identity-error" class="identity-error" style="display:none"></div>
+        <button id="identity-submit" class="identity-btn">Continue</button>
       </div>
     </div>
 
@@ -95,7 +127,7 @@
             <div class="landing-card-title">Build a New Feature</div>
             <div class="landing-card-desc">Create a new branch and start building.</div>
             <div class="landing-build-row">
-              <input type="text" id="feature-name-input" placeholder="Describe your feature..." class="landing-input">
+              <input type="text" id="feature-name-input" placeholder="Name your feature..." class="landing-input">
               <button id="feature-start-btn" class="landing-start-btn">Start</button>
             </div>
           </div>

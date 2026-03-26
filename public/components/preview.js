@@ -42,8 +42,8 @@ export function initPreview(url) {
     // Don't hide loader on error — retry will handle it
   };
 
-  // Start loading
-  frame.src = url;
+  // Poll until service is healthy, then load
+  refreshPreview();
 }
 
 function clearRetry() {
@@ -55,23 +55,23 @@ export function refreshPreview() {
   clearRetry();
   loader.classList.remove('hidden');
 
-  // Poll until the service responds, then load the iframe
+  // Poll the actual preview URL directly — this catches both the local
+  // service being down AND external dependencies (auth, Codespace proxy)
   let attempts = 0;
-  const maxAttempts = 30; // 30s max
+  const maxAttempts = 90; // 90s max for cold starts
   retryTimer = setInterval(async () => {
     attempts++;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2000);
-      const resp = await fetch('/api/service-health');
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const resp = await fetch(baseUrl, { mode: 'no-cors', signal: controller.signal });
       clearTimeout(timeout);
-      const data = await resp.json();
-      const allHealthy = data.services && data.services.every(s => s.status === 'healthy');
-      if (allHealthy) {
-        clearRetry();
-        frame.src = frame.src;
-        return;
-      }
+      // no-cors returns opaque response (status 0) on success — that's fine,
+      // it means the URL is reachable. A network error would throw.
+      clearRetry();
+      frame.src = baseUrl;
+      loader.classList.add('hidden');
+      return;
     } catch {}
     if (attempts >= maxAttempts) {
       clearRetry();
@@ -79,7 +79,7 @@ export function refreshPreview() {
         <div class="preview-error">
           <div class="preview-error-icon">!</div>
           <div class="preview-error-title">Services not ready</div>
-          <div class="preview-error-desc">Frontend service didn't respond after 30 seconds.</div>
+          <div class="preview-error-desc">Frontend service didn't respond after ${maxAttempts} seconds.</div>
           <button class="preview-retry-btn" onclick="window.__retryPreview?.()">Retry</button>
         </div>
       `;
