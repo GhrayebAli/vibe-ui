@@ -1,4 +1,4 @@
-import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, hideWorking, showDiffSummary, showTurnCost, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion, getTurnFooter, finalizeTurnFooter } from './components/chat.js';
+import { initChat, addUserMsg, addAgentMsg, addSystemMsg, addErrorMsg, showThinking, hideThinking, showActivity, hideActivity, hideWorking, showDiffSummary, showTurnCost, clearChat, loadMessages, addScreenshot, detectAndRenderQuestion, getTurnFooter, finalizeTurnFooter, setEditSendFn, setStreamingState, updateEditButtons } from './components/chat.js';
 import { initPreview, refreshPreview, setDevice, navigatePreview } from './components/preview.js';
 import { initNotes, onNotesOpen, onNotesGenerated } from './components/notes.js';
 import { initStatus, checkHealth } from './components/status.js';
@@ -230,6 +230,7 @@ async function resumeBranch(branch) {
 
   if (branch.session) {
     sid = branch.session.id;
+    window.__vibeSid = sid;
     try {
       const msgs = await (await fetch(`/api/sessions/${sid}/messages`)).json();
       if (msgs.length > 0) loadMessages(msgs);
@@ -379,7 +380,7 @@ function handleMessage(msg) {
     case 'assistant_chunk':
       hideThinking();
       addAgentMsg(msg.text, true); // streaming=true
-      if (msg.sessionId) sid = msg.sessionId;
+      if (msg.sessionId) { sid = msg.sessionId; window.__vibeSid = sid; }
       break;
 
     case 'assistant_done':
@@ -391,6 +392,7 @@ function handleMessage(msg) {
       if (sid && msg.filesChanged > 0) attachUndoButton();
       showTurnCost(msg.cost, model);
       streaming = false;
+      setStreamingState(false);
       sendBtn.disabled = false;
       sendBtn.style.display = 'flex';
       stopBtn.style.display = 'none';
@@ -467,6 +469,7 @@ function handleMessage(msg) {
         doSend('Fix this error: ' + msg.text);
       });
       streaming = false;
+      setStreamingState(false);
       sendBtn.disabled = false;
       sendBtn.style.display = 'flex';
       stopBtn.style.display = 'none';
@@ -559,6 +562,7 @@ function doSend(text) {
 
   hasSent = true;
   streaming = true;
+  setStreamingState(true);
   sendBtn.disabled = true;
   sendBtn.style.display = 'none';
   stopBtn.style.display = 'flex';
@@ -575,6 +579,9 @@ function doSend(text) {
     user_role: identity?.role || 'other',
   }));
 }
+
+// Register doSend with chat.js for edit & re-prompt feature
+setEditSendFn(doSend);
 
 function send() {
   const text = input.value.trim();

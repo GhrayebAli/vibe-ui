@@ -5,6 +5,11 @@ let renderPending = false;
 let thinkingEl = null;
 let activityEl = null;
 let activityLog = [];
+let _isStreaming = false;
+let _doSendFn = null;
+
+export function setEditSendFn(fn) { _doSendFn = fn; }
+export function setStreamingState(val) { _isStreaming = val; updateEditButtons(); }
 
 export function initChat(el) {
   chatEl = el;
@@ -18,11 +23,13 @@ function timeLabel(epoch) {
 export function addUserMsg(text, attachHtml, senderName, createdAt) {
   const div = document.createElement('div');
   div.className = 'msg msg-user';
+  div.dataset.originalText = text;
   const nameTag = senderName ? `<span class="msg-sender">${escapeHtml(senderName)}</span>` : '';
   div.innerHTML = `${nameTag}${attachHtml ? `<div class="msg-attachments">${attachHtml}</div>` : ''}<div class="bubble">${escapeHtml(text)}</div><span class="msg-time">${timeLabel(createdAt)}</span>`;
   chatEl.appendChild(div);
   maybeCollapse(div.querySelector('.bubble'));
   scrollBottom();
+  updateEditButtons();
 }
 
 export function addAgentMsg(text, streaming, createdAt) {
@@ -383,6 +390,120 @@ function addCopyButtons(container) {
     };
     pre.style.position = 'relative';
     pre.appendChild(btn);
+  });
+}
+
+export function updateEditButtons() {
+  if (!chatEl) return;
+  // Remove all existing edit buttons
+  chatEl.querySelectorAll('.msg-edit-btn').forEach(btn => btn.remove());
+
+  if (_isStreaming) return;
+
+  const userMsgs = chatEl.querySelectorAll('.msg-user');
+  if (userMsgs.length === 0) return;
+  const lastUserMsg = userMsgs[userMsgs.length - 1];
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'msg-edit-btn';
+  editBtn.title = 'Edit & re-send';
+  editBtn.innerHTML = '&#9998;';
+  editBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    enterEditMode(lastUserMsg);
+  });
+  lastUserMsg.appendChild(editBtn);
+}
+
+async function truncateLastExchange(sessionId) {
+  const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/truncate-last`, { method: 'DELETE' });
+  return res.json();
+}
+
+function enterEditMode(msgDiv) {
+  const bubble = msgDiv.querySelector('.bubble');
+  if (!bubble || msgDiv.classList.contains('editing')) return;
+  msgDiv.classList.add('editing');
+
+  const originalText = msgDiv.dataset.originalText || bubble.textContent;
+
+  const textarea = document.createElement('textarea');
+  textarea.className = 'msg-edit-textarea';
+  textarea.value = originalText;
+  textarea.rows = Math.max(2, originalText.split('\n').length);
+
+  const actions = document.createElement('div');
+  actions.className = 'msg-edit-actions';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'msg-edit-save';
+  saveBtn.textContent = 'Send';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'msg-edit-cancel';
+  cancelBtn.textContent = 'Cancel';
+
+  actions.appendChild(saveBtn);
+  actions.appendChild(cancelBtn);
+
+  bubble.style.display = 'none';
+  // Hide edit button and time label while editing
+  const editBtnEl = msgDiv.querySelector('.msg-edit-btn');
+  if (editBtnEl) editBtnEl.style.display = 'none';
+  const timeEl = msgDiv.querySelector('.msg-time');
+  if (timeEl) timeEl.style.display = 'none';
+
+  msgDiv.appendChild(textarea);
+  msgDiv.appendChild(actions);
+  textarea.focus();
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+  function cancel() {
+    msgDiv.classList.remove('editing');
+    bubble.style.display = '';
+    textarea.remove();
+    actions.remove();
+    if (editBtnEl) editBtnEl.style.display = '';
+    if (timeEl) timeEl.style.display = '';
+  }
+
+  async function save() {
+    const newText = textarea.value.trim();
+    if (!newText) return;
+
+    // Get session ID from the app
+    const sessionId = window.__vibeSid;
+    if (sessionId) {
+      await truncateLastExchange(sessionId);
+    }
+
+    // Remove all DOM elements from this message onward
+    let sibling = msgDiv.nextElementSibling;
+    while (sibling) {
+      const next = sibling.nextElementSibling;
+      sibling.remove();
+      sibling = next;
+    }
+    msgDiv.remove();
+
+    // Send the edited message
+    if (_doSendFn) {
+      _doSendFn(newText);
+    }
+  }
+
+  saveBtn.addEventListener('click', save);
+  cancelBtn.addEventListener('click', cancel);
+
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cancel();
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      save();
+    }
   });
 }
 
