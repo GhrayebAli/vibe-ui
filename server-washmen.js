@@ -917,6 +917,8 @@ async function startBrowserConsoleListener() {
       const type = msg.type();
       if (type === "error" || type === "warning" || type === "warn") {
         const text = msg.text();
+        // Skip source map and dev tooling noise
+        if (text.match(/failed to parse source map|ENOENT.*node_modules.*\.tsx?/i)) return;
         // Skip duplicates within this browser session
         if (seenBrowserMsgs.has(text)) return;
         seenBrowserMsgs.add(text);
@@ -991,8 +993,10 @@ app.get("/api/console", (req, res) => {
         if (trimmed.match(/^\[(tool|agent|session|push|context|checkpoint|console|workspace|code|inspect|screenshot|cost|db|switch|create-branch|memory)\]/)) continue;
         // Skip stack trace lines — "at " anywhere in the line (from log files the "at" may not be at position 0)
         if (trimmed.match(/\bat\s+([\w$.]+\s+\(|\/|node:)/)) continue;
-        // Skip webpack/HMR noise
+        // Skip webpack/HMR/source-map noise
         if (trimmed.match(/\b(hot[- ]?update|webpack|hmr|compiled|bundle)\b/i)) continue;
+        if (trimmed.match(/failed to parse source map/i)) continue;
+        if (trimmed.match(/ENOENT.*node_modules.*\.tsx?'/)) continue;
         // Skip Sentry/framework noise
         if (trimmed.match(/sentry is not enabled|skipping error capture/i)) continue;
         // Skip generic framework wrapper messages (e.g. "Custom response `res.serverError()` called with an Error")
