@@ -954,9 +954,14 @@ setTimeout(() => {
   startBrowserConsoleListener().catch(e => console.error("[console] listener failed:", e.message));
 }, 10000);
 
+// Cross-poll dedup: remember recently sent error messages to avoid re-sending
+const recentlySentErrors = new Map(); // message → timestamp
+const DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
 app.get("/api/console", (req, res) => {
   const entries = [];
   const reset = req.query.reset === "true";
+  if (reset) recentlySentErrors.clear();
 
   // Clean up logPositions for files that no longer exist
   for (const key of Object.keys(logPositions)) {
@@ -984,10 +989,14 @@ app.get("/api/console", (req, res) => {
         if (trimmed.match(/^\s*(info|debug|verbose|silly|trace|error|warn):\s*$/i)) continue;
         // Skip vibe-ui agent internal logs (tool calls, agent events) — not service errors
         if (trimmed.match(/^\[(tool|agent|session|push|context|checkpoint|console|workspace|code|inspect|screenshot|cost|db|switch|create-branch|memory)\]/)) continue;
-        // Skip stack trace lines (at Module._compile, at Object.<anonymous>, etc.)
-        if (trimmed.match(/^\s*at\s+/)) continue;
+        // Skip stack trace lines — "at " anywhere in the line (from log files the "at" may not be at position 0)
+        if (trimmed.match(/\bat\s+([\w$.]+\s+\(|\/|node:)/)) continue;
         // Skip webpack/HMR noise
         if (trimmed.match(/\b(hot[- ]?update|webpack|hmr|compiled|bundle)\b/i)) continue;
+        // Skip Sentry/framework noise
+        if (trimmed.match(/sentry is not enabled|skipping error capture/i)) continue;
+        // Skip generic framework wrapper messages (e.g. "Custom response `res.serverError()` called with an Error")
+        if (trimmed.match(/custom response.*called with an error/i)) continue;
 
         const lower = trimmed.toLowerCase();
 
@@ -1017,7 +1026,7 @@ app.get("/api/console", (req, res) => {
   const browserEntries = browserConsoleBuffer.splice(0, browserConsoleBuffer.length);
   entries.push(...browserEntries);
 
-  // Deduplicate: collapse repeated messages, append count
+  // Deduplicate within this batch
   const deduped = [];
   const seen = new Map();
   for (const entry of entries) {
@@ -1035,7 +1044,20 @@ app.get("/api/console", (req, res) => {
     delete e.count;
   }
 
-  res.json({ entries: deduped });
+  // Cross-poll dedup: skip errors already sent recently
+  const now = Date.now();
+  // Prune expired entries
+  for (const [k, ts] of recentlySentErrors) {
+    if (now - ts > DEDUP_WINDOW_MS) recentlySentErrors.delete(k);
+  }
+  const fresh = deduped.filter(e => {
+    const key = `${e.level}|${e.message}`;
+    if (recentlySentErrors.has(key)) return false;
+    recentlySentErrors.set(key, now);
+    return true;
+  });
+
+  res.json({ entries: fresh });
 });
 
 // Branch check
