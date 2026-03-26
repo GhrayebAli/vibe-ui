@@ -213,10 +213,10 @@ function toggleDropdown() {
 
   dd.innerHTML = html;
 
-  // Position dropdown below the toggle button
-  const toggle = document.querySelector('.presence-toggle');
-  if (toggle) {
-    const rect = toggle.getBoundingClientRect();
+  // Position dropdown below the presence bar
+  const bar = document.getElementById('presence-bar');
+  if (bar) {
+    const rect = bar.getBoundingClientRect();
     dd.style.top = (rect.bottom + 6) + 'px';
     dd.style.right = (window.innerWidth - rect.right) + 'px';
   }
@@ -224,7 +224,7 @@ function toggleDropdown() {
 
   // Close on outside click
   const close = (e) => {
-    if (!dd.contains(e.target) && !e.target.closest('.presence-toggle')) {
+    if (!dd.contains(e.target) && !e.target.closest('.presence-bar')) {
       dd.remove();
       document.removeEventListener('click', close);
     }
