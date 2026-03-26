@@ -286,11 +286,11 @@ export function handleWashmenWs(ws, sessionIds, presence = null, broadcastToBran
         ws.send(JSON.stringify({ type: "system", text: "Service restart failed — try refreshing the Codespace" }));
       }
     } else if (msg.type === "generate_mvp_notes") {
-      // Generate notes using the same template as auto-notes on branch switch
+      // Generate release notes from git diffs + commit messages, summarized by Claude
       const noteBranch = msg.branch || "main";
       try {
         const { getWorkspaceDir: getWsDir, getConfig: getCfg } = await import("./workspace-config.js");
-        const { saveNotes, getSessionByBranch: getSessionByBr, getDb: getDatabase } = await import("../db.js");
+        const { saveNotes } = await import("../db.js");
         const { sanitizeBranchName: sanitizeBr } = await import("./sanitize.js");
         const workspaceDir = getWsDir();
 
@@ -306,80 +306,118 @@ export function handleWashmenWs(ws, sessionIds, presence = null, broadcastToBran
         }
 
         const featureName = noteBranch.replace('mvp/', '').replace(/-/g, ' ');
-        const session = getSessionByBr(noteBranch);
 
-        // Build change log from chat
-        const changes = [];
-        if (session) {
-          const msgs = getDatabase().prepare(
-            "SELECT role, substr(content, 1, 500) as preview FROM messages WHERE session_id = ? AND role IN ('user', 'assistant') ORDER BY created_at ASC"
-          ).all(session.id);
-          let lastUserMsg = '';
-          for (const m of msgs) {
-            try {
-              const parsed = JSON.parse(m.preview);
-              if (m.role === 'user' && parsed.text) {
-                lastUserMsg = parsed.text.replace(/\[Attached image:[^\]]+\]\s*/g, '').trim();
-              } else if (m.role === 'assistant' && parsed.text && lastUserMsg) {
-                const response = parsed.text.replace(/^(Done!?|Here'?s?|I'll|Let me|OK|Sure|Perfect)[.!,\s]*/i, '').trim();
-                const summary = response.split(/[.\n]/)[0]?.trim();
-                if (summary && summary.length > 15 && !summary.startsWith('What') && !summary.startsWith('Which')) {
-                  changes.push(`• ${summary}`);
-                } else if (lastUserMsg.length > 5) {
-                  changes.push(`• ${lastUserMsg}`);
-                }
-                lastUserMsg = '';
-              }
-            } catch {}
-          }
-        }
-
-        // Build per-repo sections
-        const repoSections = [];
+        // Collect per-repo diffs, commit logs, and stats
+        const repoData = [];
         let totalCommits = 0, totalFiles = 0;
-        const repoNames = cfgRepos.map(r => r.name);
-        for (const repo of repoNames) {
+        for (const repo of cfgRepos.map(r => r.name)) {
           try {
             const repoPath = `${workspaceDir}/${repo}`;
-            const count = parseInt(execSync(`git -C "${repoPath}" rev-list --count ${sanitizeBr(defBranch)}..${sanitizeBr(noteBranch)} 2>/dev/null`, { stdio: "pipe" }).toString().trim()) || 0;
+            const safeDef = sanitizeBr(defBranch);
+            const safeBranch = sanitizeBr(noteBranch);
+            const count = parseInt(execSync(`git -C "${repoPath}" rev-list --count ${safeDef}..${safeBranch} 2>/dev/null`, { stdio: "pipe" }).toString().trim()) || 0;
             if (count === 0) continue;
             totalCommits += count;
-            const files = execSync(`git -C "${repoPath}" diff --name-only ${sanitizeBr(defBranch)}..${sanitizeBr(noteBranch)} 2>/dev/null`, { stdio: "pipe" }).toString().trim().split("\n").filter(Boolean);
+            const files = execSync(`git -C "${repoPath}" diff --name-only ${safeDef}..${safeBranch} 2>/dev/null`, { stdio: "pipe" }).toString().trim().split("\n").filter(Boolean);
             totalFiles += files.length;
-            const stat = execSync(`git -C "${repoPath}" diff --stat ${sanitizeBr(defBranch)}..${sanitizeBr(noteBranch)} 2>/dev/null`, { stdio: "pipe" }).toString().trim();
-            const lastLine = stat.split("\n").pop() || '';
-            repoSections.push(`*${repo}* — ${files.length} files\n${files.map(f => '  • \`' + f + '\`').join('\n')}\n  ${lastLine}`);
+            const stat = execSync(`git -C "${repoPath}" diff --stat ${safeDef}..${safeBranch} 2>/dev/null`, { stdio: "pipe" }).toString().trim();
+            const commitLog = execSync(`git -C "${repoPath}" log --oneline ${safeDef}..${safeBranch} 2>/dev/null`, { stdio: "pipe" }).toString().trim();
+            // Get the actual diff (truncated to avoid massive payloads)
+            let diff = '';
+            try {
+              diff = execSync(`git -C "${repoPath}" diff ${safeDef}..${safeBranch} 2>/dev/null`, { stdio: "pipe", maxBuffer: 1024 * 1024 }).toString().trim();
+              if (diff.length > 15000) diff = diff.slice(0, 15000) + '\n... (diff truncated)';
+            } catch {}
+            const lastStatLine = stat.split("\n").pop() || '';
+            repoData.push({ repo, count, files, lastStatLine, commitLog, diff });
           } catch {}
         }
 
-        const header = `*Feature: ${featureName}*`;
-        const branchLine = `\n\`${noteBranch}\``;
-        const overview = `\n${totalCommits} changes across ${totalFiles} files in ${repoSections.length} project${repoSections.length > 1 ? 's' : ''}`;
-
-        // Build stakeholder summary from changes and touched repos
-        let stakeholderSummary = '';
-        if (changes.length > 0 || repoSections.length > 0) {
-          const repoNames = cfgRepos.map(r => r.name);
-          const touchedRepos = repoNames.filter(name => repoSections.some(s => s.startsWith(`*${name}*`)));
-          const summaryParts = [];
-          if (changes.length > 0) {
-            const topChanges = changes.slice(0, 5).map(c => c.replace(/^• /, '').trim());
-            summaryParts.push(topChanges.join('; '));
-          }
-          if (touchedRepos.length > 0) {
-            summaryParts.push(`Affected areas: ${touchedRepos.join(', ')}`);
-          }
-          stakeholderSummary = `\n\n*Stakeholder summary*\n${summaryParts.join('. ')}.`;
+        if (repoData.length === 0) {
+          const notes = `*Feature: ${featureName}*\n\`${noteBranch}\`\n\nNo changes found on this branch.`;
+          saveNotes(noteBranch, notes);
+          ws.send(JSON.stringify({ type: "notes_generated", branch: noteBranch, content: notes }));
+          return;
         }
 
-        const changeLog = changes.length > 0 ? `\n\n*Changes delivered*\n${changes.join('\n')}` : '';
+        // Build the technical sections (always from git — not AI-generated)
+        const repoSections = repoData.map(r =>
+          `*${r.repo}* — ${r.files.length} files\n${r.files.map(f => '  • \`' + f + '\`').join('\n')}\n  ${r.lastStatLine}`
+        );
+
+        // Ask Claude to summarize the diffs into a stakeholder-friendly summary
+        const diffContext = repoData.map(r =>
+          `## ${r.repo}\n\n### Commits\n${r.commitLog}\n\n### Diff\n${r.diff}`
+        ).join('\n\n---\n\n');
+
+        const summaryPrompt = `You are summarizing code changes for a release note. The audience is a mix of engineers and non-technical stakeholders (PMs, QA).
+
+Branch: ${noteBranch}
+Feature: ${featureName}
+
+Here are the git diffs and commit messages:
+
+${diffContext}
+
+Write two sections:
+
+1. **Stakeholder summary** — 2-4 bullet points in plain English explaining what changed and why it matters. Focus on user-visible behavior, not implementation details. No code references.
+
+2. **Changes delivered** — 3-8 bullet points, slightly more technical. Each bullet should describe one logical change (not one commit). Group related commits together. Use file/component names where helpful but keep it readable.
+
+Rules:
+- Be concise — each bullet is one sentence
+- Use bullet character "•"
+- Do not add headers or labels — just output the two sections separated by a blank line
+- Do not wrap in markdown code blocks
+- First section is the stakeholder summary, second is the changes delivered`;
+
+        let aiSummary = '';
+        try {
+          const summaryQuery = query({
+            prompt: summaryPrompt,
+            options: {
+              model: "claude-haiku-4-5-20251001",
+              maxTurns: 1,
+              systemPrompt: "You are a concise technical writer. Output only what is asked, no preamble.",
+            },
+          });
+          for await (const event of summaryQuery) {
+            if (event.type === "assistant" && event.message?.content) {
+              for (const block of event.message.content) {
+                if (block.type === "text" && block.text) aiSummary += block.text;
+              }
+            }
+            if (event.type === "result") break;
+          }
+        } catch (e) {
+          console.error("[notes] AI summary failed, falling back to commit log:", e.message);
+          // Fallback: use commit messages as bullet points
+          aiSummary = repoData.flatMap(r =>
+            r.commitLog.split('\n').filter(Boolean).map(line => {
+              const msg = line.replace(/^[a-f0-9]+\s+/, '').replace(/Co-Authored-By:.*$/i, '').trim();
+              return msg ? `• ${msg}` : '';
+            }).filter(Boolean)
+          ).join('\n');
+        }
+
+        // Parse AI summary into stakeholder + changes sections
+        const summaryParts = aiSummary.trim().split(/\n\s*\n/);
+        const stakeholderSection = summaryParts[0] || '';
+        const changesSection = summaryParts.slice(1).join('\n\n') || stakeholderSection;
+
+        const header = `*Feature: ${featureName}*`;
+        const branchLine = `\n\`${noteBranch}\``;
+        const overview = `\n${totalCommits} commit${totalCommits !== 1 ? 's' : ''} across ${totalFiles} file${totalFiles !== 1 ? 's' : ''} in ${repoData.length} project${repoData.length !== 1 ? 's' : ''}`;
+        const stakeholder = stakeholderSection ? `\n\n*Stakeholder summary*\n${stakeholderSection}` : '';
+        const changeLog = changesSection ? `\n\n*Changes delivered*\n${changesSection}` : '';
         const technical = repoSections.length > 0 ? `\n\n*Projects touched*\n\n${repoSections.join('\n\n')}` : '';
         const now = new Date();
         const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
         const status = `\n\n—\n_Auto-generated on ${date} at ${time}_`;
 
-        const notes = `${header}${branchLine}${overview}${stakeholderSummary}${changeLog}${technical}${status}`;
+        const notes = `${header}${branchLine}${overview}${stakeholder}${changeLog}${technical}${status}`;
         saveNotes(noteBranch, notes);
         ws.send(JSON.stringify({ type: "notes_generated", branch: noteBranch, content: notes }));
       } catch (e) {
