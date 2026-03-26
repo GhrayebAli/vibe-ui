@@ -73,6 +73,18 @@ export function addAgentMsg(text, streaming, createdAt) {
       maybeCollapse(bubble);
       chatEl.appendChild(div);
     }
+    // If agent only used tools with no text, create a bubble showing what it did
+    if (!currentAgentBubble && activityLog.length > 0) {
+      const div = document.createElement('div');
+      div.className = 'msg msg-agent';
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      const toolSummary = activityLog.map(a => `${a.icon} ${a.label}`).join(', ');
+      bubble.innerHTML = `<p style="color:var(--text-muted);font-style:italic;margin:0">${toolSummary}</p>`;
+      div.appendChild(bubble);
+      chatEl.appendChild(div);
+      currentAgentBubble = bubble;
+    }
     if (currentAgentBubble) {
       // Collapse long streamed messages after finalization
       maybeCollapse(currentAgentBubble);
