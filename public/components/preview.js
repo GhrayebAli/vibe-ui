@@ -75,7 +75,7 @@ export function refreshPreview() {
       const ready = frontend ? frontend.status === 'healthy' : data.services && data.services.every(s => s.status === 'healthy');
       if (ready) {
         clearRetry();
-        frame.src = frame.src || baseUrl;
+        frame.src = baseUrl;
         loader.classList.add('hidden');
         return;
       }
