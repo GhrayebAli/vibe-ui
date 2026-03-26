@@ -42,8 +42,8 @@ export function initPreview(url) {
     // Don't hide loader on error — retry will handle it
   };
 
-  // Start loading
-  frame.src = url;
+  // Poll until service is healthy, then load
+  refreshPreview();
 }
 
 function clearRetry() {
@@ -69,7 +69,7 @@ export function refreshPreview() {
       const allHealthy = data.services && data.services.every(s => s.status === 'healthy');
       if (allHealthy) {
         clearRetry();
-        frame.src = frame.src;
+        frame.src = frame.src || baseUrl;
         return;
       }
     } catch {}
