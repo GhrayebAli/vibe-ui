@@ -664,7 +664,7 @@ app.get("/api/sessions/:id/undo-preview", (req, res) => {
       const repoDir = join(workspaceDir, repo);
       try {
         const lastMsg = execSync(`git -C "${repoDir}" log -1 --pretty=%s`, { stdio: "pipe" }).toString().trim();
-        if (lastMsg === "auto: checkpoint") {
+        if (lastMsg.startsWith("auto: ")) {
           const commitTs = parseInt(execSync(`git -C "${repoDir}" log -1 --format=%ct`, { stdio: "pipe" }).toString().trim()) || 0;
           // Only include if this commit happened during/after the last user message (this turn)
           if (commitTs >= turnStart) {
@@ -712,7 +712,7 @@ app.post("/api/sessions/:id/undo", async (req, res) => {
       const repoDir = join(workspaceDir, repo);
       try {
         const lastMsg = execSync(`git -C "${repoDir}" log -1 --pretty=%s`, { stdio: "pipe" }).toString().trim();
-        if (lastMsg === "auto: checkpoint") {
+        if (lastMsg.startsWith("auto: ")) {
           const commitTs = parseInt(execSync(`git -C "${repoDir}" log -1 --format=%ct`, { stdio: "pipe" }).toString().trim()) || 0;
           if (commitTs >= turnStart) {
             const files = execSync(`git -C "${repoDir}" diff --name-only HEAD~1..HEAD`, { stdio: "pipe" }).toString().trim();
