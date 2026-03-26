@@ -76,6 +76,7 @@ export function refreshPreview() {
       if (ready) {
         clearRetry();
         frame.src = frame.src || baseUrl;
+        loader.classList.add('hidden');
         return;
       }
     } catch {}
