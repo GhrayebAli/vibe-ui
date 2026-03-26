@@ -5,11 +5,6 @@ import { renderDiffView, renderAdditionsView } from './diff.js';
 import { getState, setState } from '../core/store.js';
 import { $ } from '../core/dom.js';
 import { getPane } from './parallel.js';
-import * as api from '../core/api.js';
-
-// Will be set by chat.js to avoid circular dependency
-let _sendEditedMessage = null;
-export function _setEditMessageFn(fn) { _sendEditedMessage = fn; }
 
 export function showWhalyPlaceholder(pane) {
   pane = pane || getPane(null);
@@ -32,7 +27,6 @@ export function addUserMessage(text, pane, images = [], filePaths = []) {
   pane.currentAssistantMsg = null;
   const div = document.createElement("div");
   div.className = "msg msg-user";
-  div.dataset.originalText = text;
 
   const label = document.createElement("span");
   label.className = "msg-user-label";
@@ -65,7 +59,6 @@ export function addUserMessage(text, pane, images = [], filePaths = []) {
 
   pane.messagesDiv.appendChild(div);
   scrollToBottom(pane);
-  updateEditButtons(pane);
 }
 
 function renderChatImages(images, container) {
@@ -339,125 +332,6 @@ export function appendCliOutput(data, pane) {
   scrollToBottom(pane);
 }
 
-export function updateEditButtons(pane) {
-  pane = pane || getPane(null);
-  // Remove all existing edit buttons
-  pane.messagesDiv.querySelectorAll(".msg-edit-btn").forEach(btn => btn.remove());
-
-  // Don't show edit button while streaming
-  if (pane.isStreaming) return;
-
-  // Find the last user message
-  const userMsgs = pane.messagesDiv.querySelectorAll(".msg-user");
-  if (userMsgs.length === 0) return;
-  const lastUserMsg = userMsgs[userMsgs.length - 1];
-
-  // Add edit button
-  const editBtn = document.createElement("button");
-  editBtn.className = "msg-edit-btn";
-  editBtn.title = "Edit & re-send";
-  editBtn.innerHTML = "&#9998;"; // pencil
-  editBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    enterEditMode(lastUserMsg, pane);
-  });
-
-  // Insert after the label
-  const label = lastUserMsg.querySelector(".msg-user-label");
-  if (label) {
-    label.style.position = "relative";
-    label.appendChild(editBtn);
-  }
-}
-
-function enterEditMode(msgDiv, pane) {
-  const body = msgDiv.querySelector(".msg-user-body");
-  if (!body || msgDiv.classList.contains("editing")) return;
-  msgDiv.classList.add("editing");
-
-  const originalText = msgDiv.dataset.originalText || body.textContent;
-
-  // Replace body with textarea
-  const textarea = document.createElement("textarea");
-  textarea.className = "msg-edit-textarea";
-  textarea.value = originalText;
-  textarea.rows = Math.max(2, originalText.split("\n").length);
-
-  const actions = document.createElement("div");
-  actions.className = "msg-edit-actions";
-
-  const saveBtn = document.createElement("button");
-  saveBtn.className = "msg-edit-save";
-  saveBtn.textContent = "Send";
-
-  const cancelBtn = document.createElement("button");
-  cancelBtn.className = "msg-edit-cancel";
-  cancelBtn.textContent = "Cancel";
-
-  actions.appendChild(saveBtn);
-  actions.appendChild(cancelBtn);
-
-  body.style.display = "none";
-  msgDiv.appendChild(textarea);
-  msgDiv.appendChild(actions);
-  textarea.focus();
-  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-
-  // Remove edit button while in edit mode
-  const editBtn = msgDiv.querySelector(".msg-edit-btn");
-  if (editBtn) editBtn.style.display = "none";
-
-  function cancel() {
-    msgDiv.classList.remove("editing");
-    body.style.display = "";
-    textarea.remove();
-    actions.remove();
-    if (editBtn) editBtn.style.display = "";
-  }
-
-  async function save() {
-    const newText = textarea.value.trim();
-    if (!newText) return;
-
-    const sessionId = getState("sessionId");
-    if (!sessionId) return;
-
-    const parallelMode = getState("parallelMode");
-    const chatId = parallelMode && pane.chatId ? pane.chatId : null;
-
-    // Delete last exchange from DB
-    await api.truncateLastExchange(sessionId, chatId);
-
-    // Remove all DOM elements from this message onward
-    let sibling = msgDiv.nextElementSibling;
-    while (sibling) {
-      const next = sibling.nextElementSibling;
-      sibling.remove();
-      sibling = next;
-    }
-    msgDiv.remove();
-
-    // Send the edited message
-    if (_sendEditedMessage) {
-      _sendEditedMessage(newText, pane);
-    }
-  }
-
-  saveBtn.addEventListener("click", save);
-  cancelBtn.addEventListener("click", cancel);
-
-  textarea.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      cancel();
-    }
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      save();
-    }
-  });
-}
-
 export function renderMessagesIntoPane(messages, pane) {
   pane.messagesDiv.innerHTML = "";
   pane.currentAssistantMsg = null;
@@ -517,5 +391,4 @@ export function renderMessagesIntoPane(messages, pane) {
   highlightCodeBlocks(pane.messagesDiv);
   addCopyButtons(pane.messagesDiv);
   renderMermaidBlocks(pane.messagesDiv);
-  updateEditButtons(pane);
 }
