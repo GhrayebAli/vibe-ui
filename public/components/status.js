@@ -1,5 +1,6 @@
 let listEl = null;
 let healthState = {};
+let pendingActions = {}; // tracks services mid-restart or mid-stop
 
 export function initStatus(el) {
   listEl = el;
@@ -57,11 +58,19 @@ function renderStatus(svcs) {
         }
       </div>
     `;
+    const pending = pendingActions[svc.name];
     const restartBtn = div.querySelector('.status-restart');
+    if (restartBtn && pending === 'restarting') {
+      restartBtn.textContent = 'Restarting...';
+      restartBtn.disabled = true;
+      restartBtn.classList.add('btn-pending');
+    }
     if (restartBtn) {
       restartBtn.onclick = async () => {
+        pendingActions[svc.name] = 'restarting';
         restartBtn.textContent = 'Restarting...';
         restartBtn.disabled = true;
+        restartBtn.classList.add('btn-pending');
         await fetch('/api/restart-service', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -72,13 +81,22 @@ function renderStatus(svcs) {
           await checkHealth();
           if (healthState[svc.name] === 'healthy') break;
         }
+        delete pendingActions[svc.name];
+        await checkHealth();
       };
     }
     const stopBtn = div.querySelector('.status-stop');
+    if (stopBtn && pending === 'stopping') {
+      stopBtn.textContent = 'Stopping...';
+      stopBtn.disabled = true;
+      stopBtn.classList.add('btn-pending');
+    }
     if (stopBtn) {
       stopBtn.onclick = async () => {
+        pendingActions[svc.name] = 'stopping';
         stopBtn.textContent = 'Stopping...';
         stopBtn.disabled = true;
+        stopBtn.classList.add('btn-pending');
         await fetch('/api/stop-service', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -89,6 +107,8 @@ function renderStatus(svcs) {
           await checkHealth();
           if (healthState[svc.name] !== 'healthy') break;
         }
+        delete pendingActions[svc.name];
+        await checkHealth();
       };
     }
     listEl.appendChild(div);

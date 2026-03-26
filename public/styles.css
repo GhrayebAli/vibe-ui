@@ -541,6 +541,8 @@ pre:hover .code-copy { opacity: 1; }
 .status-svc-badge.down { background: var(--red-soft); color: var(--red); }
 .status-restart, .status-stop { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-dim); font-size: 11px; padding: 4px 10px; cursor: pointer; }
 .status-stop:hover { color: #ef4444; border-color: #ef4444; }
+.btn-pending { animation: pulse-btn 1s ease-in-out infinite; cursor: wait !important; opacity: .8; }
+@keyframes pulse-btn { 0%,100% { opacity: .8; } 50% { opacity: .4; } }
 
 /* Notes overlay */
 .notes-area { padding: 14px; }
