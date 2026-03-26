@@ -10,21 +10,22 @@ export function initChat(el) {
   chatEl = el;
 }
 
-function timeLabel() {
-  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function timeLabel(epoch) {
+  const d = epoch ? new Date(epoch * 1000) : new Date();
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export function addUserMsg(text, attachHtml, senderName) {
+export function addUserMsg(text, attachHtml, senderName, createdAt) {
   const div = document.createElement('div');
   div.className = 'msg msg-user';
   const nameTag = senderName ? `<span class="msg-sender">${escapeHtml(senderName)}</span>` : '';
-  div.innerHTML = `${nameTag}${attachHtml ? `<div class="msg-attachments">${attachHtml}</div>` : ''}<div class="bubble">${escapeHtml(text)}</div><span class="msg-time">${timeLabel()}</span>`;
+  div.innerHTML = `${nameTag}${attachHtml ? `<div class="msg-attachments">${attachHtml}</div>` : ''}<div class="bubble">${escapeHtml(text)}</div><span class="msg-time">${timeLabel(createdAt)}</span>`;
   chatEl.appendChild(div);
   maybeCollapse(div.querySelector('.bubble'));
   scrollBottom();
 }
 
-export function addAgentMsg(text, streaming) {
+export function addAgentMsg(text, streaming, createdAt) {
   if (streaming && text) {
     if (!currentAgentBubble) {
       const div = document.createElement('div');
@@ -79,7 +80,7 @@ export function addAgentMsg(text, streaming) {
       // Add timestamp to the parent msg div
       const timeSpan = document.createElement('span');
       timeSpan.className = 'msg-time';
-      timeSpan.textContent = timeLabel();
+      timeSpan.textContent = timeLabel(createdAt);
       currentAgentBubble.parentElement.appendChild(timeSpan);
     }
     currentAgentBubble = null;
@@ -347,8 +348,8 @@ export function loadMessages(msgs) {
               return `<div class="attach-placeholder" title="${escapeHtml(fileName)}"><img src="/api/uploads/${encodeURIComponent(fileName)}" class="attach-thumb" alt="screenshot" onerror="this.style.display='none';this.parentElement.classList.add('missing')"><span class="attach-missing-label">Screenshot</span></div>`;
             }).join('')
           : '';
-        addUserMsg(cleanText, attachHtml, parsed.user_name);
-      } else if (m.role === 'assistant') addAgentMsg(text, false);
+        addUserMsg(cleanText, attachHtml, parsed.user_name, m.created_at);
+      } else if (m.role === 'assistant') addAgentMsg(text, false, m.created_at);
       else if (m.role === 'result') {
         showTurnCost(parsed.cost_usd, parsed.model);
         finalizeTurnFooter();
@@ -359,8 +360,8 @@ export function loadMessages(msgs) {
       }
       else addSystemMsg(text);
     } catch {
-      if (m.role === 'user') addUserMsg(m.content, '', null);
-      else addAgentMsg(m.content, false);
+      if (m.role === 'user') addUserMsg(m.content, '', null, m.created_at);
+      else addAgentMsg(m.content, false, m.created_at);
     }
   });
   // Flush any remaining tool batch
