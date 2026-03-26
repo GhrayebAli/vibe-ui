@@ -55,9 +55,13 @@ export function refreshPreview() {
   clearRetry();
   loader.classList.remove('hidden');
 
-  // Poll until the service responds, then load the iframe
+  // Poll until the frontend service responds, then load the iframe
+  // Extract the frontend port from baseUrl to only wait for that service
+  let frontendPort = null;
+  try { frontendPort = new URL(baseUrl).port || '3000'; } catch { frontendPort = '3000'; }
+
   let attempts = 0;
-  const maxAttempts = 30; // 30s max
+  const maxAttempts = 60; // 60s max for cold starts
   retryTimer = setInterval(async () => {
     attempts++;
     try {
@@ -66,8 +70,10 @@ export function refreshPreview() {
       const resp = await fetch('/api/service-health');
       clearTimeout(timeout);
       const data = await resp.json();
-      const allHealthy = data.services && data.services.every(s => s.status === 'healthy');
-      if (allHealthy) {
+      // Only wait for the frontend service, not all services
+      const frontend = data.services && data.services.find(s => String(s.port) === String(frontendPort));
+      const ready = frontend ? frontend.status === 'healthy' : data.services && data.services.every(s => s.status === 'healthy');
+      if (ready) {
         clearRetry();
         frame.src = frame.src || baseUrl;
         return;
