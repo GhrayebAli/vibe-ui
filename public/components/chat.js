@@ -404,6 +404,9 @@ export function updateEditButtons() {
   if (userMsgs.length === 0) return;
   const lastUserMsg = userMsgs[userMsgs.length - 1];
 
+  const bubble = lastUserMsg.querySelector('.bubble');
+  if (!bubble) return;
+
   const editBtn = document.createElement('button');
   editBtn.className = 'msg-edit-btn';
   editBtn.title = 'Edit & re-send';
@@ -412,7 +415,7 @@ export function updateEditButtons() {
     e.stopPropagation();
     enterEditMode(lastUserMsg);
   });
-  lastUserMsg.appendChild(editBtn);
+  bubble.appendChild(editBtn);
 }
 
 async function truncateLastExchange(sessionId) {

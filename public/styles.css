@@ -733,9 +733,8 @@ pre:hover .code-copy { opacity: 1; }
 
 /* ── Edit Message ── */
 .msg-user { position: relative; }
-.msg-edit-btn { position: absolute; top: -10px; right: -10px; background: var(--surface2); border: 1px solid var(--border); color: var(--accent); font-size: 13px; cursor: pointer; padding: 4px 7px; border-radius: 50%; opacity: 0; transition: all .15s; line-height: 1; z-index: 2; }
-.msg-user:hover .msg-edit-btn { opacity: 1; }
-.msg-edit-btn:hover { background: var(--accent); color: #000; border-color: var(--accent); transform: scale(1.1); }
+.msg-edit-btn { background: none; border: none; color: var(--text-muted); font-size: 12px; cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: all .15s; line-height: 1; margin-left: 8px; vertical-align: middle; opacity: 0.6; }
+.msg-edit-btn:hover { opacity: 1; color: var(--accent); background: rgba(255,255,255,0.06); }
 .msg-user.editing .bubble { display: none; }
 .msg-edit-textarea { display: block; width: 80%; max-width: 600px; background: var(--surface); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 14px; color: var(--text); font-size: 13.5px; font-family: inherit; resize: vertical; outline: none; min-height: 40px; max-height: 200px; line-height: 1.5; box-sizing: border-box; margin-left: auto; }
 .msg-edit-actions { display: flex; gap: 6px; justify-content: flex-end; padding: 6px 0; }
