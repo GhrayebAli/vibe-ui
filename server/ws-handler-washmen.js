@@ -381,7 +381,9 @@ Rules:
             options: {
               model: "claude-haiku-4-5-20251001",
               maxTurns: 1,
-              systemPrompt: "You are a concise technical writer. Output only what is asked, no preamble.",
+              allowedTools: [],
+              settingSources: [],
+              systemPrompt: "You are a concise technical writer. Output only what is asked, no preamble. Do not use any tools. Just respond with text.",
             },
           });
           for await (const event of summaryQuery) {
