@@ -541,18 +541,20 @@ app.post("/api/switch-branch", async (req, res) => {
   const startTime = Date.now();
   while (Date.now() - startTime < maxWait) {
     await new Promise(r => setTimeout(r, pollInterval));
-    const allHealthy = await Promise.all(
+    const results = await Promise.all(
       configuredServices.map(async (svc) => {
         try {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 2000);
           const resp = await fetch(svc.url, { signal: controller.signal });
           clearTimeout(timeout);
-          return resp.ok;
-        } catch { return false; }
+          return { name: svc.name, ok: resp.ok };
+        } catch { return { name: svc.name, ok: false }; }
       })
     );
-    if (allHealthy.every(Boolean)) break;
+    const pending = results.filter(r => !r.ok).map(r => r.name);
+    if (pending.length === 0) break;
+    wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: 'services-ready', status: 'active', label: `Waiting for ${pending.join(', ')}` });
   }
   wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: 'services-ready', status: 'done' });
   wsBroadcast({ type: 'switch_progress', phase: 'complete', branch });

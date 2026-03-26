@@ -153,9 +153,13 @@ function showSwitchProgress(branchName, steps) {
   overlay.style.display = 'flex';
 }
 
-function updateSwitchStep(stepId, status) {
+function updateSwitchStep(stepId, status, label) {
   const el = $(`step-${stepId}`);
   if (!el) return;
+  if (label) {
+    const labelEl = el.querySelector('span:last-child');
+    if (labelEl) labelEl.textContent = label;
+  }
   const iconEl = el.querySelector('.switch-step-icon');
   if (status === 'active') {
     el.className = 'switch-step active';
@@ -444,7 +448,7 @@ function handleMessage(msg) {
       if (msg.phase === 'start') {
         showSwitchProgress(msg.branch, msg.steps);
       } else if (msg.phase === 'step') {
-        updateSwitchStep(msg.stepId, msg.status);
+        updateSwitchStep(msg.stepId, msg.status, msg.label);
       } else if (msg.phase === 'complete') {
         hideSwitchProgress();
       }
