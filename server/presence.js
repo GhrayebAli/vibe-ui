@@ -11,6 +11,9 @@ export class PresenceManager {
     this.users = new Map();
     // Build lock: { userId, userName, branch, acquiredAt } or null
     this.buildLock = null;
+    // Lock inactivity timer — auto-release after 5 min of no chat activity
+    this._lockTimer = null;
+    this.LOCK_INACTIVITY_MS = 5 * 60 * 1000; // 5 minutes
     // Broadcast function — set by server
     this._broadcast = () => {};
     // Heartbeat timeout (ms) — consider user disconnected after this
@@ -101,6 +104,8 @@ export class PresenceManager {
     if (user) {
       user.status = "active";
       user.branch = branch;
+      // Keep the lock alive on every chat message
+      if (this.buildLock?.userId === wsId) this._resetLockTimer();
       logUserEvent(user.name, user.role, "chat_sent", branch, sessionId);
     }
   }
@@ -128,12 +133,14 @@ export class PresenceManager {
         userName: user.name,
         branch: user.branch,
       });
+      this._resetLockTimer();
       this._broadcastPresence();
       return { ok: true };
     }
 
-    // If this user already has the lock, return ok
+    // If this user already has the lock, refresh inactivity timer
     if (this.buildLock.userId === wsId) {
+      this._resetLockTimer();
       return { ok: true };
     }
 
@@ -208,6 +215,18 @@ export class PresenceManager {
     return { ok: true };
   }
 
+  /** Reset the lock inactivity timer — called on acquire and every chat message */
+  _resetLockTimer() {
+    if (this._lockTimer) clearTimeout(this._lockTimer);
+    if (!this.buildLock) return;
+    this._lockTimer = setTimeout(() => {
+      if (this.buildLock) {
+        console.log(`[presence] Lock expired after ${this.LOCK_INACTIVITY_MS / 1000}s inactivity — releasing (${this.buildLock.userName})`);
+        this._releaseLock(this.buildLock.userId, "inactivity");
+      }
+    }, this.LOCK_INACTIVITY_MS);
+  }
+
   /** Internal lock release */
   _releaseLock(wsId, reason) {
     const user = this.users.get(wsId);
@@ -231,6 +250,7 @@ export class PresenceManager {
     });
 
     this.buildLock = null;
+    if (this._lockTimer) { clearTimeout(this._lockTimer); this._lockTimer = null; }
     this._broadcastPresence();
   }
 
@@ -287,8 +307,9 @@ export class PresenceManager {
     }
   }
 
-  /** Shutdown — clear interval */
+  /** Shutdown — clear intervals */
   destroy() {
     clearInterval(this._cleanupInterval);
+    if (this._lockTimer) clearTimeout(this._lockTimer);
   }
 }
