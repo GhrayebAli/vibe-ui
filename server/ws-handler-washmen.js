@@ -351,12 +351,31 @@ export function handleWashmenWs(ws, sessionIds, presence = null, broadcastToBran
         const header = `*Feature: ${featureName}*`;
         const branchLine = `\n\`${noteBranch}\``;
         const overview = `\n${totalCommits} changes across ${totalFiles} files in ${repoSections.length} project${repoSections.length > 1 ? 's' : ''}`;
+
+        // Build stakeholder summary from changes and touched repos
+        let stakeholderSummary = '';
+        if (changes.length > 0 || repoSections.length > 0) {
+          const repoNames = cfgRepos.map(r => r.name);
+          const touchedRepos = repoNames.filter(name => repoSections.some(s => s.startsWith(`*${name}*`)));
+          const summaryParts = [];
+          if (changes.length > 0) {
+            const topChanges = changes.slice(0, 5).map(c => c.replace(/^• /, '').trim());
+            summaryParts.push(topChanges.join('; '));
+          }
+          if (touchedRepos.length > 0) {
+            summaryParts.push(`Affected areas: ${touchedRepos.join(', ')}`);
+          }
+          stakeholderSummary = `\n\n*Stakeholder summary*\n${summaryParts.join('. ')}.`;
+        }
+
         const changeLog = changes.length > 0 ? `\n\n*Changes delivered*\n${changes.join('\n')}` : '';
         const technical = repoSections.length > 0 ? `\n\n*Projects touched*\n\n${repoSections.join('\n\n')}` : '';
-        const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        const status = `\n\n—\n_Auto-generated on ${date}_`;
+        const now = new Date();
+        const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        const status = `\n\n—\n_Auto-generated on ${date} at ${time}_`;
 
-        const notes = `${header}${branchLine}${overview}${changeLog}${technical}${status}`;
+        const notes = `${header}${branchLine}${overview}${stakeholderSummary}${changeLog}${technical}${status}`;
         saveNotes(noteBranch, notes);
         ws.send(JSON.stringify({ type: "notes_generated", branch: noteBranch, content: notes }));
       } catch (e) {
