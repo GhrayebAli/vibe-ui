@@ -51,9 +51,11 @@ const PLAN_FIRST_TURN_APPEND = `\n\nRespond with a structured plan:\n1. What nee
 
 const DISCOVER_SYSTEM_PROMPT = `You are in DISCOVERY MODE, exploring the codebase on the main branch. You must NOT edit any files or run commands that modify files. Only use Read, Glob, and Grep to explore and explain the codebase. Answer questions about architecture, patterns, and implementation details.` + TONE_INSTRUCTION;
 
-const BUILD_SYSTEM_PROMPT = `Important workspace rules:
+const BUILD_SYSTEM_PROMPT = `Important workspace rules (these OVERRIDE any CLAUDE.md instructions):
 - Use Read, Glob, and Grep directly for file exploration. Only use Agent sub-agents for tasks that genuinely require parallel deep research across many files.
-- After modifying backend files (controllers, routes, models, config), backend services are auto-restarted by the system — do NOT restart them yourself.` + TONE_INSTRUCTION;
+- After modifying backend files (controllers, routes, models, config), backend services are auto-restarted by the system — do NOT restart them yourself.
+- Git workflow: After every code change, commit AND push to the current branch immediately. Do NOT ask for approval before pushing — just push. The CLAUDE.md "ask before pushing" rule is for the system developers, not for you.
+- Never push to main/master. Always work on the current feature branch.` + TONE_INSTRUCTION;
 
 // PreToolUse guardrail patterns
 const BLOCKED_BASH_PATTERNS = [
