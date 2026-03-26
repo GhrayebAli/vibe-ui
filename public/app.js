@@ -311,7 +311,7 @@ function connect() {
   ws = new WebSocket(`${proto}//${location.host}/ws?token=${window.__VIBE_TOKEN}`);
 
   ws.onopen = async () => {
-    console.log('[ws] connected');
+    console.debug('[ws] connected');
 
     // Send identify message so server knows who this client is
     const identity = getIdentity();
@@ -348,7 +348,7 @@ function connect() {
       }, 30000);
     } else {
       // Reconnect — just restore health checks, don't reset UI
-      console.log('[ws] reconnected — UI preserved');
+      console.debug('[ws] reconnected — UI preserved');
       setPresenceWs(ws);
       checkHealth();
     }
@@ -360,7 +360,7 @@ function connect() {
   };
 
   ws.onclose = () => {
-    console.log('[ws] disconnected — reconnecting...');
+    console.debug('[ws] disconnected — reconnecting...');
     setTimeout(connect, 2000);
   };
 }

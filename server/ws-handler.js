@@ -716,16 +716,8 @@ export function setupWebSocket(wss, sessionIds) {
           opts.appendSystemPrompt = (opts.appendSystemPrompt || '') +
             (opts.appendSystemPrompt ? '\n\n' : '') + memPrompt;
 
-          // Log memories being passed to Claude SDK
-          console.log(`\n══════ MEMORY INJECTION ══════`);
-          console.log(`Project: ${cwd}`);
-          console.log(`User message: "${(message || '').slice(0, 100)}"`);
-          console.log(`Memories injected: ${memCount}`);
-          for (const m of memList) {
-            console.log(`  [${m.category}] ${m.content.slice(0, 120)}`);
-          }
-          console.log(`Prompt appended to appendSystemPrompt (${memPrompt.length} chars)`);
-          console.log(`══════════════════════════════\n`);
+          // Log memory injection summary (single line to avoid console spam)
+          console.log(`[memory] Injected ${memCount} memories (${memPrompt.length} chars) for "${(message || '').slice(0, 60)}"`);
 
           // Notify client that memories were injected (include content for display)
           if (ws.readyState === 1) {
@@ -733,11 +725,6 @@ export function setupWebSocket(wss, sessionIds) {
             if (chatId) payload.chatId = chatId;
             ws.send(JSON.stringify(payload));
           }
-        } else {
-          console.log(`\n══════ MEMORY INJECTION ══════`);
-          console.log(`Project: ${cwd}`);
-          console.log(`No memories found for this project`);
-          console.log(`══════════════════════════════\n`);
         }
       }
       if (resumeId) opts.resume = resumeId;

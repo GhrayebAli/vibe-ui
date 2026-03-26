@@ -912,16 +912,22 @@ async function startBrowserConsoleListener() {
     const browser = await chromium.launch();
     const page = await browser.newPage();
 
+    const seenBrowserMsgs = new Set();
     page.on("console", msg => {
       const type = msg.type();
       if (type === "error" || type === "warning" || type === "warn") {
+        const text = msg.text();
+        // Skip duplicates within this browser session
+        if (seenBrowserMsgs.has(text)) return;
+        seenBrowserMsgs.add(text);
+        if (seenBrowserMsgs.size > 200) seenBrowserMsgs.clear(); // reset periodically
         browserConsoleBuffer.push({
           level: type === "warning" || type === "warn" ? "warn" : "error",
-          message: `[browser] ${msg.text()}`,
+          message: `[browser] ${text}`,
           ts: Date.now(),
         });
         // Keep buffer manageable
-        if (browserConsoleBuffer.length > 100) browserConsoleBuffer.splice(0, 50);
+        if (browserConsoleBuffer.length > 50) browserConsoleBuffer.splice(0, 25);
       }
     });
 
@@ -936,10 +942,7 @@ async function startBrowserConsoleListener() {
     await page.goto(`http://localhost:${getFrontendPort()}`, { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
     console.log("[console] Browser console listener started");
 
-    // Periodically reload to catch new errors after HMR
-    setInterval(async () => {
-      try { await page.reload({ waitUntil: "domcontentloaded", timeout: 10000 }); } catch {}
-    }, 30000);
+    // No periodic reload — HMR handles updates; reloading every 30s just creates duplicate errors
   } catch (err) {
     console.error("[console] Failed to start browser listener:", err.message);
     browserConsoleStarted = false;
@@ -980,24 +983,28 @@ app.get("/api/console", (req, res) => {
         // Skip bare log-level labels with no content (e.g. "info:" or "debug:" alone)
         if (trimmed.match(/^\s*(info|debug|verbose|silly|trace|error|warn):\s*$/i)) continue;
         // Skip vibe-ui agent internal logs (tool calls, agent events) — not service errors
-        if (trimmed.match(/^\[(tool|agent|session|push|context|checkpoint|console|workspace|code|inspect|screenshot|cost|db|switch|create-branch)\]/)) continue;
+        if (trimmed.match(/^\[(tool|agent|session|push|context|checkpoint|console|workspace|code|inspect|screenshot|cost|db|switch|create-branch|memory)\]/)) continue;
+        // Skip stack trace lines (at Module._compile, at Object.<anonymous>, etc.)
+        if (trimmed.match(/^\s*at\s+/)) continue;
+        // Skip webpack/HMR noise
+        if (trimmed.match(/\b(hot[- ]?update|webpack|hmr|compiled|bundle)\b/i)) continue;
 
         const lower = trimmed.toLowerCase();
 
-        // Classify severity — broad pattern matching
+        // Classify severity — stricter matching to reduce false positives
         let level = "info";
-        if (lower.includes("error") || lower.includes("err:") || lower.includes("eaddrinuse") || lower.includes("enoent") ||
+        if (lower.includes("eaddrinuse") || lower.includes("enoent") ||
             lower.includes("eacces") || lower.includes("econnrefused") || lower.includes("uncaught") || lower.includes("unhandled") ||
-            lower.includes("throw ") || lower.includes("fatal") || lower.includes("crash") || lower.includes("failed") ||
+            lower.includes("throw ") || lower.includes("fatal") || lower.includes("crash") ||
             lower.includes("typeerror") || lower.includes("referenceerror") || lower.includes("syntaxerror") || lower.includes("rangeerror") ||
             lower.includes("cannot read prop") || lower.includes("is not defined") || lower.includes("is not a function") ||
-            lower.includes("module not found") || lower.includes("command failed") || lower.includes("exit code") ||
+            lower.includes("module not found") || lower.includes("command failed") ||
             (lower.includes("missing") && (lower.includes("env") || lower.includes("variable") || lower.includes("module") || lower.includes("package"))) ||
-            (lower.includes("undefined") && (lower.includes("env") || lower.includes("variable") || lower.includes("config"))) ||
-            lower.match(/^\s*at\s+/) || lower.startsWith("error")) {
+            lower.startsWith("error") || lower.match(/\berr(?:or)?:/)) {
           level = "error";
-        } else if (lower.includes("warn") || lower.includes("deprecat") || lower.includes("experimental") ||
-                   lower.includes("not recommended") || lower.includes("will be removed")) {
+        } else if (lower.includes("deprecat") || lower.includes("experimental") ||
+                   lower.includes("not recommended") || lower.includes("will be removed") ||
+                   lower.startsWith("warn")) {
           level = "warn";
         }
 
@@ -1010,7 +1017,25 @@ app.get("/api/console", (req, res) => {
   const browserEntries = browserConsoleBuffer.splice(0, browserConsoleBuffer.length);
   entries.push(...browserEntries);
 
-  res.json({ entries });
+  // Deduplicate: collapse repeated messages, append count
+  const deduped = [];
+  const seen = new Map();
+  for (const entry of entries) {
+    const key = `${entry.level}|${entry.message}`;
+    if (seen.has(key)) {
+      seen.get(key).count++;
+    } else {
+      const e = { ...entry, count: 1 };
+      seen.set(key, e);
+      deduped.push(e);
+    }
+  }
+  for (const e of deduped) {
+    if (e.count > 1) e.message += ` (×${e.count})`;
+    delete e.count;
+  }
+
+  res.json({ entries: deduped });
 });
 
 // Branch check

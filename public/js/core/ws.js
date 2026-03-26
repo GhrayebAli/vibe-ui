@@ -23,7 +23,7 @@ export function connectWebSocket() {
   setState("ws", ws);
 
   ws.onopen = () => {
-    console.log("WebSocket connected");
+    console.debug("WebSocket connected");
     $.connectionDot.className = "term-dot connected";
     $.connectionText.textContent = "connected";
     $.connectionText.className = "term-status ok";
@@ -47,7 +47,7 @@ export function connectWebSocket() {
   ws.onclose = () => {
     const delay = getBackoffDelay();
     backoffAttempt++;
-    console.log(`WebSocket disconnected, reconnecting in ${Math.round(delay)}ms (attempt ${backoffAttempt})...`);
+    console.debug(`WebSocket disconnected, reconnecting in ${Math.round(delay)}ms (attempt ${backoffAttempt})...`);
     $.connectionDot.className = "term-dot reconnecting";
     $.connectionText.textContent = "reconnecting";
     $.connectionText.className = "term-status";
