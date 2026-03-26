@@ -62,6 +62,8 @@ async function showLanding() {
   if (workspaceData.activeBranch) {
     currentBranch = workspaceData.activeBranch;
     setPresenceBranch(currentBranch);
+    // Tell the server our branch so presence tracking works from the start
+    if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'branch_switch', branch: currentBranch }));
     // Show branch badge on landing if on an mvp branch
     const badge = $('branch-badge');
     if (badge && currentBranch.startsWith('mvp/')) {
