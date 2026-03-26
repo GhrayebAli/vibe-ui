@@ -44,7 +44,6 @@ export function requireIdentity() {
   return new Promise((resolve) => {
     const existing = getIdentity();
     if (existing) {
-      updateUserBadge(existing.name, existing.role);
       resolve(existing);
       return;
     }
@@ -82,7 +81,6 @@ export function requireIdentity() {
 
       errorEl.style.display = 'none';
       saveIdentity(name, role);
-      updateUserBadge(name, role);
       modal.style.display = 'none';
       resolve({ name, role });
     }
@@ -95,39 +93,6 @@ export function requireIdentity() {
     // Focus the name input
     setTimeout(() => nameInput.focus(), 100);
   });
-}
-
-/** Update the user badge in the top bar */
-function updateUserBadge(name, role) {
-  const badge = document.getElementById('user-badge');
-  if (!badge) return;
-
-  const initials = name
-    .split(/\s+/)
-    .map(w => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-
-  const roleColors = {
-    pm: '#f59e0b',
-    engineer: '#9b87f5',
-    designer: '#22c55e',
-    qa: '#3b82f6',
-    other: '#8E8EA0',
-  };
-
-  const color = roleColors[role] || roleColors.other;
-
-  badge.innerHTML = `<span class="user-badge-avatar" style="background:${color}">${initials}</span><span class="user-badge-name">${escapeHtml(name)}</span>`;
-  badge.title = `${name} (${role})`;
-  badge.style.display = 'flex';
-}
-
-function escapeHtml(str) {
-  const d = document.createElement('div');
-  d.textContent = str;
-  return d.innerHTML;
 }
 
 export default { requireIdentity, getIdentity };

@@ -692,27 +692,21 @@ pre:hover .code-copy { opacity: 1; }
 .identity-btn { width: 100%; margin-top: 16px; padding: 10px; border: none; border-radius: var(--radius-sm); background: var(--accent); color: #fff; font-size: 14px; font-weight: 600; font-family: var(--font); cursor: pointer; transition: filter var(--transition); }
 .identity-btn:hover { filter: brightness(1.1); }
 
-/* ── User Badge (top bar) ── */
-.user-badge { display: flex; align-items: center; gap: 6px; padding: 2px 8px 2px 2px; border-radius: var(--radius-pill); background: var(--surface2); cursor: default; font-size: 11px; color: var(--text-dim); }
-.user-badge-avatar { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
-.user-badge-name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ── Presence Bar (top-bar-right: count + avatars + toggle) ── */
-.presence-bar { display: flex; align-items: center; gap: 6px; }
-.presence-count { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-dim); padding: 2px 8px; border-radius: var(--radius-pill); background: var(--surface2); }
+/* ── Presence Bar (merged: count + avatars + own badge) ── */
+.presence-bar { display: flex; align-items: center; gap: 6px; padding: 2px 4px 2px 8px; border-radius: var(--radius-pill); background: var(--surface2); cursor: pointer; transition: background var(--transition); }
+.presence-bar:hover { background: var(--surface); }
 .presence-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; animation: presencePulse 2s ease-in-out infinite; }
+.presence-count-num { font-size: 11px; color: var(--text-dim); font-weight: 600; }
 @keyframes presencePulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
 
-.presence-avatars { display: flex; align-items: center; }
-.presence-avatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; border: 2px solid var(--surface); margin-left: -6px; cursor: default; position: relative; transition: transform var(--transition); }
+.presence-avatars { display: flex; align-items: center; margin-left: 2px; }
+.presence-avatar { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; border: 2px solid var(--surface2); margin-left: -6px; cursor: default; position: relative; transition: transform var(--transition); }
 .presence-avatar:first-child { margin-left: 0; }
 .presence-avatar:hover { transform: scale(1.15); z-index: 2; }
 .presence-avatar.presence-building { box-shadow: 0 0 0 2px var(--orange); }
 .presence-avatar.presence-active { box-shadow: 0 0 0 2px var(--green); }
 .presence-more { background: var(--surface2); color: var(--text-dim); font-size: 9px; }
-
-.presence-toggle { width: 28px; height: 28px; border-radius: var(--radius-sm); border: none; background: transparent; color: var(--text-dim); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all var(--transition); }
-.presence-toggle:hover { background: var(--accent-soft); color: var(--accent); }
+.presence-me { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; flex-shrink: 0; }
 
 /* ── Status Strip (build lock + branch warnings) ── */
 .status-strip { display: flex; align-items: center; gap: 6px; padding: 4px 12px; background: var(--bg); border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }

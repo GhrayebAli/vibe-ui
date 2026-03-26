@@ -62,7 +62,7 @@ function render() {
   renderStatusStrip();
 }
 
-/** Render #presence-bar — compact: count + avatars + toggle */
+/** Render #presence-bar — merged: online count + avatar stack + own badge, all clickable */
 function renderPresenceBar() {
   const container = document.getElementById('presence-bar');
   if (!container) return;
@@ -72,49 +72,48 @@ function renderPresenceBar() {
   if (openDD) openDD.remove();
 
   const identity = getIdentity();
-  const myName = identity?.name;
+  if (!identity) { container.style.display = 'none'; return; }
+  const myName = identity.name;
+  const myRole = identity.role;
   const others = _users.filter(u => u.name !== myName);
   const total = _users.length;
 
   let html = '';
 
   // Online count pill
-  html += `<div class="presence-count" title="${total} user${total !== 1 ? 's' : ''} online">
-    <span class="presence-dot"></span>${total}
-  </div>`;
+  html += `<span class="presence-dot"></span><span class="presence-count-num">${total}</span>`;
 
-  // Avatar stack (max 4)
+  // Avatar stack (max 3 others)
   if (others.length > 0) {
     html += '<div class="presence-avatars">';
-    const shown = others.slice(0, 4);
+    const shown = others.slice(0, 3);
     for (const u of shown) {
       const initials = u.name.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
       const color = roleColors[u.role] || roleColors.other;
       const ring = u.status === 'building' ? ' presence-building' : (u.status === 'active' ? ' presence-active' : '');
       html += `<div class="presence-avatar${ring}" style="background:${color}" title="${esc(u.name)} (${esc(u.role)}) — ${esc(u.status)}${u.branch ? ' on ' + esc(u.branch) : ''}">${initials}</div>`;
     }
-    if (others.length > 4) {
-      html += `<div class="presence-avatar presence-more" title="${others.length - 4} more">+${others.length - 4}</div>`;
+    if (others.length > 3) {
+      html += `<div class="presence-avatar presence-more" title="${others.length - 3} more">+${others.length - 3}</div>`;
     }
     html += '</div>';
   }
 
-  // Dropdown toggle
-  html += `<button class="presence-toggle" title="Show online users">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-  </button>`;
+  // Own avatar (always last)
+  const myInitials = myName.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  const myColor = roleColors[myRole] || roleColors.other;
+  html += `<div class="presence-me" style="background:${myColor}" title="${esc(myName)} (${esc(myRole)})">${myInitials}</div>`;
 
   container.innerHTML = html;
-  container.style.display = total > 0 ? 'flex' : 'none';
+  container.style.display = 'flex';
+  container.title = `${total} user${total !== 1 ? 's' : ''} online`;
+  container.style.cursor = 'pointer';
 
-  // Wire dropdown toggle
-  const toggle = container.querySelector('.presence-toggle');
-  if (toggle) {
-    toggle.onclick = (e) => {
-      e.stopPropagation();
-      toggleDropdown();
-    };
-  }
+  // Whole bar toggles dropdown
+  container.onclick = (e) => {
+    e.stopPropagation();
+    toggleDropdown();
+  };
 }
 
 /** Render #status-strip — build lock + branch conflict warnings */
