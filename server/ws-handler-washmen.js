@@ -132,10 +132,15 @@ function pushBranch(branch) {
   for (const repo of repos) {
     const repoDir = `${workspaceDir}/${repo}`;
     try {
-      // Commit any uncommitted changes
+      // Commit any uncommitted changes with a descriptive message
       const status = execSync(`git -C "${repoDir}" status --porcelain`, { stdio: "pipe" }).toString().trim();
       if (status) {
-        execSync(`git -C "${repoDir}" add -A && git -C "${repoDir}" commit -m "auto: checkpoint"`, { stdio: "pipe", timeout: 10000 });
+        const files = status.split("\n").map(l => l.trim().replace(/^[A-Z?]+\s+/, ""));
+        const summary = files.length <= 3
+          ? files.join(", ")
+          : `${files.slice(0, 3).join(", ")} (+${files.length - 3} more)`;
+        const commitMsg = `auto: ${summary}`;
+        execSync(`git -C "${repoDir}" add -A && git -C "${repoDir}" commit -m ${JSON.stringify(commitMsg)}`, { stdio: "pipe", timeout: 10000 });
       }
 
       // Only push if branch has commits ahead of main/master
