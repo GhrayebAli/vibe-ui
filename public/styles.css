@@ -55,7 +55,8 @@ input, textarea { font-family: var(--font); }
 .health-dots { display: flex; gap: 5px; align-items: center; }
 .h-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border); transition: background .3s; }
 .h-dot.ok { background: var(--green); box-shadow: 0 0 5px rgba(34,197,94,.4); }
-.h-dot.err { background: var(--red); box-shadow: 0 0 5px rgba(239,68,68,.4); }
+.h-dot.err { background: var(--red); box-shadow: 0 0 5px rgba(239,68,68,.4); animation: pulse-err 1.2s ease-in-out infinite; }
+@keyframes pulse-err { 0%,100% { opacity: 1; transform: scale(1); box-shadow: 0 0 5px rgba(239,68,68,.4); } 50% { opacity: .45; transform: scale(.75); box-shadow: 0 0 10px rgba(239,68,68,.6); } }
 .top-bar-right { display: flex; align-items: center; gap: 8px; }
 
 /* Controls bar — Row 2: mode + model pickers */
