@@ -589,6 +589,17 @@ export function handleWashmenWs(ws, sessionIds, presence = null, broadcastToBran
         },
       };
 
+      // Inject branch context so Claude knows which branch + repos to work in
+      if (branch) {
+        const repoNames = getRepoNames();
+        const branchContext = `\n\nCurrent branch: ${branch}\nWorkspace directory: ${workspaceDir}\nRepos: ${repoNames.join(", ")}\nWhen running git commands, always use the sub-repo directories (e.g. git -C "${workspaceDir}/${repoNames[0]}"), not the workspace root. The workspace root is a meta-repo — your code changes live in the sub-repos.`;
+        if (systemPrompt && systemPrompt.append) {
+          systemPrompt.append += branchContext;
+        } else if (systemPrompt) {
+          systemPrompt.append = (systemPrompt.append || '') + branchContext;
+        }
+      }
+
       // Use systemPrompt for mode constraints (more authoritative than text injection)
       if (systemPrompt) {
         queryOptions.systemPrompt = systemPrompt;
