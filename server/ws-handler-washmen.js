@@ -320,14 +320,14 @@ export function handleWashmenWs(ws, sessionIds, presence = null, broadcastToBran
             const count = parseInt(execSync(`git -C "${repoPath}" rev-list --count ${safeDef}..${safeBranch} 2>/dev/null`, { stdio: "pipe" }).toString().trim()) || 0;
             if (count === 0) continue;
             totalCommits += count;
-            const files = execSync(`git -C "${repoPath}" diff --name-only ${safeDef}..${safeBranch} 2>/dev/null`, { stdio: "pipe" }).toString().trim().split("\n").filter(Boolean);
+            const files = execSync(`git -C "${repoPath}" diff --name-only ${safeDef}...${safeBranch} 2>/dev/null`, { stdio: "pipe" }).toString().trim().split("\n").filter(Boolean);
             totalFiles += files.length;
-            const stat = execSync(`git -C "${repoPath}" diff --stat ${safeDef}..${safeBranch} 2>/dev/null`, { stdio: "pipe" }).toString().trim();
+            const stat = execSync(`git -C "${repoPath}" diff --stat ${safeDef}...${safeBranch} 2>/dev/null`, { stdio: "pipe" }).toString().trim();
             const commitLog = execSync(`git -C "${repoPath}" log --oneline ${safeDef}..${safeBranch} 2>/dev/null`, { stdio: "pipe" }).toString().trim();
             // Get the actual diff (truncated to avoid massive payloads)
             let diff = '';
             try {
-              diff = execSync(`git -C "${repoPath}" diff ${safeDef}..${safeBranch} 2>/dev/null`, { stdio: "pipe", maxBuffer: 1024 * 1024 }).toString().trim();
+              diff = execSync(`git -C "${repoPath}" diff ${safeDef}...${safeBranch} 2>/dev/null`, { stdio: "pipe", maxBuffer: 1024 * 1024 }).toString().trim();
               if (diff.length > 15000) diff = diff.slice(0, 15000) + '\n... (diff truncated)';
             } catch {}
             const lastStatLine = stat.split("\n").pop() || '';
