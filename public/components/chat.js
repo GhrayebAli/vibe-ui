@@ -471,10 +471,10 @@ function enterEditMode(msgDiv) {
     const newText = textarea.value.trim();
     if (!newText) return;
 
-    // Get session ID from the app
+    // Delete last exchange from DB
     const sessionId = window.__vibeSid;
     if (sessionId) {
-      await truncateLastExchange(sessionId);
+      try { await truncateLastExchange(sessionId); } catch (e) { console.warn('[edit] truncate failed:', e); }
     }
 
     // Remove all DOM elements from this message onward

@@ -633,6 +633,18 @@ app.get("/api/sessions/:id/messages", (req, res) => {
   res.json(messages);
 });
 
+app.delete("/api/sessions/:id/truncate-last", (req, res) => {
+  try {
+    const db = getDb();
+    const lastMsg = db.prepare("SELECT * FROM messages WHERE session_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1").get(req.params.id);
+    if (!lastMsg) return res.status(404).json({ error: "No user message found" });
+    const result = db.prepare("DELETE FROM messages WHERE session_id = ? AND id >= ?").run(req.params.id, lastMsg.id);
+    res.json({ deleted: result.changes, fromMessageId: lastMsg.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/sessions/:id/timeline", (req, res) => {
   const events = getDb().prepare(
     "SELECT event_type, tool, input_summary, created_at FROM activity_events WHERE session_id = ? ORDER BY created_at ASC"
