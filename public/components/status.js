@@ -1,3 +1,5 @@
+import { refreshPreview } from './preview.js';
+
 let listEl = null;
 let healthState = {};
 let pendingActions = {}; // tracks services mid-restart or mid-stop
@@ -83,6 +85,7 @@ function renderStatus(svcs) {
         }
         delete pendingActions[svc.name];
         await checkHealth();
+        refreshPreview();
       };
     }
     const stopBtn = div.querySelector('.status-stop');
