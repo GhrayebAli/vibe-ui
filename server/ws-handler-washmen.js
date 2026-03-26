@@ -246,6 +246,7 @@ export function handleWashmenWs(ws, sessionIds, presence = null, broadcastToBran
       if (currentQuery) {
         try { currentQuery.close(); } catch {}
         currentQuery = null;
+        if (presence && ws.__id) presence.releaseLock(ws.__id);
         ws.send(JSON.stringify({ type: "system", text: "Agent stopped." }));
         ws.send(JSON.stringify({ type: "assistant_done", text: "", sessionId: currentSessionId, cost: 0, totalCost: 0 }));
       }
@@ -760,6 +761,9 @@ export function handleWashmenWs(ws, sessionIds, presence = null, broadcastToBran
             } catch (e) { console.error("[screenshot]", e.message); }
           }
 
+          // Release build lock — agent finished this turn
+          if (presence && ws.__id) presence.releaseLock(ws.__id);
+
           sendAll({
             type: "assistant_done",
             text: fullText,
@@ -794,16 +798,19 @@ export function handleWashmenWs(ws, sessionIds, presence = null, broadcastToBran
       }
 
       // If loop ended without a result event, still send done
-      if (!gotResult && fullText) {
-        console.log("[agent] stream ended without result event — sending done");
-        try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.warn("[agent] failed to save message:", e.message); }
-        ws.send(JSON.stringify({
-          type: "assistant_done",
-          text: fullText,
-          sessionId,
-          cost: lastCost,
-          totalCost: getTotalCost(),
-        }));
+      if (!gotResult) {
+        if (presence && ws.__id) presence.releaseLock(ws.__id);
+        if (fullText) {
+          console.log("[agent] stream ended without result event — sending done");
+          try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.warn("[agent] failed to save message:", e.message); }
+          sendAll({
+            type: "assistant_done",
+            text: fullText,
+            sessionId,
+            cost: lastCost,
+            totalCost: getTotalCost(),
+          });
+        }
       }
 
       if (!gotFirstChunk) {
@@ -813,6 +820,7 @@ export function handleWashmenWs(ws, sessionIds, presence = null, broadcastToBran
       currentQuery = null;
     } catch (err) {
       console.error("[agent] Error:", err.message, err.stack?.split("\n").slice(0, 3).join("\n"));
+      if (presence && ws.__id) presence.releaseLock(ws.__id);
       try {
         ws.send(JSON.stringify({
           type: "error",
