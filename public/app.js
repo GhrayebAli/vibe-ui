@@ -204,7 +204,7 @@ async function resumeBranch(branch) {
     const result = await resp.json();
     if (result.error === 'locked') {
       hideSwitchProgress();
-      addSystemMsg(`Branch switch blocked — ${result.lockedBy} is currently building. Wait for them to finish or take over the build lock.`);
+      addSystemMsg(`Branch switch blocked — ${result.lockedBy} is building on ${result.branch}. You can join their branch to watch, or wait for them to finish.`);
       return;
     }
     if (!result.ok) throw new Error(result.error || 'Switch failed');
@@ -502,6 +502,11 @@ function handleMessage(msg) {
     case 'build_lock_released':
       onBuildLockReleased();
       if (msg.releasedBy) addSystemMsg(`Build lock released by ${msg.releasedBy}.`);
+      break;
+
+    case 'watcher_user_msg':
+      // Another user's message — show in chat with their name
+      addUserMsg(msg.text, '', msg.user_name);
       break;
   }
 }

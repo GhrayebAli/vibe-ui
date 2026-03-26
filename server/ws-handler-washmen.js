@@ -192,7 +192,7 @@ export function getSessionChangedFiles(sessionId) {
   return sessionChangedFiles.get(sessionId) || [];
 }
 
-export function handleWashmenWs(ws, sessionIds, presence = null) {
+export function handleWashmenWs(ws, sessionIds, presence = null, broadcastToBranch = null) {
   let currentSessionId = null;
   let currentQuery = null;
 
@@ -377,6 +377,14 @@ export function handleWashmenWs(ws, sessionIds, presence = null) {
     const mode = msg.mode || "build";
     currentSessionId = sessionId;
 
+    // Helper: send to builder + all watchers on the same branch
+    const chatBranch = msg.branch || null;
+    function sendAll(data) {
+      const payload = JSON.stringify(data);
+      if (ws.readyState === 1) ws.send(payload);
+      if (broadcastToBranch && chatBranch) broadcastToBranch(ws.__id, chatBranch, data);
+    }
+
     // Build system prompt based on mode
     let systemPrompt = undefined;
     if (mode === "plan") {
@@ -478,6 +486,10 @@ export function handleWashmenWs(ws, sessionIds, presence = null) {
     if (mode !== "discover") {
       const userName = msg.user_name || "anonymous";
       addMessage(sessionId, "user", JSON.stringify({ text, user_name: userName }));
+      // Broadcast user message to watchers
+      if (broadcastToBranch && chatBranch) {
+        broadcastToBranch(ws.__id, chatBranch, { type: "watcher_user_msg", text, user_name: userName, sessionId });
+      }
     }
 
     // Determine workspace directories
@@ -518,9 +530,7 @@ export function handleWashmenWs(ws, sessionIds, presence = null) {
               }
               try { getDb().prepare("INSERT INTO activity_events (session_id, event_type, tool, input_summary) VALUES (?, ?, ?, ?)").run(sessionId, "tool_start", toolName, JSON.stringify(toolInput).slice(0, 200)); } catch {}
               pendingEvents.push({ type: "tool_activity", tool: toolName, input: toolInput });
-              if (ws.readyState === 1) {
-                ws.send(JSON.stringify({ type: "tool_activity", tool: toolName, input: toolInput }));
-              }
+              sendAll({ type: "tool_activity", tool: toolName, input: toolInput });
               return {};
             }],
           }],
@@ -529,9 +539,7 @@ export function handleWashmenWs(ws, sessionIds, presence = null) {
             hooks: [async (input, toolUseId, { signal }) => {
               const toolName = input.tool_name;
               try { getDb().prepare("INSERT INTO activity_events (session_id, event_type, tool) VALUES (?, ?, ?)").run(sessionId, "tool_end", toolName); } catch {}
-              if (ws.readyState === 1) {
-                ws.send(JSON.stringify({ type: "tool_complete", tool: toolName }));
-              }
+              sendAll({ type: "tool_complete", tool: toolName });
 
               // Emit file_changed for Edit/Write tools
               const toolInput = input.tool_input || {};
@@ -553,9 +561,7 @@ export function handleWashmenWs(ws, sessionIds, presence = null) {
                   sessionFiles.push({ filePath, repo, action, timestamp: Date.now() });
                 }
 
-                if (ws.readyState === 1) {
-                  ws.send(JSON.stringify({ type: "file_changed", filePath, repo, action }));
-                }
+                sendAll({ type: "file_changed", filePath, repo, action });
               }
 
               return {};
@@ -583,7 +589,7 @@ export function handleWashmenWs(ws, sessionIds, presence = null) {
       currentQuery = q;
 
       // Signal thinking state
-      ws.send(JSON.stringify({ type: "thinking", sessionId }));
+      sendAll({ type: "thinking", sessionId });
 
       let fullText = "";
       let gotFirstChunk = false;
@@ -623,10 +629,10 @@ export function handleWashmenWs(ws, sessionIds, presence = null) {
             if (block.type === "text" && block.text) {
               if (!gotFirstChunk) {
                 gotFirstChunk = true;
-                if (wsOpen) ws.send(JSON.stringify({ type: "thinking_done", sessionId }));
+                sendAll({ type: "thinking_done", sessionId });
               }
               fullText += block.text;
-              if (wsOpen) ws.send(JSON.stringify({ type: "assistant_chunk", text: block.text, sessionId }));
+              sendAll({ type: "assistant_chunk", text: block.text, sessionId });
             }
             // Tool use block — track file changes (guardrail runs in PreToolUse hook)
             if (block.type === "tool_use") {
@@ -705,13 +711,13 @@ export function handleWashmenWs(ws, sessionIds, presence = null) {
                 return { ...f, additions: 0, deletions: 0 };
               }
             });
-            if (wsOpen) ws.send(JSON.stringify({ type: "file_diff", files: filesWithDiff }));
+            sendAll({ type: "file_diff", files: filesWithDiff });
             pendingEvents.push({ type: "file_diff", files: filesWithDiff });
           }
           if (lastEditedFile) {
             try {
               const content = readFileSync(lastEditedFile, "utf8");
-              if (wsOpen) ws.send(JSON.stringify({ type: "code_update", path: lastEditedFile, content }));
+              sendAll({ type: "code_update", path: lastEditedFile, content });
             } catch (e) { console.error("[code]", e.message); }
           }
 
@@ -732,9 +738,9 @@ export function handleWashmenWs(ws, sessionIds, presence = null) {
               } catch (e) { console.error(`[auto-restart] ${repo.name} failed:`, e.message); }
             }
           }
-          if (restartedServices.length > 0 && wsOpen) {
+          if (restartedServices.length > 0) {
             const restartMsg = `Auto-restarted: ${restartedServices.join(", ")}`;
-            ws.send(JSON.stringify({ type: "system", text: restartMsg }));
+            sendAll({ type: "system", text: restartMsg });
             pendingEvents.push({ type: "system", text: restartMsg });
           }
 
@@ -745,23 +751,23 @@ export function handleWashmenWs(ws, sessionIds, presence = null) {
             try {
               const screenshotData = await takeScreenshot();
               if (screenshotData) {
-                if (wsOpen) ws.send(JSON.stringify({
+                sendAll({
                   type: "screenshot",
                   image: screenshotData,
                   caption: changedFiles.filter(f => f.name.includes(frontendName)).map(f => f.name.split("/").pop()).join(", "),
-                }));
+                });
               }
             } catch (e) { console.error("[screenshot]", e.message); }
           }
 
-          if (wsOpen) ws.send(JSON.stringify({
+          sendAll({
             type: "assistant_done",
             text: fullText,
             sessionId,
             cost,
             totalCost: getTotalCost(),
             filesChanged: changedFiles.length,
-          }));
+          });
 
           if (mode !== "discover") {
             try { addMessage(sessionId, "assistant", JSON.stringify({ text: fullText })); } catch (e) { console.error("[db]", e.message); }

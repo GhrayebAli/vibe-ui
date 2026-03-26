@@ -317,9 +317,9 @@ app.post("/api/switch-branch", async (req, res) => {
   if (!branch) return res.status(400).json({ error: "Missing branch" });
   try { sanitizeBranchName(branch); } catch (e) { return res.status(400).json({ error: e.message }); }
 
-  // Block branch switch while someone holds the build lock
+  // During a build lock: allow joining the builder's branch, block switching elsewhere
   const lock = presence.getPresence().buildLock;
-  if (lock) {
+  if (lock && lock.branch !== branch) {
     return res.status(423).json({ error: "locked", lockedBy: lock.userName, branch: lock.branch });
   }
 
@@ -1514,7 +1514,20 @@ wss.on("connection", (ws, req) => {
     presence.removeUser(ws.__id);
   });
 
-  handleWashmenWs(ws, sessionIds, presence);
+  // Branch-scoped broadcast: send to all clients on the same branch (except sender)
+  function broadcastToBranch(senderWsId, branch, data) {
+    if (!branch) return;
+    const msg = JSON.stringify(data);
+    const presenceUsers = presence.getPresence().users;
+    const branchUserIds = new Set(presenceUsers.filter(u => u.branch === branch).map(u => u.id));
+    wss.clients.forEach(c => {
+      if (c.readyState === 1 && c.__id !== senderWsId && branchUserIds.has(c.__id)) {
+        c.send(msg);
+      }
+    });
+  }
+
+  handleWashmenWs(ws, sessionIds, presence, broadcastToBranch);
 });
 
 const PORT = process.env.PORT || 4000;
