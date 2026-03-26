@@ -55,30 +55,23 @@ export function refreshPreview() {
   clearRetry();
   loader.classList.remove('hidden');
 
-  // Poll until the frontend service responds, then load the iframe
-  // Extract the frontend port from baseUrl to only wait for that service
-  let frontendPort = null;
-  try { frontendPort = new URL(baseUrl).port || '3000'; } catch { frontendPort = '3000'; }
-
+  // Poll the actual preview URL directly — this catches both the local
+  // service being down AND external dependencies (auth, Codespace proxy)
   let attempts = 0;
-  const maxAttempts = 60; // 60s max for cold starts
+  const maxAttempts = 90; // 90s max for cold starts
   retryTimer = setInterval(async () => {
     attempts++;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2000);
-      const resp = await fetch('/api/service-health');
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const resp = await fetch(baseUrl, { mode: 'no-cors', signal: controller.signal });
       clearTimeout(timeout);
-      const data = await resp.json();
-      // Only wait for the frontend service, not all services
-      const frontend = data.services && data.services.find(s => String(s.port) === String(frontendPort));
-      const ready = frontend ? frontend.status === 'healthy' : data.services && data.services.every(s => s.status === 'healthy');
-      if (ready) {
-        clearRetry();
-        frame.src = baseUrl;
-        loader.classList.add('hidden');
-        return;
-      }
+      // no-cors returns opaque response (status 0) on success — that's fine,
+      // it means the URL is reachable. A network error would throw.
+      clearRetry();
+      frame.src = baseUrl;
+      loader.classList.add('hidden');
+      return;
     } catch {}
     if (attempts >= maxAttempts) {
       clearRetry();
@@ -86,7 +79,7 @@ export function refreshPreview() {
         <div class="preview-error">
           <div class="preview-error-icon">!</div>
           <div class="preview-error-title">Services not ready</div>
-          <div class="preview-error-desc">Frontend service didn't respond after 30 seconds.</div>
+          <div class="preview-error-desc">Frontend service didn't respond after ${maxAttempts} seconds.</div>
           <button class="preview-retry-btn" onclick="window.__retryPreview?.()">Retry</button>
         </div>
       `;
