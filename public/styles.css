@@ -714,7 +714,7 @@ pre:hover .code-copy { opacity: 1; }
 .status-chip svg { flex-shrink: 0; }
 .status-lock-mine { background: var(--orange-soft); color: var(--orange); }
 .status-lock-other { background: var(--red-soft); color: var(--red); }
-.status-branch-warn { background: var(--orange-soft); color: var(--orange); }
+.status-watching { background: var(--accent-soft); color: var(--accent); }
 .status-chip-action { background: none; border: none; color: inherit; font-size: 11px; padding: 0 2px; cursor: pointer; opacity: .7; font-family: var(--font); line-height: 1; }
 .status-chip-action:hover { opacity: 1; }
 .status-chip-takeover { text-decoration: underline; font-size: 10px; }

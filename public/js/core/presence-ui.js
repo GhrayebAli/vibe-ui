@@ -145,16 +145,14 @@ function renderStatusStrip() {
     }
   }
 
-  // Branch conflict warning
-  if (_currentBranch) {
-    const sameBranch = others.filter(u => u.branch === _currentBranch);
-    if (sameBranch.length > 0) {
-      const names = sameBranch.map(u => u.name).join(', ');
-      items.push(`<div class="status-chip status-branch-warn" title="${esc(names)} also on ${esc(_currentBranch)}">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <span>${sameBranch.length === 1 ? esc(sameBranch[0].name) : sameBranch.length + ' others'} on same branch</span>
-      </div>`);
-    }
+  // Watchers — anyone connected who isn't the builder
+  const watchers = others.filter(u => _buildLock?.userName !== u.name);
+  if (watchers.length > 0) {
+    const names = watchers.map(u => esc(u.name)).join(', ');
+    items.push(`<div class="status-chip status-watching" title="${names}">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span>${watchers.length === 1 ? esc(watchers[0].name) : watchers.length + ' users'} watching</span>
+    </div>`);
   }
 
   if (items.length === 0) {
