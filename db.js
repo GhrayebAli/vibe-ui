@@ -317,6 +317,18 @@ const stmts = {
   getMessagesNoChatId: db.prepare(
     `SELECT * FROM messages WHERE session_id = ? AND chat_id IS NULL ORDER BY id ASC`
   ),
+  deleteMessagesFrom: db.prepare(
+    `DELETE FROM messages WHERE session_id = ? AND id >= ?`
+  ),
+  deleteMessagesFromWithChatId: db.prepare(
+    `DELETE FROM messages WHERE session_id = ? AND chat_id = ? AND id >= ?`
+  ),
+  getLastUserMessage: db.prepare(
+    `SELECT * FROM messages WHERE session_id = ? AND chat_id IS NULL AND role = 'user' ORDER BY id DESC LIMIT 1`
+  ),
+  getLastUserMessageByChatId: db.prepare(
+    `SELECT * FROM messages WHERE session_id = ? AND chat_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1`
+  ),
   getTotalCost: db.prepare(`SELECT COALESCE(SUM(cost_usd), 0) AS total FROM costs WHERE created_at >= unixepoch('now', 'start of day')`),
   getAllTimeCost: db.prepare(`SELECT COALESCE(SUM(cost_usd), 0) AS total FROM costs`),
   getProjectCost: db.prepare(
@@ -492,6 +504,20 @@ export function getMessagesByChatId(sessionId, chatId) {
 
 export function getMessagesNoChatId(sessionId) {
   return stmts.getMessagesNoChatId.all(sessionId);
+}
+
+export function deleteMessagesFrom(sessionId, messageId, chatId = null) {
+  if (chatId) {
+    return stmts.deleteMessagesFromWithChatId.run(sessionId, chatId, messageId);
+  }
+  return stmts.deleteMessagesFrom.run(sessionId, messageId);
+}
+
+export function getLastUserMessage(sessionId, chatId = null) {
+  if (chatId) {
+    return stmts.getLastUserMessageByChatId.get(sessionId, chatId);
+  }
+  return stmts.getLastUserMessage.get(sessionId);
 }
 
 export function setClaudeSession(sessionId, chatId, claudeSessionId) {

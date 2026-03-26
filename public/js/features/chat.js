@@ -4,7 +4,7 @@ import { getState, setState } from '../core/store.js';
 import { CHAT_IDS, BOT_CHAT_ID } from '../core/constants.js';
 import { on } from '../core/events.js';
 import { commandRegistry, dismissAutocomplete, handleAutocompleteKeydown, handleSlashAutocomplete, registerCommand } from '../ui/commands.js';
-import { addUserMessage, appendAssistantText, appendToolIndicator, appendToolResult, showThinking, removeThinking, addResultSummary, addStatus, showWhalyPlaceholder } from '../ui/messages.js';
+import { addUserMessage, appendAssistantText, appendToolIndicator, appendToolResult, showThinking, removeThinking, addResultSummary, addStatus, showWhalyPlaceholder, updateEditButtons, _setEditMessageFn } from '../ui/messages.js';
 import { getPane, panes, _setChatFns } from '../ui/parallel.js';
 import { loadSessions } from './sessions.js';
 import { loadStats, loadAccountInfo } from './cost-dashboard.js';
@@ -183,6 +183,62 @@ export function sendMessage(pane) {
   showThinking("Connecting to Claude...", pane);
 }
 
+export function sendEditedMessage(text, pane) {
+  pane = pane || getPane(null);
+  const cwd = $.projectSelect.value;
+  if (!text || !cwd) return;
+
+  const ws = getState("ws");
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    addStatus("Not connected. Reconnecting...", true, pane);
+    connectWebSocket();
+    return;
+  }
+
+  addUserMessage(text, pane);
+  setState("streamingCharCount", 0);
+
+  hideWaitingForInput(pane);
+  pane.isStreaming = true;
+  const parallelMode = getState("parallelMode");
+
+  if (parallelMode) {
+    pane.sendBtn.classList.add("hidden");
+    pane.stopBtn.classList.remove("hidden");
+  } else {
+    $.sendBtn.classList.add("hidden");
+    $.stopBtn.classList.remove("hidden");
+  }
+
+  const selectedOption = $.projectSelect.options[$.projectSelect.selectedIndex];
+  const projectName = selectedOption?.textContent || "Session";
+  const model = getSelectedModel();
+
+  const payload = {
+    type: "chat",
+    message: text,
+    cwd,
+    sessionId: getState("sessionId"),
+    projectName,
+    permissionMode: getPermissionMode(),
+  };
+  if (model) payload.model = model;
+  const maxTurns = getMaxTurns();
+  if (maxTurns) payload.maxTurns = maxTurns;
+  const disabledTools = getDisabledTools();
+  if (disabledTools.length > 0) payload.disabledTools = disabledTools;
+
+  if (parallelMode && pane.chatId) {
+    payload.chatId = pane.chatId;
+  }
+
+  ws.send(JSON.stringify(payload));
+  showThinking("Connecting to Claude...", pane);
+}
+
+// Register sendEditedMessage with messages.js to break circular dependency
+_setEditMessageFn(sendEditedMessage);
+
 export function stopGeneration(pane) {
   pane = pane || getPane(null);
   const ws = getState("ws");
@@ -220,6 +276,7 @@ export function finishStreamingHandler(pane) {
     $.sendBtn.disabled = false;
     $.messageInput.focus();
   }
+  updateEditButtons(pane);
 }
 
 // Register the chat functions with parallel.js to break circular dependency

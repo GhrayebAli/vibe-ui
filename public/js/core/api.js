@@ -41,6 +41,13 @@ export async function fetchSingleMessages(sessionId) {
   return res.json();
 }
 
+export async function truncateLastExchange(sessionId, chatId = null) {
+  let url = `/api/sessions/${encodeURIComponent(sessionId)}/truncate-last`;
+  if (chatId) url += `?chatId=${encodeURIComponent(chatId)}`;
+  const res = await fetch(url, { method: "DELETE" });
+  return res.json();
+}
+
 export async function fetchStats(projectPath) {
   const url = projectPath
     ? `/api/stats?project_path=${encodeURIComponent(projectPath)}`
