@@ -216,7 +216,9 @@ app.get("/api/workspace", (_req, res) => {
       // Fetch latest remote refs
       try { execSync(`git -C "${repoPath}" fetch origin --prune 2>/dev/null`, { stdio: "pipe", timeout: 10000 }); } catch (e) { console.warn("[workspace] git fetch prune failed:", e.message); }
 
-      // Build set of branches already merged into default branch (to exclude from resume list)
+      // Build set of branches to exclude from resume list:
+      // 1) branches fully merged into default branch
+      // 2) local branches whose remote tracking branch was deleted (e.g. squash-merged on GitHub)
       const mergedBranches = new Set();
       try {
         const merged = execSync(
@@ -225,6 +227,18 @@ app.get("/api/workspace", (_req, res) => {
         ).toString().trim();
         for (const b of merged.split("\n").filter(Boolean)) mergedBranches.add(b);
       } catch (e) { console.warn("[workspace] merged branch check failed:", e.message); }
+      try {
+        const vv = execSync(
+          `git -C "${repoPath}" branch -vv --list "mvp/*"`,
+          { stdio: "pipe" }
+        ).toString().trim();
+        for (const line of vv.split("\n").filter(Boolean)) {
+          if (/: gone\]/.test(line)) {
+            const name = line.trim().replace(/^\*\s*/, "").split(/\s+/)[0];
+            if (name) mergedBranches.add(name);
+          }
+        }
+      } catch (e) { console.warn("[workspace] gone branch check failed:", e.message); }
 
       // Local branches
       try {
