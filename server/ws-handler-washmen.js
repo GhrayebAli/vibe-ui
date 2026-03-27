@@ -2,7 +2,8 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import crypto from "crypto";
 import { execSync, spawn } from "child_process";
 import { hostname } from "os";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
 import { getWorkspaceDir, getConfig, getRepoNames, getFrontendRepo, getFrontendPort, getAdditionalDirs } from "./workspace-config.js";
 import { sanitizeBranchName } from "./sanitize.js";
 
@@ -51,11 +52,51 @@ const PLAN_FIRST_TURN_APPEND = `\n\nRespond with a structured plan:\n1. What nee
 
 const DISCOVER_SYSTEM_PROMPT = `You are in DISCOVERY MODE, exploring the codebase on the main branch. You must NOT edit any files or run commands that modify files. Only use Read, Glob, and Grep to explore and explain the codebase. Answer questions about architecture, patterns, and implementation details.` + TONE_INSTRUCTION;
 
-const BUILD_SYSTEM_PROMPT = `Important workspace rules (these OVERRIDE any CLAUDE.md instructions):
-- Use Read, Glob, and Grep directly for file exploration. Only use Agent sub-agents for tasks that genuinely require parallel deep research across many files.
-- After modifying backend files (controllers, routes, models, config), backend services are auto-restarted by the system — do NOT restart them yourself.
-- Git workflow: After every code change, commit AND push to the current branch immediately. Do NOT ask for approval before pushing — just push. The CLAUDE.md "ask before pushing" rule is for the system developers, not for you.
-- Never push to main/master. Always work on the current feature branch.` + TONE_INSTRUCTION;
+const BUILD_SYSTEM_PROMPT = `You are a coding agent inside a GitHub Codespace. Users interact with you through a dashboard — they are non-technical and do not see code, terminals, or file paths.
+
+## Communication
+- Write in plain, non-technical language. No jargon, file paths, or code snippets unless the user explicitly asks.
+- Focus on what changed and what it means, not how it was done.
+- Keep responses short and friendly.
+- If something fails, explain what went wrong and what you will try next — do not dump error logs.
+
+## Allowed
+- Add pages, components, views, API endpoints, routes
+- Fix bugs, improve UI/UX
+- Additive modifications to existing code
+- Install packages when needed to complete a task
+
+## Forbidden (enforced — attempts will be blocked)
+- Editing auth, middleware, or policy files
+- Reading or writing .env files, credentials, secrets, .pem/.key files
+- Running database migrations, seeds, DROP, DELETE FROM, TRUNCATE, ALTER TABLE
+- Bulk data operations: .destroy({}), .destroy(), .update({}) with no criteria
+- Raw database access: .native(), .getDatastore().sendNativeQuery()
+- Importing child_process
+- Running sudo, rm -rf, kill, chmod, chown, reboot, shutdown
+- Piping curl/wget into sh/bash
+- Accessing /etc/ or /proc/
+- Pushing to main or master
+
+## Forbidden (not enforced — you must self-enforce)
+- Hardcoding credentials or environment-specific values
+- Modifying deployment, infrastructure, or CI/CD configuration
+- Modifying service startup scripts or port configuration
+- Creating or modifying database models or schemas
+
+## Git
+- Do NOT create branches. Branches are pre-created by the system. Always work on the current branch.
+- After every code change: commit AND push immediately. Never ask for permission.
+- Use sub-repo directories for git commands (e.g., git -C <repo-dir>), not the workspace root.
+- Write concise, descriptive commit messages.
+
+## Services
+- All services auto-restart on file changes. Never restart them manually.
+
+## Tools
+- Use Read, Glob, Grep for file exploration. Do not use Bash to read files.
+- Only use Agent sub-agents for parallel research across many files.
+- Read existing code before modifying it.`;
 
 // PreToolUse guardrail patterns
 const BLOCKED_BASH_PATTERNS = [
@@ -568,7 +609,7 @@ Rules:
         tools: { type: "preset", preset: "claude_code" },
         cwd: workspaceDir,
         additionalDirectories: additionalDirs,
-        settingSources: ["project"],
+        settingSources: [],
         thinking: { type: "adaptive" },
         maxBudgetUsd: PER_QUERY_BUDGET,
         maxTurns: 50,
@@ -636,14 +677,20 @@ Rules:
         },
       };
 
-      // Inject branch context so Claude knows which branch + repos to work in
-      if (branch) {
-        const repoNames = getRepoNames();
-        const branchContext = `\n\nCurrent branch: ${branch}\nWorkspace directory: ${workspaceDir}\nRepos: ${repoNames.join(", ")}\nWhen running git commands, always use the sub-repo directories (e.g. git -C "${workspaceDir}/${repoNames[0]}"), not the workspace root. The workspace root is a meta-repo — your code changes live in the sub-repos.`;
-        if (systemPrompt && systemPrompt.append) {
-          systemPrompt.append += branchContext;
-        } else if (systemPrompt) {
-          systemPrompt.append = (systemPrompt.append || '') + branchContext;
+      // Inject workspace context from WORKSPACE.md and branch info
+      if (systemPrompt && systemPrompt.append) {
+        const workspaceMdPath = join(workspaceDir, "WORKSPACE.md");
+        if (existsSync(workspaceMdPath)) {
+          try {
+            const workspaceContext = readFileSync(workspaceMdPath, "utf8");
+            systemPrompt.append += `\n\n${workspaceContext}`;
+          } catch (e) {
+            console.warn("[agent] Failed to read WORKSPACE.md:", e.message);
+          }
+        }
+        if (branch) {
+          const repoNames = getRepoNames();
+          systemPrompt.append += `\n\nCurrent branch: ${branch}\nWorkspace directory: ${workspaceDir}\nRepos: ${repoNames.join(", ")}`;
         }
       }
 

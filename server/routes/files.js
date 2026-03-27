@@ -199,7 +199,7 @@ router.put("/content", async (req, res) => {
   if (!resolved.startsWith(resolve(base) + sep) && resolved !== resolve(base)) return res.status(403).json({ error: "path traversal detected" });
 
   // Only allow writing specific config files for safety
-  const ALLOWED_FILES = new Set(["CLAUDE.md", ".claude/settings.json"]);
+  const ALLOWED_FILES = new Set([".claude/settings.json"]);
   if (!ALLOWED_FILES.has(filePath)) {
     return res.status(403).json({ error: "writing this file is not allowed" });
   }

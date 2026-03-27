@@ -19,7 +19,6 @@ const pluginTabIds = new Map();
 
 /** Plugin descriptions for the marketplace. order: lower = higher in the list */
 const pluginMeta = {
-  'claude-editor':    { description: 'Edit CLAUDE.md project instructions directly in the UI',    icon: '📝', order: 5 },
   'event-stream':     { description: 'Real-time WebSocket event viewer with filtering and search', icon: '⚡', order: 10 },
   'repos':            { description: 'Git repository and group management with tree view',        icon: '📁', order: 20 },
   'linear':           { description: 'Linear issue tracking with settings and team management',   icon: '📋', order: 25 },
