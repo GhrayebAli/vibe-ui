@@ -216,6 +216,16 @@ app.get("/api/workspace", (_req, res) => {
       // Fetch latest remote refs
       try { execSync(`git -C "${repoPath}" fetch origin --prune 2>/dev/null`, { stdio: "pipe", timeout: 10000 }); } catch (e) { console.warn("[workspace] git fetch prune failed:", e.message); }
 
+      // Build set of branches already merged into default branch (to exclude from resume list)
+      const mergedBranches = new Set();
+      try {
+        const merged = execSync(
+          `git -C "${repoPath}" branch --merged ${sanitizeBranchName(defaultBranch)} --list "mvp/*" --format="%(refname:short)"`,
+          { stdio: "pipe" }
+        ).toString().trim();
+        for (const b of merged.split("\n").filter(Boolean)) mergedBranches.add(b);
+      } catch (e) { console.warn("[workspace] merged branch check failed:", e.message); }
+
       // Local branches
       try {
         const branchList = execSync(
@@ -224,6 +234,7 @@ app.get("/api/workspace", (_req, res) => {
         ).toString().trim();
         for (const line of branchList.split("\n").filter(Boolean)) {
           const [name, ts] = line.split("|");
+          if (mergedBranches.has(name)) continue; // skip branches already merged into default
           seenBranches.add(name);
           const session = getSessionByBranch(name);
           const msgCount = session ? getDb().prepare("SELECT COUNT(*) as c FROM messages WHERE session_id = ?").get(session.id)?.c || 0 : 0;
@@ -280,7 +291,7 @@ app.get("/api/workspace", (_req, res) => {
         for (const line of remoteBranches.split("\n").filter(Boolean)) {
           const [ref, ts] = line.split("|");
           const name = ref.replace("origin/", "");
-          if (seenBranches.has(name)) continue;
+          if (seenBranches.has(name) || mergedBranches.has(name)) continue;
           seenBranches.add(name);
           branches.push({
             name,
