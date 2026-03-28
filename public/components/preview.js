@@ -84,7 +84,7 @@ export function refreshPreview() {
         </div>
       `;
       window.__retryPreview = () => {
-        loader.innerHTML = '<div class="ld"></div><div class="status-lines">Retrying...</div>';
+        loader.innerHTML = '<div class="ld"></div><div class="status-lines">Connecting to preview...</div>';
         refreshPreview();
       };
     }
