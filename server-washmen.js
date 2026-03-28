@@ -11,7 +11,7 @@ const AUTH_TOKEN = process.env.VIBE_AUTH_TOKEN || randomUUID();
 import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
-import { getDb, createSession, getSession, addMessage, addCost, getTotalCost, getSessionByBranch, getNotes, saveNotes, getBranchCosts, undoLastTurn } from "./db.js";
+import { createSession, getSession, addMessage, getMessages, addCost, getTotalCost, getSessionByBranch, getNotes, saveNotes, getBranchCosts, undoLastTurn, getMessageCount, getMessagePreviews, getLastUserMessage, deleteMessagesFrom, getActivityTimeline, getLastUserMessageTimestamp, getLastAssistantMessage, getUpload, saveUpload, logActivityEvent, listRecentSessions, getAllSessionMappings } from "./db.js";
 import { handleWashmenWs, getSessionChangedFiles } from "./server/ws-handler-washmen.js";
 import { loadWorkspaceConfig, getWorkspaceDir, getConfig, getFrontendRepo, getFrontendPort, getServicesConfig, getRepoNames, getClientConfig } from "./server/workspace-config.js";
 import { sanitizeBranchName, sanitizePort, validateDevCommand } from "./server/sanitize.js";
@@ -50,8 +50,7 @@ app.get("/api/workspace-config", (_req, res) => res.json(getClientConfig()));
 // Session mappings
 const sessionIds = new Map();
 {
-  const db = getDb();
-  const rows = db.prepare("SELECT id, claude_session_id FROM sessions WHERE claude_session_id IS NOT NULL").all();
+  const rows = getAllSessionMappings();
   for (const row of rows) {
     sessionIds.set(row.id, row.claude_session_id);
   }
@@ -251,7 +250,7 @@ app.get("/api/workspace", (_req, res) => {
           if (mergedBranches.has(name)) continue; // skip branches already merged into default
           seenBranches.add(name);
           const session = getSessionByBranch(name);
-          const msgCount = session ? getDb().prepare("SELECT COUNT(*) as c FROM messages WHERE session_id = ?").get(session.id)?.c || 0 : 0;
+          const msgCount = session ? getMessageCount(session.id) : 0;
           // Aggregate stats across all repos for this branch
           let commitCount = 0, lastCommitMsg = '', filesChanged = 0;
           let latestCommitTs = 0;
@@ -394,9 +393,7 @@ app.post("/api/switch-branch", async (req, res) => {
         const changes = [];
         if (session) {
           try {
-            const msgs = getDb().prepare(
-              "SELECT role, substr(content, 1, 500) as preview FROM messages WHERE session_id = ? AND role IN ('user', 'assistant') ORDER BY created_at ASC"
-            ).all(session.id);
+            const msgs = getMessagePreviews(session.id);
             let lastUserMsg = '';
             for (const m of msgs) {
               try {
@@ -643,9 +640,7 @@ app.post("/api/create-branch", (req, res) => {
 // Sessions API
 app.get("/api/sessions", (_req, res) => {
   try {
-    const db = getDb();
-    const sessions = db.prepare("SELECT * FROM sessions ORDER BY last_used_at DESC LIMIT 50").all();
-    res.json(sessions);
+    res.json(listRecentSessions(50));
   } catch (err) {
     console.error("Sessions API error:", err.message);
     res.json([]);
@@ -653,17 +648,15 @@ app.get("/api/sessions", (_req, res) => {
 });
 
 app.get("/api/sessions/:id/messages", (req, res) => {
-  const db = getDb();
-  const messages = db.prepare("SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC").all(req.params.id);
+  const messages = getMessages(req.params.id);
   res.json(messages);
 });
 
 app.delete("/api/sessions/:id/truncate-last", (req, res) => {
   try {
-    const db = getDb();
-    const lastMsg = db.prepare("SELECT * FROM messages WHERE session_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1").get(req.params.id);
+    const lastMsg = getLastUserMessage(req.params.id);
     if (!lastMsg) return res.status(404).json({ error: "No user message found" });
-    const result = db.prepare("DELETE FROM messages WHERE session_id = ? AND id >= ?").run(req.params.id, lastMsg.id);
+    const result = deleteMessagesFrom(req.params.id, lastMsg.id);
     res.json({ deleted: result.changes, fromMessageId: lastMsg.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -671,10 +664,7 @@ app.delete("/api/sessions/:id/truncate-last", (req, res) => {
 });
 
 app.get("/api/sessions/:id/timeline", (req, res) => {
-  const events = getDb().prepare(
-    "SELECT event_type, tool, input_summary, created_at FROM activity_events WHERE session_id = ? ORDER BY created_at ASC"
-  ).all(req.params.id);
-  res.json(events);
+  res.json(getActivityTimeline(req.params.id));
 });
 
 app.get("/api/sessions/:id/undo-preview", (req, res) => {
@@ -692,10 +682,7 @@ app.get("/api/sessions/:id/undo-preview", (req, res) => {
     const commits = [];
 
     // Get last user message timestamp to scope which commits belong to this turn
-    const lastUser = getDb().prepare(
-      "SELECT created_at FROM messages WHERE session_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 1"
-    ).get(req.params.id);
-    const turnStart = lastUser?.created_at || 0;
+    const turnStart = getLastUserMessageTimestamp(req.params.id)?.created_at || 0;
 
     for (const repo of repos) {
       const repoDir = join(workspaceDir, repo);
@@ -713,9 +700,7 @@ app.get("/api/sessions/:id/undo-preview", (req, res) => {
     }
 
     // Get last assistant message preview
-    const lastAssistant = getDb().prepare(
-      "SELECT content FROM messages WHERE session_id = ? AND role = 'assistant' ORDER BY created_at DESC LIMIT 1"
-    ).get(req.params.id);
+    const lastAssistant = getLastAssistantMessage(req.params.id);
     let preview = '';
     try { preview = JSON.parse(lastAssistant?.content || '{}').text || ''; } catch { preview = lastAssistant?.content || ''; }
 
@@ -740,10 +725,7 @@ app.post("/api/sessions/:id/undo", async (req, res) => {
     const revertResults = [];
 
     // Get last user message timestamp to scope which commits belong to this turn
-    const lastUser = getDb().prepare(
-      "SELECT created_at FROM messages WHERE session_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 1"
-    ).get(req.params.id);
-    const turnStart = lastUser?.created_at || 0;
+    const turnStart = getLastUserMessageTimestamp(req.params.id)?.created_at || 0;
 
     for (const repo of repos) {
       const repoDir = join(workspaceDir, repo);
@@ -768,7 +750,7 @@ app.post("/api/sessions/:id/undo", async (req, res) => {
     }
 
     const deleted = undoLastTurn(req.params.id);
-    const messages = getDb().prepare("SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC").all(req.params.id);
+    const messages = getMessages(req.params.id);
 
     // Broadcast to refresh preview
     wsBroadcast({ type: "system", text: "Undo complete — files reverted." });
@@ -790,7 +772,7 @@ app.get("/api/uploads/*", (req, res) => {
     // Try filesystem first
     if (existsSync(filePath)) return res.sendFile(filePath);
     // Fall back to DB
-    const row = getDb().prepare("SELECT data, mime_type FROM uploads WHERE filename = ?").get(sanitized);
+    const row = getUpload(sanitized);
     if (row) {
       const buf = Buffer.from(row.data, "base64");
       res.set("Content-Type", row.mime_type || "image/png");
@@ -845,7 +827,7 @@ app.post("/api/upload", (req, res) => {
 
     // Persist to DB so images survive codespace restarts
     try {
-      getDb().prepare("INSERT OR REPLACE INTO uploads (filename, data, mime_type) VALUES (?, ?, ?)").run(name, data, mediaType || "image/png");
+      saveUpload(name, data, mediaType || "image/png");
     } catch (e) { console.error("[upload] DB save failed:", e.message); }
 
     res.json({ path: filePath, name });
