@@ -9,8 +9,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "start": "node server-washmen.js",
-    "dev": "nodemon --watch server-washmen.js --watch server/ --watch public/ -e js,mjs,html,css server-washmen.js",
+    "start": "nodemon --watch server-washmen.js --watch server/ --watch public/ -e js,mjs,html,css server-washmen.js",
     "start:original": "node server.js",
     "test:visual-edit": "node test/visual-edit.mjs"
   },
