@@ -1,218 +1,121 @@
 import { Router } from "express";
-import { readdir, readFile } from "fs/promises";
-import { join, posix, resolve, sep } from "path";
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from "fs";
+import { join, resolve, sep } from "path";
+import { getUpload, saveUpload } from "../../db.js";
+import { getWorkspaceDir } from "../workspace-config.js";
 
-const router = Router();
+export default function() {
+  const router = Router();
 
-// File listing for attachments (recursive, max depth 3)
-router.get("/", async (req, res) => {
-  const basePath = req.query.path;
-  if (!basePath) return res.status(400).json({ error: "path query param required" });
-
-  const SKIP = new Set([".git", "node_modules", ".next", "dist", "build", ".cache", ".turbo", "__pycache__", ".venv", "venv", "coverage", ".nyc_output"]);
-  const MAX_DEPTH = 3;
-  const MAX_FILES = 500;
-  const results = [];
-
-  async function walk(dir, depth) {
-    if (depth > MAX_DEPTH || results.length >= MAX_FILES) return;
+  router.get("/uploads/*", (req, res) => {
     try {
-      const entries = await readdir(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (results.length >= MAX_FILES) break;
-        if (SKIP.has(entry.name)) continue;
-        const full = join(dir, entry.name);
-        const rel = full.slice(basePath.length + 1);
-        if (entry.isDirectory()) {
-          await walk(full, depth + 1);
-        } else {
-          results.push(rel);
-        }
+      const fileName = req.params[0];
+      if (!fileName || fileName.includes('..')) return res.status(400).json({ error: "Invalid path" });
+      const sanitized = fileName.replace(/[^a-zA-Z0-9._-]/g, "");
+      const filePath = join(getWorkspaceDir(), "tmp", "uploads", sanitized);
+      if (existsSync(filePath)) return res.sendFile(filePath);
+      const row = getUpload(sanitized);
+      if (row) {
+        const buf = Buffer.from(row.data, "base64");
+        res.set("Content-Type", row.mime_type || "image/png");
+        return res.send(buf);
       }
-    } catch { /* permission errors etc */ }
-  }
-
-  try {
-    await walk(basePath, 0);
-    res.json(results);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Read file content for attachments (50KB limit)
-router.get("/content", async (req, res) => {
-  const base = req.query.base;
-  const filePath = req.query.path;
-  if (!base || !filePath) return res.status(400).json({ error: "base and path required" });
-
-  const resolved = resolve(base, filePath);
-  if (!resolved.startsWith(resolve(base) + sep) && resolved !== resolve(base)) return res.status(403).json({ error: "path traversal detected" });
-
-  try {
-    const { stat } = await import("fs/promises");
-    const stats = await stat(resolved);
-    if (stats.size > 50 * 1024) {
-      return res.status(413).json({ error: "File too large (50KB limit)" });
+      res.status(404).json({ error: "Not found" });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
-    const content = await readFile(resolved, "utf-8");
-    res.json({ content, path: filePath });
-  } catch (err) {
-    res.status(404).json({ error: err.message });
-  }
-});
+  });
 
-// File tree (immediate children only, for lazy-loading explorer)
-router.get("/tree", async (req, res) => {
-  const base = req.query.base;
-  const dir = req.query.dir || "";
-  if (!base) return res.status(400).json({ error: "base query param required" });
-
-  const SKIP = new Set([".git", "node_modules", ".next", "dist", "build", ".cache", ".turbo", "__pycache__", ".venv", "venv", "coverage", ".nyc_output"]);
-
-  const target = dir ? resolve(base, dir) : resolve(base);
-  const resolvedBase = resolve(base);
-
-  // Path traversal protection
-  if (!target.startsWith(resolvedBase + sep) && target !== resolvedBase) {
-    return res.status(403).json({ error: "path traversal detected" });
-  }
-
-  try {
-    const entries = await readdir(target, { withFileTypes: true });
-    const results = [];
-
-    for (const entry of entries) {
-      if (SKIP.has(entry.name)) continue;
-      const relPath = dir ? posix.join(dir, entry.name) : entry.name;
-      results.push({
-        name: entry.name,
-        path: relPath,
-        type: entry.isDirectory() ? "dir" : "file",
-      });
-    }
-
-    // Sort: directories first, then alphabetical
-    results.sort((a, b) => {
-      if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
-
-    res.json(results);
-  } catch (err) {
-    if (err.code === "ENOENT") {
-      return res.json([]);
-    }
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Serve raw binary files (images) with streaming
-const IMAGE_MIME = {
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".svg": "image/svg+xml",
-  ".webp": "image/webp",
-};
-
-router.get("/raw", async (req, res) => {
-  const base = req.query.base;
-  const filePath = req.query.path;
-  if (!base || !filePath) return res.status(400).json({ error: "base and path required" });
-
-  const resolved = resolve(base, filePath);
-  if (!resolved.startsWith(resolve(base) + sep) && resolved !== resolve(base)) return res.status(403).json({ error: "path traversal detected" });
-
-  const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
-  const mime = IMAGE_MIME[ext];
-  if (!mime) return res.status(415).json({ error: "unsupported file type" });
-
-  try {
-    const { stat } = await import("fs/promises");
-    const stats = await stat(resolved);
-    if (stats.size > 5 * 1024 * 1024) {
-      return res.status(413).json({ error: "File too large (5MB limit)" });
-    }
-    res.type(mime).sendFile(resolved);
-  } catch (err) {
-    res.status(404).json({ error: err.message });
-  }
-});
-
-// Search files/folders by name (recursive, LIKE %query%)
-router.get("/search", async (req, res) => {
-  const base = req.query.base;
-  const q = (req.query.q || "").toLowerCase();
-  if (!base) return res.status(400).json({ error: "base query param required" });
-  if (!q) return res.json([]);
-
-  const SKIP = new Set([".git", "node_modules", ".next", "dist", "build", ".cache", ".turbo", "__pycache__", ".venv", "venv", "coverage", ".nyc_output"]);
-  const MAX_DEPTH = 8;
-  const MAX_RESULTS = 50;
-  const results = [];
-
-  async function walk(dir, relDir, depth) {
-    if (depth > MAX_DEPTH || results.length >= MAX_RESULTS) return;
+  router.get("/file", (req, res) => {
     try {
-      const entries = await readdir(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (results.length >= MAX_RESULTS) break;
-        if (SKIP.has(entry.name)) continue;
-
-        const relPath = relDir ? posix.join(relDir, entry.name) : entry.name;
-        const isDir = entry.isDirectory();
-
-        // Match name (case-insensitive, like SQL LIKE %q%)
-        if (entry.name.toLowerCase().includes(q)) {
-          results.push({ name: entry.name, path: relPath, type: isDir ? "dir" : "file" });
-        }
-
-        if (isDir) {
-          await walk(join(dir, entry.name), relPath, depth + 1);
-        }
+      const filePath = req.query.path;
+      if (!filePath) return res.status(400).json({ error: "Missing path" });
+      const workspaceDir = getWorkspaceDir();
+      const resolved = resolve(workspaceDir, filePath);
+      if (!resolved.startsWith(resolve(workspaceDir) + sep) && resolved !== resolve(workspaceDir)) {
+        return res.status(403).json({ error: "Access denied: path outside workspace" });
       }
-    } catch { /* permission errors */ }
-  }
+      const content = readFileSync(resolved, "utf8");
+      res.json({ path: filePath, content });
+    } catch (err) {
+      res.status(404).json({ error: err.message });
+    }
+  });
 
-  try {
-    await walk(base, "", 0);
-    // Sort: directories first, then alphabetical
-    results.sort((a, b) => {
-      if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
-    res.json(results);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+  router.get("/files", (_req, res) => {
+    const workspaceDir = getWorkspaceDir();
+    const files = [];
+    const ignore = ["node_modules", ".git", ".yarn", "dist", "build", ".cache", ".tmp", "coverage", "vibe-ui"];
+    const extensions = [".js", ".ts", ".tsx", ".jsx", ".json", ".css", ".scss", ".md"];
+    const maxDepth = 4;
+    const maxFilesPerRepo = 50;
 
-// Write file content (for CLAUDE.md editor etc.)
-router.put("/content", async (req, res) => {
-  const { base, path: filePath, content } = req.body;
-  if (!base || !filePath) return res.status(400).json({ error: "base and path required" });
-  if (typeof content !== "string") return res.status(400).json({ error: "content must be a string" });
+    try {
+      const entries = readdirSync(workspaceDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory() || ignore.includes(entry.name) || entry.name.startsWith(".")) continue;
+        const repoPath = join(workspaceDir, entry.name);
+        try {
+          const hasPackageJson = existsSync(join(repoPath, "package.json"));
+          const hasGit = existsSync(join(repoPath, ".git"));
+          if (!hasPackageJson && !hasGit) continue;
+        } catch { continue; }
 
-  const resolved = resolve(base, filePath);
-  if (!resolved.startsWith(resolve(base) + sep) && resolved !== resolve(base)) return res.status(403).json({ error: "path traversal detected" });
+        const repoFiles = [];
+        function walk(dir, depth) {
+          if (depth > maxDepth || repoFiles.length >= maxFilesPerRepo) return;
+          try {
+            const items = readdirSync(dir, { withFileTypes: true });
+            for (const item of items) {
+              if (ignore.includes(item.name) || item.name.startsWith(".")) continue;
+              const fullPath = join(dir, item.name);
+              if (item.isDirectory()) {
+                walk(fullPath, depth + 1);
+              } else if (extensions.some(ext => item.name.endsWith(ext))) {
+                const relativePath = fullPath.replace(repoPath + "/", "");
+                repoFiles.push({ path: `${entry.name}/${relativePath}`, repo: entry.name, name: relativePath });
+              }
+            }
+          } catch {}
+        }
+        walk(repoPath, 0);
 
-  // Only allow writing specific config files for safety
-  const ALLOWED_FILES = new Set([".claude/settings.json"]);
-  if (!ALLOWED_FILES.has(filePath)) {
-    return res.status(403).json({ error: "writing this file is not allowed" });
-  }
+        repoFiles.sort((a, b) => {
+          const aIsConfig = a.name.startsWith("config/") || a.name.includes("package.json") ? 0 : 1;
+          const bIsConfig = b.name.startsWith("config/") || b.name.includes("package.json") ? 0 : 1;
+          return aIsConfig - bIsConfig || a.name.localeCompare(b.name);
+        });
 
-  try {
-    const { writeFile, mkdir } = await import("fs/promises");
-    const { dirname } = await import("path");
-    await mkdir(dirname(resolved), { recursive: true });
-    await writeFile(resolved, content, "utf-8");
-    res.json({ ok: true, path: filePath });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+        files.push(...repoFiles);
+      }
+    } catch {}
+    res.json({ files });
+  });
 
-export default router;
+  router.post("/upload", (req, res) => {
+    try {
+      const { filename, data, mediaType } = req.body;
+      if (!data) return res.status(400).json({ error: "Missing data" });
+
+      const uploadDir = join(getWorkspaceDir(), "tmp", "uploads");
+      mkdirSync(uploadDir, { recursive: true });
+
+      const ext = filename ? filename.split(".").pop() : (mediaType || "").split("/").pop() || "png";
+      const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const filePath = join(uploadDir, name);
+
+      writeFileSync(filePath, Buffer.from(data, "base64"));
+      console.log(`[upload] Saved ${filePath} (${Math.round(Buffer.from(data, "base64").length / 1024)}KB)`);
+
+      try {
+        saveUpload(name, data, mediaType || "image/png");
+      } catch (e) { console.error("[upload] DB save failed:", e.message); }
+
+      res.json({ path: filePath, name });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  return router;
+}

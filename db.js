@@ -421,6 +421,36 @@ const stmts = {
     GROUP BY date(c.created_at, 'unixepoch')
     ORDER BY date ASC`
   ),
+  // Washmen inline SQL extractions (Phase 3)
+  getMessageCount: db.prepare("SELECT COUNT(*) as c FROM messages WHERE session_id = ?"),
+  getMessagePreviews: db.prepare(
+    "SELECT role, substr(content, 1, 500) as preview FROM messages WHERE session_id = ? AND role IN ('user', 'assistant') ORDER BY created_at ASC"
+  ),
+  getLastUserMessage: db.prepare(
+    "SELECT * FROM messages WHERE session_id = ? AND role = 'user' ORDER BY id DESC LIMIT 1"
+  ),
+  deleteMessagesFrom: db.prepare(
+    "DELETE FROM messages WHERE session_id = ? AND id >= ?"
+  ),
+  getActivityTimeline: db.prepare(
+    "SELECT event_type, tool, input_summary, created_at FROM activity_events WHERE session_id = ? ORDER BY created_at ASC"
+  ),
+  getLastUserMessageTimestamp: db.prepare(
+    "SELECT created_at FROM messages WHERE session_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 1"
+  ),
+  getLastAssistantMessage: db.prepare(
+    "SELECT content FROM messages WHERE session_id = ? AND role = 'assistant' ORDER BY created_at DESC LIMIT 1"
+  ),
+  getUpload: db.prepare("SELECT data, mime_type FROM uploads WHERE filename = ?"),
+  saveUpload: db.prepare("INSERT OR REPLACE INTO uploads (filename, data, mime_type) VALUES (?, ?, ?)"),
+  logActivityEvent: db.prepare(
+    "INSERT INTO activity_events (session_id, event_type, tool, input_summary) VALUES (?, ?, ?, ?)"
+  ),
+  listRecentSessions: db.prepare("SELECT * FROM sessions ORDER BY last_used_at DESC LIMIT ?"),
+  getAllSessionMappings: db.prepare(
+    "SELECT id, claude_session_id FROM sessions WHERE claude_session_id IS NOT NULL"
+  ),
+
   getCostTimelineByProject: db.prepare(
     `SELECT date(c.created_at, 'unixepoch') AS date,
             SUM(c.cost_usd) AS cost
@@ -1517,6 +1547,44 @@ export function getMemoryStats(projectPath) {
 export function maintainMemories(projectPath) {
   decayMemories(projectPath, 604800); // 7 days
   deleteExpiredMemories();
+}
+
+// Washmen inline SQL extractions (Phase 3)
+export function getMessageCount(sessionId) {
+  return stmts.getMessageCount.get(sessionId)?.c || 0;
+}
+export function getMessagePreviews(sessionId) {
+  return stmts.getMessagePreviews.all(sessionId);
+}
+export function getLastUserMessage(sessionId) {
+  return stmts.getLastUserMessage.get(sessionId);
+}
+export function deleteMessagesFrom(sessionId, minId) {
+  return stmts.deleteMessagesFrom.run(sessionId, minId);
+}
+export function getActivityTimeline(sessionId) {
+  return stmts.getActivityTimeline.all(sessionId);
+}
+export function getLastUserMessageTimestamp(sessionId) {
+  return stmts.getLastUserMessageTimestamp.get(sessionId);
+}
+export function getLastAssistantMessage(sessionId) {
+  return stmts.getLastAssistantMessage.get(sessionId);
+}
+export function getUpload(filename) {
+  return stmts.getUpload.get(filename);
+}
+export function saveUpload(filename, data, mimeType) {
+  return stmts.saveUpload.run(filename, data, mimeType);
+}
+export function logActivityEvent(sessionId, eventType, tool, inputSummary) {
+  return stmts.logActivityEvent.run(sessionId, eventType, tool, inputSummary);
+}
+export function listRecentSessions(limit = 50) {
+  return stmts.listRecentSessions.all(limit);
+}
+export function getAllSessionMappings() {
+  return stmts.getAllSessionMappings.all();
 }
 
 export function getDb() {

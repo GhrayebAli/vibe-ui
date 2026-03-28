@@ -33,7 +33,7 @@ import {
   getClaudeSessionId,
   setClaudeSession,
   updateSessionTitle,
-  getDb,
+  logActivityEvent,
 } from "../db.js";
 
 const DAILY_BUDGET = 60; // $60/day
@@ -635,7 +635,7 @@ Rules:
                   },
                 };
               }
-              try { getDb().prepare("INSERT INTO activity_events (session_id, event_type, tool, input_summary) VALUES (?, ?, ?, ?)").run(sessionId, "tool_start", toolName, JSON.stringify(toolInput).slice(0, 200)); } catch {}
+              try { logActivityEvent(sessionId, "tool_start", toolName, JSON.stringify(toolInput).slice(0, 200)); } catch {}
               pendingEvents.push({ type: "tool_activity", tool: toolName, input: toolInput });
               sendAll({ type: "tool_activity", tool: toolName, input: toolInput });
               return {};
@@ -645,7 +645,7 @@ Rules:
             matcher: ".*",
             hooks: [async (input, toolUseId, { signal }) => {
               const toolName = input.tool_name;
-              try { getDb().prepare("INSERT INTO activity_events (session_id, event_type, tool) VALUES (?, ?, ?)").run(sessionId, "tool_end", toolName); } catch {}
+              try { logActivityEvent(sessionId, "tool_end", toolName, null); } catch {}
               sendAll({ type: "tool_complete", tool: toolName });
 
               // Emit file_changed for Edit/Write tools
