@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from "fs";
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, realpathSync } from "fs";
 import { join, resolve, sep } from "path";
 import { getUpload, saveUpload } from "../../db.js";
 import { getWorkspaceDir } from "../workspace-config.js";
+import { validateFileExtension, validateMimeType, validateFileSize, getSafeErrorMessage } from "../sanitize.js";
 
 export default function() {
   const router = Router();
@@ -10,19 +11,36 @@ export default function() {
   router.get("/uploads/*", (req, res) => {
     try {
       const fileName = req.params[0];
-      if (!fileName || fileName.includes('..')) return res.status(400).json({ error: "Invalid path" });
+      if (!fileName || fileName.includes('..')) return res.status(403).json({ error: "Access denied" });
       const sanitized = fileName.replace(/[^a-zA-Z0-9._-]/g, "");
-      const filePath = join(getWorkspaceDir(), "tmp", "uploads", sanitized);
-      if (existsSync(filePath)) return res.sendFile(filePath);
+
+      // Reject if sanitization changed the input (contained disallowed characters)
+      if (sanitized !== fileName) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const uploadsDir = join(getWorkspaceDir(), "tmp", "uploads");
+      const filePath = join(uploadsDir, sanitized);
+
+      if (existsSync(filePath)) {
+        // Resolve symlinks and verify real path is within uploads directory
+        const realPath = realpathSync(filePath);
+        const realUploadsDir = realpathSync(uploadsDir);
+        if (!realPath.startsWith(realUploadsDir + sep) && realPath !== realUploadsDir) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+        return res.sendFile(realPath);
+      }
+
       const row = getUpload(sanitized);
       if (row) {
         const buf = Buffer.from(row.data, "base64");
         res.set("Content-Type", row.mime_type || "image/png");
         return res.send(buf);
       }
-      res.status(404).json({ error: "Not found" });
+      res.status(404).json({ error: "File not found" });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: getSafeErrorMessage(err, "File retrieval") });
     }
   });
 
@@ -32,13 +50,27 @@ export default function() {
       if (!filePath) return res.status(400).json({ error: "Missing path" });
       const workspaceDir = getWorkspaceDir();
       const resolved = resolve(workspaceDir, filePath);
-      if (!resolved.startsWith(resolve(workspaceDir) + sep) && resolved !== resolve(workspaceDir)) {
-        return res.status(403).json({ error: "Access denied: path outside workspace" });
+      const resolvedWorkspace = resolve(workspaceDir);
+
+      if (!resolved.startsWith(resolvedWorkspace + sep) && resolved !== resolvedWorkspace) {
+        return res.status(403).json({ error: "Access denied" });
       }
-      const content = readFileSync(resolved, "utf8");
+
+      // Resolve symlinks and verify real path is within workspace
+      if (!existsSync(resolved)) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      const realPath = realpathSync(resolved);
+      const realWorkspace = realpathSync(resolvedWorkspace);
+      if (!realPath.startsWith(realWorkspace + sep) && realPath !== realWorkspace) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const content = readFileSync(realPath, "utf8");
       res.json({ path: filePath, content });
     } catch (err) {
-      res.status(404).json({ error: err.message });
+      if (err.code === "ENOENT") return res.status(404).json({ error: "File not found" });
+      res.status(500).json({ error: getSafeErrorMessage(err, "File read") });
     }
   });
 
@@ -97,15 +129,40 @@ export default function() {
       const { filename, data, mediaType } = req.body;
       if (!data) return res.status(400).json({ error: "Missing data" });
 
+      // Validate file extension
+      const ext = filename ? filename.split(".").pop() : (mediaType || "").split("/").pop() || "png";
+      const fullFilename = filename || `upload.${ext}`;
+      try {
+        validateFileExtension(fullFilename);
+      } catch {
+        return res.status(400).json({ error: "File type not allowed" });
+      }
+
+      // Validate MIME type
+      if (mediaType) {
+        try {
+          validateMimeType(mediaType);
+        } catch {
+          return res.status(400).json({ error: "MIME type not allowed" });
+        }
+      }
+
+      // Validate file size
+      const buffer = Buffer.from(data, "base64");
+      try {
+        validateFileSize(buffer.length);
+      } catch {
+        return res.status(413).json({ error: "File too large (max 10MB)" });
+      }
+
       const uploadDir = join(getWorkspaceDir(), "tmp", "uploads");
       mkdirSync(uploadDir, { recursive: true });
 
-      const ext = filename ? filename.split(".").pop() : (mediaType || "").split("/").pop() || "png";
       const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const filePath = join(uploadDir, name);
 
-      writeFileSync(filePath, Buffer.from(data, "base64"));
-      console.log(`[upload] Saved ${filePath} (${Math.round(Buffer.from(data, "base64").length / 1024)}KB)`);
+      writeFileSync(filePath, buffer);
+      console.log(`[upload] Saved ${filePath} (${Math.round(buffer.length / 1024)}KB)`);
 
       try {
         saveUpload(name, data, mediaType || "image/png");
@@ -113,7 +170,7 @@ export default function() {
 
       res.json({ path: filePath, name });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: getSafeErrorMessage(err, "Upload") });
     }
   });
 

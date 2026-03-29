@@ -466,8 +466,8 @@ Rules:
         saveNotes(noteBranch, notes);
         ws.send(JSON.stringify({ type: "notes_generated", branch: noteBranch, content: notes }));
       } catch (e) {
-        console.error("[notes]", e.message);
-        ws.send(JSON.stringify({ type: "notes_generated", branch: noteBranch, content: `Error generating notes: ${e.message}` }));
+        console.error("[notes]", e);
+        ws.send(JSON.stringify({ type: "notes_generated", branch: noteBranch, content: "Error generating notes. Please try again." }));
       }
     } else if (msg.type === "set_model") {
       if (currentQuery) {
@@ -942,7 +942,7 @@ Rules:
       try {
         ws.send(JSON.stringify({
           type: "error",
-          text: `Agent error: ${err.message}`,
+          text: "Something went wrong. Please try again.",
           sessionId,
         }));
       } catch (e) { console.warn("[agent] failed to send error to client:", e.message); }

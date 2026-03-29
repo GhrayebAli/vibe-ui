@@ -28,7 +28,8 @@ export default function({ getSessionChangedFiles, wsBroadcast }) {
       const result = deleteMessagesFrom(req.params.id, lastMsg.id);
       res.json({ deleted: result.changes, fromMessageId: lastMsg.id });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error("[sessions] truncate error:", err);
+      res.status(500).json({ error: "Truncate failed" });
     }
   });
 
@@ -72,7 +73,8 @@ export default function({ getSessionChangedFiles, wsBroadcast }) {
 
       res.json({ ok: true, commits, messagePreview: preview.slice(0, 200), branch });
     } catch (err) {
-      res.status(500).json({ ok: false, error: err.message });
+      console.error("[sessions] undo-preview error:", err);
+      res.status(500).json({ ok: false, error: "Undo preview failed" });
     }
   });
 
@@ -110,7 +112,8 @@ export default function({ getSessionChangedFiles, wsBroadcast }) {
             revertResults.push({ repo, status: "skipped" });
           }
         } catch (e) {
-          revertResults.push({ repo, status: "error", error: e.message });
+          console.error(`[sessions] undo revert failed for ${repo}:`, e.message);
+          revertResults.push({ repo, status: "error" });
         }
       }
 
@@ -121,7 +124,8 @@ export default function({ getSessionChangedFiles, wsBroadcast }) {
 
       res.json({ ok: true, deleted, revertResults, messages });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error("[sessions] undo error:", err);
+      res.status(500).json({ error: "Undo failed" });
     }
   });
 

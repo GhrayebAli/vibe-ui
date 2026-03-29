@@ -49,7 +49,7 @@ export function addAgentMsg(text, streaming, createdAt) {
       renderPending = true;
       requestAnimationFrame(() => {
         if (currentAgentBubble) {
-          currentAgentBubble.innerHTML = marked.parse(currentAgentText);
+          currentAgentBubble.innerHTML = DOMPurify.sanitize(marked.parse(currentAgentText));
           addCopyButtons(currentAgentBubble);
           currentAgentBubble.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
           scrollBottom();
@@ -65,7 +65,7 @@ export function addAgentMsg(text, streaming, createdAt) {
       div.className = 'msg msg-agent';
       const bubble = document.createElement('div');
       bubble.className = 'bubble';
-      bubble.innerHTML = marked.parse(text);
+      bubble.innerHTML = DOMPurify.sanitize(marked.parse(text));
       addCopyButtons(bubble);
       bubble.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
       div.appendChild(bubble);
@@ -80,7 +80,7 @@ export function addAgentMsg(text, streaming, createdAt) {
       const bubble = document.createElement('div');
       bubble.className = 'bubble';
       const toolSummary = activityLog.map(a => `${a.icon} ${a.label}`).join(', ');
-      bubble.innerHTML = `<p style="color:var(--text-muted);font-style:italic;margin:0">${toolSummary}</p>`;
+      bubble.innerHTML = DOMPurify.sanitize(`<p style="color:var(--text-muted);font-style:italic;margin:0">${toolSummary}</p>`);
       div.appendChild(bubble);
       chatEl.appendChild(div);
       currentAgentBubble = bubble;

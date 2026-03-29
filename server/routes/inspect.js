@@ -125,7 +125,8 @@ export default function() {
       });
       res.json({ ok: true });
     } catch (e) {
-      res.json({ ok: false, error: e.message });
+      console.error("[inspect] inject error:", e);
+      res.json({ ok: false, error: "Visual helper injection failed" });
     }
   });
 
@@ -262,8 +263,8 @@ export default function() {
         screenshot: screenshot.toString("base64"),
       });
     } catch (err) {
-      console.error("[inspect]", err.message);
-      res.status(500).json({ error: err.message });
+      console.error("[inspect]", err);
+      res.status(500).json({ error: "Element inspection failed" });
     }
   });
 

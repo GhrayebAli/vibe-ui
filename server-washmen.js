@@ -9,6 +9,7 @@ dotenv.config();
 const AUTH_TOKEN = process.env.VIBE_AUTH_TOKEN || randomUUID();
 
 import express from "express";
+import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { getAllSessionMappings } from "./db.js";
@@ -30,24 +31,45 @@ import inspectRoutes from "./server/routes/inspect.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+/** Parse a single cookie value from a raw Cookie header string. */
+function parseCookie(cookieHeader, name) {
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 
 app.use(express.json({ limit: "10mb" }));
 
-// Serve UI with embedded auth token
+// Serve UI with httpOnly auth cookie
 app.get("/", (_req, res) => {
-  let html = readFileSync(join(__dirname, "public", "index-v2.html"), "utf8");
-  html = html.replace("</head>", `<script>window.__VIBE_TOKEN="${AUTH_TOKEN}";(function(){const _f=window.fetch;window.fetch=function(u,o){o=o||{};o.headers=new Headers(o.headers||{});o.headers.set("X-Vibe-Token",window.__VIBE_TOKEN);return _f.call(this,u,o);}})();</script></head>`);
-  res.send(html);
+  const isProduction = process.env.NODE_ENV === "production" || process.env.CODESPACES === "true";
+  res.cookie("__vibe_auth", AUTH_TOKEN, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "strict",
+    path: "/",
+  });
+  res.sendFile(join(__dirname, "public", "index-v2.html"));
 });
 app.get("/v1", (_req, res) => res.redirect("/"));
 app.use(express.static(join(__dirname, "public"), { etag: false, maxAge: 0 }));
 
-// Auth middleware
+// Rate limiting — 100 requests per 15 minutes per IP
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api", apiLimiter);
+
+// Auth middleware — reads token from httpOnly cookie
 function requireAuth(req, res, next) {
-  const token = req.headers["x-vibe-token"] || req.query.token;
+  const token = parseCookie(req.headers.cookie, "__vibe_auth");
   if (token !== AUTH_TOKEN) return res.status(401).json({ error: "Unauthorized" });
   next();
 }
@@ -155,10 +177,9 @@ app.use("/api", serviceRoutes(deps));
 app.use("/api", consoleRoutes(deps));
 app.use("/api", inspectRoutes());
 
-// WebSocket handling (with auth)
+// WebSocket handling (with cookie auth)
 wss.on("connection", (ws, req) => {
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const token = url.searchParams.get("token");
+  const token = parseCookie(req.headers.cookie, "__vibe_auth");
   if (token !== AUTH_TOKEN) {
     ws.close(4001, "Unauthorized");
     return;

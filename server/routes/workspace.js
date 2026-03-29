@@ -176,7 +176,8 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
         budget: { spent: totalCost, limit: 60, remaining: Math.max(0, 60 - totalCost) },
       });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error("[workspace]", err);
+      res.status(500).json({ error: "Workspace request failed" });
     }
   });
 

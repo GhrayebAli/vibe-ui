@@ -13,7 +13,7 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
   router.post("/switch-branch", async (req, res) => {
     const { branch } = req.body;
     if (!branch) return res.status(400).json({ error: "Missing branch" });
-    try { sanitizeBranchName(branch); } catch (e) { return res.status(400).json({ error: e.message }); }
+    try { sanitizeBranchName(branch); } catch (e) { console.warn("[branches] Invalid branch:", e.message); return res.status(400).json({ error: "Invalid branch name" }); }
 
     const lock = presence.getPresence().buildLock;
     if (lock && lock.branch !== branch) {
@@ -205,7 +205,7 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
               child.unref();
               child.on("error", (err) => {
                 console.error(`[spawn] ${cfgRepo.name} failed:`, err.message);
-                wsBroadcast({ type: "system", text: `Failed to start ${cfgRepo.name}: ${err.message}` });
+                wsBroadcast({ type: "system", text: `Failed to start ${cfgRepo.name}. Check server logs for details.` });
               });
               restarted.push(cfgRepo.name);
             } else {
@@ -267,7 +267,7 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
 
     const slug = name.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().replace(/\s+/g, "-").slice(0, 50).replace(/-+$/, "");
     const branchName = `mvp/${slug || "feature-" + Date.now().toString(36)}`;
-    try { sanitizeBranchName(branchName); } catch (e) { return res.status(400).json({ error: e.message }); }
+    try { sanitizeBranchName(branchName); } catch (e) { console.warn("[branches] Invalid branch:", e.message); return res.status(400).json({ error: "Invalid branch name" }); }
 
     const repos = discoverRepos();
     const defBranch = detectDefaultBranch(repos);

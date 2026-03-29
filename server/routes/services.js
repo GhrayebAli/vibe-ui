@@ -27,7 +27,7 @@ export default function({ wsBroadcast }) {
       child.unref();
       child.on("error", (err) => {
         console.error(`[spawn] ${repo.name} failed:`, err.message);
-        wsBroadcast({ type: "system", text: `Failed to start ${repo.name}: ${err.message}` });
+        wsBroadcast({ type: "system", text: `Failed to start ${repo.name}. Check server logs for details.` });
       });
       if (process.env.CODESPACES === "true" && repo.port) {
         setTimeout(() => {
@@ -36,7 +36,8 @@ export default function({ wsBroadcast }) {
       }
       res.json({ ok: true });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error("[restart-service]", err);
+      res.status(500).json({ error: "Failed to restart service" });
     }
   });
 
@@ -44,12 +45,16 @@ export default function({ wsBroadcast }) {
     try {
       const port = req.body.port;
       if (!port) return res.status(400).json({ error: "Missing port" });
+      const safePort = sanitizePort(port);
       const vibePort = process.env.PORT || 4000;
-      if (String(port) === String(vibePort)) return res.status(400).json({ error: "Cannot stop vibe-ui" });
-      try { execSync(`kill $(lsof -ti:${port} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+      if (String(safePort) === String(vibePort)) return res.status(400).json({ error: "Cannot stop vibe-ui" });
+      try { execSync(`kill $(lsof -ti:${safePort} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
       res.json({ ok: true });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      console.error("[stop-service]", err);
+      const status = err.message?.startsWith("Invalid port") ? 400 : 500;
+      const msg = status === 400 ? "Invalid port" : "Failed to stop service";
+      res.status(status).json({ error: msg });
     }
   });
 
