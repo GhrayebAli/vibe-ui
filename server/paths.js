@@ -11,8 +11,11 @@ const __dirname = dirname(__filename);
 // Package root (where defaults ship)
 export const packageRoot = join(__dirname, "..");
 
-// User data directory (override with CLAUDECK_HOME for testing)
-export const userDir = process.env.CLAUDECK_HOME || join(homedir(), ".claudeck");
+// User data directory — persist under /workspaces/ in Codespaces so data survives restarts
+const codespaceDefault = process.env.CODESPACE_NAME
+  ? join("/workspaces", process.env.GITHUB_REPOSITORY?.split("/").pop() || "workspace", ".claudeck")
+  : null;
+export const userDir = process.env.CLAUDECK_HOME || codespaceDefault || join(homedir(), ".claudeck");
 export const userConfigDir = join(userDir, "config");
 export const userPluginsDir = join(userDir, "plugins");
 export const dbPath = join(userDir, "data.db");
