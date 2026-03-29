@@ -53,6 +53,7 @@ const ENV_PREFIX_RE = /^([A-Z_][A-Z0-9_]*=[\w\-\.\/\+:]+\s+)+/;
 const ALLOWED_EXTENSIONS = new Set([
   ".jpg", ".jpeg", ".png", ".gif", ".webp",
   ".txt", ".md", ".pdf", ".json",
+  ".js", ".ts", ".tsx", ".jsx", ".css", ".html",
 ]);
 
 /**
@@ -61,6 +62,8 @@ const ALLOWED_EXTENSIONS = new Set([
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg", "image/png", "image/gif", "image/webp",
   "text/plain", "text/markdown", "application/pdf", "application/json",
+  "text/javascript", "text/typescript", "text/css", "text/html",
+  "application/javascript", "application/typescript",
 ]);
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB
