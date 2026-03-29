@@ -39,6 +39,7 @@ function parseCookie(cookieHeader, name) {
 }
 
 const app = express();
+app.set("trust proxy", 1); // Trust first proxy (Codespaces, reverse proxies)
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 
