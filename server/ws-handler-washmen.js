@@ -938,6 +938,21 @@ Rules:
 
       currentQuery = null;
     } catch (err) {
+      // Stale Claude session — clear it and ask user to resend
+      if (claudeSessionIdToResume && err.message?.includes("No conversation found")) {
+        console.warn(`[agent] Stale session ${claudeSessionIdToResume} — clearing`);
+        try { updateClaudeSessionId(sessionId, null); } catch {}
+        try { setClaudeSession(sessionId, "", ""); } catch {}
+        try {
+          ws.send(JSON.stringify({
+            type: "error",
+            text: "Previous AI session expired. Please resend your message.",
+            sessionId,
+          }));
+        } catch {}
+        currentQuery = null;
+        return;
+      }
       console.error("[agent] Error:", err.message, err.stack?.split("\n").slice(0, 3).join("\n"));
       try {
         ws.send(JSON.stringify({
