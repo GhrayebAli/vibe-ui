@@ -282,10 +282,15 @@ pre:hover .code-copy { opacity: 1; }
 .device-btns { display: flex; gap: 2px; margin-left: 4px; }
 .pbar-sep { width: 1px; height: 16px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
 
-/* Fullscreen preview — hide left panel + resize handle */
+/* Fullscreen preview — maximise iframe real-estate */
+.shell.preview-fullscreen { padding: 0; gap: 0; }
 .shell.preview-fullscreen .left-panel,
 .shell.preview-fullscreen .resize-handle { display: none; }
-.shell.preview-fullscreen .right-panel { flex: 1; min-width: 0; }
+.shell.preview-fullscreen .right-panel { flex: 1; min-width: 0; border-radius: 0; }
+.shell.preview-fullscreen .panel-tabs { display: none; }
+.shell.preview-fullscreen .preview-bar { height: 30px; border-bottom: none; background: #0F1117; padding: 0 8px; }
+.shell.preview-fullscreen .preview-bar .pbar-btn { color: var(--text-dim); }
+.shell.preview-fullscreen .preview-wrap iframe { border-radius: 0; }
 #preview-fullscreen.active .fs-icon-expand { display: none; }
 #preview-fullscreen.active .fs-icon-collapse { display: block; }
 .preview-wrap { flex: 1; position: relative; overflow: hidden; background: var(--bg); }
