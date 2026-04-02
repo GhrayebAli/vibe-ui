@@ -909,6 +909,8 @@ $('preview-fullscreen').onclick = () => {
   shell.classList.toggle('preview-fullscreen');
   btn.classList.toggle('active');
   btn.title = expanding ? 'Exit fullscreen preview' : 'Expand preview (hide sidebar)';
+  btn.querySelector('.fs-icon-expand').style.display = expanding ? 'none' : '';
+  btn.querySelector('.fs-icon-collapse').style.display = expanding ? '' : 'none';
 };
 $('preview-url').onkeydown = e => {
   if (e.key === 'Enter') {

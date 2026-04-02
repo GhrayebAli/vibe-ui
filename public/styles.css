@@ -291,8 +291,6 @@ pre:hover .code-copy { opacity: 1; }
 .shell.preview-fullscreen .preview-bar { height: 30px; border-bottom: none; background: #0F1117; padding: 0 8px; }
 .shell.preview-fullscreen .preview-bar .pbar-btn { color: var(--text-dim); }
 .shell.preview-fullscreen .preview-wrap iframe { border-radius: 0; }
-#preview-fullscreen.active .fs-icon-expand { display: none; }
-#preview-fullscreen.active .fs-icon-collapse { display: block; }
 .preview-wrap { flex: 1; position: relative; overflow: hidden; background: var(--bg); }
 .preview-wrap iframe { border: none; background: #fff; width: 100%; height: 100%; border-radius: 0 0 12px 12px; }
 .preview-wrap.tablet iframe { width: 768px; height: 100%; margin: 0 auto; display: block; }
