@@ -153,7 +153,18 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
 
     for (const cfgRepo of configRepos) {
       const repoPath = join(workspaceDir, cfgRepo.name);
+      const isMonorepo = cfgRepo.type === "monorepo";
       try {
+        // Monorepos: stop all services before checkout to avoid working tree conflicts
+        if (isMonorepo && cfgRepo.ports && cfgRepo.dev) {
+          console.log(`[switch] Stopping ${cfgRepo.name} services before checkout (monorepo)`);
+          for (const p of cfgRepo.ports) {
+            try { execSync(`kill $(lsof -ti:${sanitizePort(p)} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+          }
+          // Wait for processes to exit
+          execSync("sleep 2", { stdio: "pipe" });
+        }
+
         wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `checkout-${cfgRepo.name}`, status: 'active' });
         try {
           execSync(`git -C "${repoPath}" checkout "${branch}"`, { stdio: "pipe" });
@@ -191,14 +202,19 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
           if (!validateDevCommand(cfgRepo.dev)) {
             console.warn(`[switch] Blocked unsafe dev command for ${cfgRepo.name}: ${cfgRepo.dev}`);
           } else {
-            const needsRestart = !switched.includes(cfgRepo.name) ? false
+            // Monorepos always restart (services were stopped before checkout)
+            const needsRestart = isMonorepo ? true
+              : !switched.includes(cfgRepo.name) ? false
               : changedFilesInRepo.length === 0 ? false
               : cfgRepo.type === "frontend" && changedFilesInRepo.every(f => f.startsWith("src/")) ? false
               : true;
 
             if (needsRestart) {
               wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `restart-${cfgRepo.name}`, status: 'active' });
-              try { execSync(`kill $(lsof -ti:${safePort} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+              // For non-monorepos, kill the single port (monorepo ports already killed above)
+              if (!isMonorepo) {
+                try { execSync(`kill $(lsof -ti:${safePort} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+              }
               const logFile = `/tmp/${cfgRepo.name}.log`;
               try { writeFileSync(logFile, ""); } catch {}
               const child = spawn("bash", ["-c", `cd "${repoPath}" && ${cfgRepo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" });
