@@ -10,8 +10,10 @@
 
 import { query } from "@anthropic-ai/claude-code";
 import { execPath } from "process";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
+import { join } from "path";
+import { getAgentDefinitions } from "./claude-setup/loader.js";
 import {
   createSession,
   updateClaudeSessionId,
@@ -23,7 +25,15 @@ import {
   setAgentContext,
   getAllAgentContext,
 } from "../db.js";
-import { getProjectSystemPrompt } from "./routes/projects.js";
+// Load workspace context from WORKSPACE.md (replaces broken getProjectSystemPrompt import)
+function getWorkspaceContext(cwd) {
+  if (!cwd) return "";
+  const mdPath = join(cwd, "WORKSPACE.md");
+  if (existsSync(mdPath)) {
+    try { return readFileSync(mdPath, "utf8"); } catch { return ""; }
+  }
+  return "";
+}
 import { runAgent } from "./agent-loop.js";
 import { sendPushNotification } from "./push-sender.js";
 import { sendTelegramNotification } from "./telegram-sender.js";
@@ -49,6 +59,13 @@ function buildOrchestratorPrompt(task, agents) {
 ## Available Agents
 ${agentList}
 
+## Analysis Before Delegation
+Before dispatching agents, consider:
+1. What is the core objective?
+2. What dependencies exist between sub-tasks?
+3. Which agent is best suited for each sub-task?
+4. What context does each agent need from prior agents?
+
 ## How to Delegate
 For each sub-task you want to delegate, output a fenced code block with the language tag \`agent-dispatch\`:
 
@@ -60,9 +77,9 @@ For each sub-task you want to delegate, output a fenced code block with the lang
 - You may dispatch multiple agents. They will run sequentially.
 - Each agent will see the outputs of agents that ran before it.
 - Choose the most appropriate agent for each sub-task.
-- Provide specific, actionable context for each agent — not generic instructions.
+- Provide specific, actionable context for each agent — not generic instructions. Include prerequisites and dependencies from prior agents.
 - If no agent is suitable for a sub-task, handle it yourself directly.
-- After dispatching agents, briefly explain your delegation plan.
+- After dispatching agents, explain your delegation plan and expected outcomes.
 
 ## Task
 ${task}`;
@@ -86,7 +103,13 @@ function buildSynthesisPrompt(task, agentResults) {
   for (const { agentId, agentTitle, output } of agentResults) {
     prompt += `### ${agentTitle} (${agentId})\n${output}\n\n`;
   }
-  prompt += `## Instructions\nProvide a concise summary of what was accomplished across all agents. Highlight key findings, changes made, and any remaining issues.`;
+  prompt += `## Synthesis Instructions\n`;
+  prompt += `Provide a comprehensive summary addressing:\n`;
+  prompt += `1. **Objective**: What was asked and what was accomplished.\n`;
+  prompt += `2. **Key Changes**: Important modifications by each agent.\n`;
+  prompt += `3. **Integration**: How outputs fit together.\n`;
+  prompt += `4. **Validation**: Quality concerns or incompleteness.\n`;
+  prompt += `5. **Remaining Work**: What still needs to be done.\n`;
   return prompt;
 }
 
@@ -158,6 +181,9 @@ export async function runOrchestrator({
     abortController,
     maxTurns: 3, // Planner should just think, not use many tools
     executable: execPath,
+    settingSources: ["project"],
+    thinking: { type: "enabled", budgetTokens: 4000 },
+    effort: "high",
   };
 
   if (!useBypass && !usePlan) {
@@ -171,8 +197,10 @@ export async function runOrchestrator({
   }
   if (model) plannerOpts.model = resolveModel(model);
 
-  const projectPrompt = getProjectSystemPrompt(cwd);
-  if (projectPrompt) plannerOpts.appendSystemPrompt = projectPrompt;
+  const workspaceContext = getWorkspaceContext(cwd);
+  if (workspaceContext) plannerOpts.appendSystemPrompt = workspaceContext;
+
+  console.log(`[elite] Orchestrator planner opts: thinking=${JSON.stringify(plannerOpts.thinking)} effort=${plannerOpts.effort}`);
 
   const resumeId = clientSid ? sessionIds.get(clientSid) : undefined;
   if (resumeId) plannerOpts.resume = resumeId;

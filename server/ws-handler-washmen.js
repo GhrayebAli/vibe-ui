@@ -6,6 +6,12 @@ import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { getWorkspaceDir, getConfig, getRepoNames, getFrontendRepo, getFrontendPort, getAdditionalDirs } from "./workspace-config.js";
 import { sanitizeBranchName } from "./sanitize.js";
+import { getRulesPrompt, getAgentDefinitions, getQualityHooks } from "./claude-setup/loader.js";
+
+// Load quality infrastructure at startup (once)
+const eliteAgentDefs = getAgentDefinitions();
+const eliteRulesPrompt = getRulesPrompt();
+const eliteQualityHooks = getQualityHooks();
 
 // Screenshot capture using Playwright
 async function takeScreenshot() {
@@ -59,6 +65,21 @@ const BUILD_SYSTEM_PROMPT = `You are a coding agent inside a GitHub Codespace. U
 - Focus on what changed and what it means, not how it was done.
 - Keep responses short and friendly.
 - If something fails, explain what went wrong and what you will try next — do not dump error logs.
+
+## Code Quality Standards
+- Read target files before modifying. Match existing patterns and architecture.
+- Check for unused imports, dead code, or duplicated logic before finishing.
+- See appended Coding Style rules for full standards.
+
+## UI/UX Standards
+- Reuse existing components. Handle all interaction states. Ensure accessibility and responsiveness.
+- See appended UI/UX rules for full standards.
+
+## Research Before Building
+- For non-trivial tasks: read related files, trace similar implementations, identify dependencies. Plan before writing.
+
+## Self-Review Before Finishing
+- Re-read every file you changed. Verify requirements are met. Check error messages are user-friendly. Summarize what changed in plain language.
 
 ## Allowed
 - Add pages, components, views, API endpoints, routes
@@ -609,71 +630,82 @@ Rules:
         tools: { type: "preset", preset: "claude_code" },
         cwd: workspaceDir,
         additionalDirectories: additionalDirs,
-        settingSources: [],
-        thinking: { type: "adaptive" },
+        settingSources: ["project"],
+        thinking: mode === "build"
+          ? { type: "enabled", budgetTokens: 8000 }
+          : { type: "adaptive" },
+        effort: mode === "build" ? "high" : "medium",
         maxBudgetUsd: PER_QUERY_BUDGET,
         maxTurns: 50,
         allowedTools: (mode === "plan" || mode === "discover")
             ? ["Read", "Glob", "Grep"]  // Plan/Discover mode: read-only tools
             : ["Read", "Edit", "Write", "Bash", "Glob", "Grep", "WebFetch", "Agent"],
+        ...(mode === "build" ? { agents: eliteAgentDefs } : {}),
         hooks: {
-          PreToolUse: [{
-            matcher: ".*",
-            hooks: [async (input, toolUseId, { signal }) => {
-              const toolName = input.tool_name;
-              const toolInput = input.tool_input || {};
-              const check = checkPreToolUse(toolName, toolInput);
-              if (!check.allowed) {
-                console.log(`[guardrail] BLOCKED: ${check.reason}`);
-                return {
-                  decision: "block",
-                  reason: check.reason,
-                  hookSpecificOutput: {
-                    hookEventName: "PreToolUse",
-                    permissionDecision: "deny",
-                    permissionDecisionReason: check.reason,
-                  },
-                };
-              }
-              try { logActivityEvent(sessionId, "tool_start", toolName, JSON.stringify(toolInput).slice(0, 200)); } catch {}
-              pendingEvents.push({ type: "tool_activity", tool: toolName, input: toolInput });
-              sendAll({ type: "tool_activity", tool: toolName, input: toolInput });
-              return {};
-            }],
-          }],
-          PostToolUse: [{
-            matcher: ".*",
-            hooks: [async (input, toolUseId, { signal }) => {
-              const toolName = input.tool_name;
-              try { logActivityEvent(sessionId, "tool_end", toolName, null); } catch {}
-              sendAll({ type: "tool_complete", tool: toolName });
+          PreToolUse: [
+            {
+              matcher: ".*",
+              hooks: [async (input, toolUseId, { signal }) => {
+                const toolName = input.tool_name;
+                const toolInput = input.tool_input || {};
+                const check = checkPreToolUse(toolName, toolInput);
+                if (!check.allowed) {
+                  console.log(`[guardrail] BLOCKED: ${check.reason}`);
+                  return {
+                    decision: "block",
+                    reason: check.reason,
+                    hookSpecificOutput: {
+                      hookEventName: "PreToolUse",
+                      permissionDecision: "deny",
+                      permissionDecisionReason: check.reason,
+                    },
+                  };
+                }
+                try { logActivityEvent(sessionId, "tool_start", toolName, JSON.stringify(toolInput).slice(0, 200)); } catch {}
+                pendingEvents.push({ type: "tool_activity", tool: toolName, input: toolInput });
+                sendAll({ type: "tool_activity", tool: toolName, input: toolInput });
+                return {};
+              }],
+            },
+            ...eliteQualityHooks.PreToolUse,
+          ],
+          PostToolUse: [
+            {
+              matcher: ".*",
+              hooks: [async (input, toolUseId, { signal }) => {
+                const toolName = input.tool_name;
+                try { logActivityEvent(sessionId, "tool_end", toolName, null); } catch {}
+                sendAll({ type: "tool_complete", tool: toolName });
 
-              // Emit file_changed for Edit/Write tools
-              const toolInput = input.tool_input || {};
-              if ((toolName === "Edit" || toolName === "Write" || toolName === "edit" || toolName === "write") && toolInput.file_path) {
-                const filePath = toolInput.file_path;
-                const action = (toolName === "Write" || toolName === "write") ? "write" : "edit";
+                // Emit file_changed for Edit/Write tools
+                const toolInput = input.tool_input || {};
+                if ((toolName === "Edit" || toolName === "Write" || toolName === "edit" || toolName === "write") && toolInput.file_path) {
+                  const filePath = toolInput.file_path;
+                  const action = (toolName === "Write" || toolName === "write") ? "write" : "edit";
 
-                // Determine repo from path
-                let repo = "";
-                const repoNames = getRepoNames();
-                for (const rn of repoNames) {
-                  if (filePath.includes(`/${rn}/`)) { repo = rn; break; }
+                  // Determine repo from path
+                  let repo = "";
+                  const repoNames = getRepoNames();
+                  for (const rn of repoNames) {
+                    if (filePath.includes(`/${rn}/`)) { repo = rn; break; }
+                  }
+
+                  // Track in session set
+                  if (!sessionChangedFiles.has(sessionId)) sessionChangedFiles.set(sessionId, []);
+                  const sessionFiles = sessionChangedFiles.get(sessionId);
+                  if (!sessionFiles.find(f => f.filePath === filePath)) {
+                    sessionFiles.push({ filePath, repo, action, timestamp: Date.now() });
+                  }
+
+                  sendAll({ type: "file_changed", filePath, repo, action });
                 }
 
-                // Track in session set
-                if (!sessionChangedFiles.has(sessionId)) sessionChangedFiles.set(sessionId, []);
-                const sessionFiles = sessionChangedFiles.get(sessionId);
-                if (!sessionFiles.find(f => f.filePath === filePath)) {
-                  sessionFiles.push({ filePath, repo, action, timestamp: Date.now() });
-                }
-
-                sendAll({ type: "file_changed", filePath, repo, action });
-              }
-
-              return {};
-            }],
-          }],
+                return {};
+              }],
+            },
+            ...eliteQualityHooks.PostToolUse,
+          ],
+          ...(mode === "build" && eliteQualityHooks.Stop ? { Stop: eliteQualityHooks.Stop } : {}),
         },
       };
 
@@ -684,6 +716,7 @@ Rules:
           try {
             const workspaceContext = readFileSync(workspaceMdPath, "utf8");
             systemPrompt.append += `\n\n${workspaceContext}`;
+            console.log(`[elite] WORKSPACE.md loaded (${workspaceContext.length} chars)`);
           } catch (e) {
             console.warn("[agent] Failed to read WORKSPACE.md:", e.message);
           }
@@ -692,7 +725,19 @@ Rules:
           const repoNames = getRepoNames();
           systemPrompt.append += `\n\nCurrent branch: ${branch}\nWorkspace directory: ${workspaceDir}\nRepos: ${repoNames.join(", ")}`;
         }
+
+        // Append quality rules for build mode
+        if (mode === "build") {
+          systemPrompt.append += "\n\n" + eliteRulesPrompt;
+        }
       }
+
+      // Diagnostic logging
+      console.log(`[elite] Query config: mode=${mode} model=${model} thinking=${JSON.stringify(queryOptions.thinking)} effort=${queryOptions.effort} settingSources=${JSON.stringify(queryOptions.settingSources)}`);
+      if (systemPrompt?.append) {
+        console.log(`[elite] System prompt size: ${systemPrompt.append.length} chars`);
+      }
+      console.log(`[elite] Agents registered: ${queryOptions.agents ? Object.keys(queryOptions.agents).join(", ") : "none"}`);
 
       // Use systemPrompt for mode constraints (more authoritative than text injection)
       if (systemPrompt) {

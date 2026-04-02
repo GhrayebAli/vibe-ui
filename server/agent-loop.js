@@ -1,7 +1,9 @@
 import { query } from "@anthropic-ai/claude-code";
 import { execPath } from "process";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
+import { join } from "path";
+import { getAgentDefinitions } from "./claude-setup/loader.js";
 
 // Map short model names to current model IDs
 const MODEL_MAP = {
@@ -28,7 +30,15 @@ import {
   recordAgentRunStart,
   recordAgentRunComplete,
 } from "../db.js";
-import { getProjectSystemPrompt } from "./routes/projects.js";
+// Load workspace context from WORKSPACE.md (replaces broken getProjectSystemPrompt import)
+function getWorkspaceContext(cwd) {
+  if (!cwd) return "";
+  const mdPath = join(cwd, "WORKSPACE.md");
+  if (existsSync(mdPath)) {
+    try { return readFileSync(mdPath, "utf8"); } catch { return ""; }
+  }
+  return "";
+}
 import { sendPushNotification } from "./push-sender.js";
 import { sendTelegramNotification } from "./telegram-sender.js";
 import { buildAgentMemoryPrompt } from "./memory-injector.js";
@@ -66,9 +76,14 @@ function buildAgentPrompt(agentDef, userContext, sharedContext, cwd) {
     }
   }
   prompt += `## Instructions\n`;
+  prompt += `- Read relevant source files before making changes. Follow existing code patterns and naming conventions.\n`;
   prompt += `- Break the goal into logical steps and execute them one by one.\n`;
   prompt += `- Use tools (read files, search, write, run commands) as needed.\n`;
-  prompt += `- After completing all steps, provide a clear final summary of what you accomplished.\n`;
+  prompt += `- For UI work: reuse existing components, handle all states (loading, empty, error), ensure accessibility.\n`;
+  prompt += `- After completing all steps, re-read your changes and provide a final summary covering:\n`;
+  prompt += `  * What files were modified and why\n`;
+  prompt += `  * Architectural decisions made\n`;
+  prompt += `  * How the change can be validated\n`;
   prompt += `- If you encounter a blocker you cannot resolve, explain it clearly and stop.\n`;
   return prompt;
 }
@@ -144,6 +159,10 @@ export async function runAgent({
     abortController,
     maxTurns,
     executable: execPath,
+    settingSources: ["project"],
+    thinking: { type: "enabled", budgetTokens: 5000 },
+    effort: "high",
+    agents: getAgentDefinitions(),
   };
 
   if (!useBypass && !usePlan) {
@@ -151,8 +170,10 @@ export async function runAgent({
   }
   if (model) opts.model = resolveModel(model);
 
-  const projectPrompt = getProjectSystemPrompt(cwd);
-  if (projectPrompt) opts.appendSystemPrompt = projectPrompt;
+  const workspaceContext = getWorkspaceContext(cwd);
+  if (workspaceContext) opts.appendSystemPrompt = workspaceContext;
+
+  console.log(`[elite] Agent "${agentDef.title}" opts: thinking=${JSON.stringify(opts.thinking)} effort=${opts.effort} agents=${opts.agents ? Object.keys(opts.agents).length : 0}`);
 
   // Resume existing session — explicit chainResumeId takes priority
   const resumeId = chainResumeId || (clientSid ? sessionIds.get(clientSid) : undefined);
