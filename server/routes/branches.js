@@ -265,7 +265,7 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: "Missing name" });
 
-    const slug = name.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().replace(/\s+/g, "-").slice(0, 50).replace(/-+$/, "");
+    const slug = name.toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/[\s-]+/g, "-").slice(0, 50).replace(/-+$/, "");
     const branchName = `mvp/${slug || "feature-" + Date.now().toString(36)}`;
     try { sanitizeBranchName(branchName); } catch (e) { return res.status(400).json({ error: e.message }); }
 
