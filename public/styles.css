@@ -280,6 +280,14 @@ pre:hover .code-copy { opacity: 1; }
 .pbar-btn.active { background: var(--accent-soft); color: var(--accent); }
 .pbar-btn svg { width: 14px; height: 14px; }
 .device-btns { display: flex; gap: 2px; margin-left: 4px; }
+.pbar-sep { width: 1px; height: 16px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
+
+/* Fullscreen preview — hide left panel + resize handle */
+.shell.preview-fullscreen .left-panel,
+.shell.preview-fullscreen .resize-handle { display: none; }
+.shell.preview-fullscreen .right-panel { flex: 1; min-width: 0; }
+#preview-fullscreen.active .fs-icon-expand { display: none; }
+#preview-fullscreen.active .fs-icon-collapse { display: block; }
 .preview-wrap { flex: 1; position: relative; overflow: hidden; background: var(--bg); }
 .preview-wrap iframe { border: none; background: #fff; width: 100%; height: 100%; border-radius: 0 0 12px 12px; }
 .preview-wrap.tablet iframe { width: 768px; height: 100%; margin: 0 auto; display: block; }

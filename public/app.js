@@ -900,6 +900,16 @@ $('visual-edit-btn').onclick = () => {
   $('visual-edit-btn').classList.toggle('ve-active', isActive);
 };
 $('ve-history-btn').onclick = () => toggleHistory();
+
+/* ═══ Fullscreen Preview Toggle ═══ */
+$('preview-fullscreen').onclick = () => {
+  const shell = document.querySelector('.shell');
+  const btn = $('preview-fullscreen');
+  const expanding = !shell.classList.contains('preview-fullscreen');
+  shell.classList.toggle('preview-fullscreen');
+  btn.classList.toggle('active');
+  btn.title = expanding ? 'Exit fullscreen preview' : 'Expand preview (hide sidebar)';
+};
 $('preview-url').onkeydown = e => {
   if (e.key === 'Enter') {
     let url = e.target.value.trim();
