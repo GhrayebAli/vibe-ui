@@ -292,7 +292,19 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
 
     const repos = discoverRepos();
     const defBranch = detectDefaultBranch(repos);
+    const configRepos = getConfig().repos;
     const created = [];
+
+    // Stop monorepo services before checkout to avoid working tree conflicts
+    for (const cfgRepo of configRepos) {
+      if (cfgRepo.type === "monorepo" && cfgRepo.ports && cfgRepo.dev) {
+        console.log(`[create-branch] Stopping ${cfgRepo.name} services (monorepo)`);
+        for (const p of cfgRepo.ports) {
+          try { execSync(`kill $(lsof -ti:${sanitizePort(p)} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+        }
+        execSync("sleep 2", { stdio: "pipe" });
+      }
+    }
 
     for (const repo of repos) {
       try {
@@ -305,6 +317,20 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
           execSync(`git -C "${repo.path}" checkout "${branchName}"`, { stdio: "pipe" });
           created.push(repo.name);
         } catch { console.error(`[create-branch] ${repo.name}:`, err.message); }
+      }
+    }
+
+    // Restart monorepo services after branch creation
+    for (const cfgRepo of configRepos) {
+      if (cfgRepo.type === "monorepo" && cfgRepo.ports && cfgRepo.dev && validateDevCommand(cfgRepo.dev)) {
+        const repoPath = join(getWorkspaceDir(), cfgRepo.name);
+        if (existsSync(join(repoPath, "apps/web/.next"))) {
+          try { execSync(`rm -rf "${join(repoPath, "apps/web/.next")}"`, { stdio: "pipe" }); } catch {}
+        }
+        const logFile = `/tmp/${cfgRepo.name}.log`;
+        try { writeFileSync(logFile, ""); } catch {}
+        spawn("bash", ["-c", `cd "${repoPath}" && ${cfgRepo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
+        console.log(`[create-branch] Restarted ${cfgRepo.name}`);
       }
     }
 
