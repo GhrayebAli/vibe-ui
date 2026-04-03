@@ -218,6 +218,7 @@ async function resumeBranch(branch) {
   clearChat();
 
   let wasSkipped = false;
+  let freshSession = null;
   try {
     const resp = await fetch('/api/switch-branch', {
       method: 'POST',
@@ -232,6 +233,7 @@ async function resumeBranch(branch) {
     }
     if (!result.ok) throw new Error(result.error || 'Switch failed');
     wasSkipped = result.skipped;
+    freshSession = result.session || branch.session;
   } catch (e) {
     hideSwitchProgress();
     addErrorMsg(`Failed to switch branch: ${e.message}`);
@@ -245,8 +247,8 @@ async function resumeBranch(branch) {
   const badge = $('branch-badge');
   if (badge) { badge.textContent = branch.name; badge.style.display = ''; }
 
-  if (branch.session) {
-    sid = branch.session.id;
+  if (freshSession) {
+    sid = freshSession.id;
     window.__vibeSid = sid;
     try {
       const msgs = await (await fetch(`/api/sessions/${sid}/messages`)).json();

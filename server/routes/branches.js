@@ -2,7 +2,7 @@ import { Router } from "express";
 import { execSync } from "child_process";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
-import { getSessionByBranch, saveNotes, getMessagePreviews } from "../../db.js";
+import { getSessionByBranch, getMessageCount, saveNotes, getMessagePreviews } from "../../db.js";
 import { getWorkspaceDir, getConfig } from "../workspace-config.js";
 import { sanitizeBranchName, sanitizePort, validateDevCommand } from "../sanitize.js";
 import { spawn } from "child_process";
@@ -279,7 +279,12 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
     wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: 'services-ready', status: 'done' });
     wsBroadcast({ type: 'switch_progress', phase: 'complete', branch });
 
-    res.json({ ok: true, branch, switched, installed, restarted });
+    // Return fresh session data for the target branch
+    const session = getSessionByBranch(branch);
+    const msgCount = session ? getMessageCount(session.id) : 0;
+    const sessionInfo = session ? { id: session.id, messageCount: msgCount, lastUsedAt: session.last_used_at, title: session.title || session.project_name || null } : null;
+
+    res.json({ ok: true, branch, switched, installed, restarted, session: sessionInfo });
   });
 
   router.post("/create-branch", (req, res) => {
