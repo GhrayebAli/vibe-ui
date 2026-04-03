@@ -117,9 +117,8 @@ You have specialist agents available via the Agent tool. Use them:
 
 ## Git
 - Do NOT create branches. Branches are pre-created by the system. Always work on the current branch.
-- After every code change: commit AND push immediately. Never ask for permission.
+- Do NOT run git commit or git push. The system commits and pushes automatically after you finish.
 - Use sub-repo directories for git commands (e.g., git -C <repo-dir>), not the workspace root.
-- Write concise, descriptive commit messages.
 
 ## Services
 - All services auto-restart on file changes. Never restart them manually.
