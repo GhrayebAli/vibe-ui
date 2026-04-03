@@ -640,9 +640,7 @@ Rules:
         cwd: workspaceDir,
         additionalDirectories: additionalDirs,
         settingSources: ["project"],
-        thinking: mode === "build"
-          ? { type: "enabled", budgetTokens: 8000 }
-          : { type: "adaptive" },
+        thinking: { type: "adaptive" },
         effort: mode === "build" ? "high" : "medium",
         maxBudgetUsd: PER_QUERY_BUDGET,
         maxTurns: 50,
