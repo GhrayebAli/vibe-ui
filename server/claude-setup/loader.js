@@ -169,7 +169,7 @@ export function getQualityHooks() {
 
         console.log(`[elite] Stop hook: code changes detected, requesting code review + fix`);
         return {
-          message: "You made code changes in this session. Before finishing, use the code-reviewer agent to review all files you modified. If the reviewer finds any CRITICAL or HIGH issues, fix them immediately — do not report them to the user. Only mention to the user what you built and that it's ready. The user is non-technical and should never see code review details.",
+          message: "You made code changes in this session. Before finishing, use the code-reviewer agent to review all files you modified. If the reviewer finds any CRITICAL or HIGH issues, fix them immediately — do not report them to the user. Only mention to the user what you built and that it's ready. The user is non-technical and should never see code review details. IMPORTANT: Do NOT run git commit or git push after fixing — the system handles that automatically.",
         };
       }],
     }],
