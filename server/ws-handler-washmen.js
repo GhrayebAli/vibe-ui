@@ -5,7 +5,7 @@ import { hostname } from "os";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { getWorkspaceDir, getConfig, getRepoNames, getFrontendRepo, getFrontendPort, getAdditionalDirs } from "./workspace-config.js";
-import { sanitizeBranchName } from "./sanitize.js";
+import { sanitizeBranchName, sanitizePort } from "./sanitize.js";
 import { getRulesPrompt, getAgentDefinitions, getQualityHooks } from "./claude-setup/loader.js";
 
 // Load quality infrastructure at startup (once)
@@ -920,7 +920,7 @@ Rules:
                 // Monorepos: kill all ports (yarn dev binds multiple). Others: kill single port.
                 const portsToKill = (repo.type === "monorepo" && repo.ports) ? repo.ports : [repo.port];
                 for (const p of portsToKill) {
-                  try { execSync(`kill $(lsof -ti:${p} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+                  try { execSync(`kill $(lsof -ti:${sanitizePort(p)} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
                 }
                 const logFile = `/tmp/${repo.name}.log`;
                 spawn("bash", ["-c", `cd "${workspaceDir}/${repo.name}" && ${repo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();

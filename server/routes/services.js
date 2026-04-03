@@ -45,9 +45,10 @@ export default function({ wsBroadcast }) {
     try {
       const port = req.body.port;
       if (!port) return res.status(400).json({ error: "Missing port" });
+      const safePort = sanitizePort(port);
       const vibePort = process.env.PORT || 4000;
-      if (String(port) === String(vibePort)) return res.status(400).json({ error: "Cannot stop vibe-ui" });
-      try { execSync(`kill $(lsof -ti:${port} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+      if (String(safePort) === String(vibePort)) return res.status(400).json({ error: "Cannot stop vibe-ui" });
+      try { execSync(`kill $(lsof -ti:${safePort} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
