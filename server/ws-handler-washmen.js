@@ -902,11 +902,19 @@ Rules:
 
           // Auto-restart backend services when their files were modified
           // Sails.js (and most Node backends) don't hot-reload controllers/routes/models
+          // Monorepos: only restart if packages/ changed (apps/ are handled by turbo HMR)
           const configRepos = getConfig().repos;
           const restartedServices = [];
           for (const repo of configRepos) {
             if (repo.type === "frontend" || !repo.port || !repo.dev) continue;
             const touchedBackend = changedFiles.some(f => f.name.includes(repo.name));
+            if (touchedBackend && repo.type === "monorepo") {
+              const touchedPackages = changedFiles.some(f => f.name.includes(repo.name + "/packages/"));
+              if (!touchedPackages) {
+                console.log(`[auto-restart] ${repo.name}: skipped — only app-level changes (HMR handles it)`);
+                continue;
+              }
+            }
             if (touchedBackend) {
               try {
                 try { execSync(`kill $(lsof -ti:${repo.port} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
