@@ -173,8 +173,8 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
           try {
             execSync(`git -C "${repoPath}" fetch origin "${branch}" 2>/dev/null && git -C "${repoPath}" checkout "${branch}"`, { stdio: "pipe" });
             switched.push(cfgRepo.name);
-          } catch {
-            console.log(`[switch] ${cfgRepo.name}: branch ${branch} not found, staying on current`);
+          } catch (checkoutErr) {
+            console.log(`[switch] ${cfgRepo.name}: checkout failed for ${branch} — ${checkoutErr.stderr?.toString().trim() || checkoutErr.message}`);
           }
         }
         wsBroadcast({ type: 'switch_progress', phase: 'step', stepId: `checkout-${cfgRepo.name}`, status: 'done' });

@@ -917,11 +917,15 @@ Rules:
             }
             if (touchedBackend) {
               try {
-                try { execSync(`kill $(lsof -ti:${repo.port} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+                // Monorepos: kill all ports (yarn dev binds multiple). Others: kill single port.
+                const portsToKill = (repo.type === "monorepo" && repo.ports) ? repo.ports : [repo.port];
+                for (const p of portsToKill) {
+                  try { execSync(`kill $(lsof -ti:${p} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+                }
                 const logFile = `/tmp/${repo.name}.log`;
                 spawn("bash", ["-c", `cd "${workspaceDir}/${repo.name}" && ${repo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
                 restartedServices.push(repo.name);
-                console.log(`[auto-restart] ${repo.name} on :${repo.port}`);
+                console.log(`[auto-restart] ${repo.name} on :${portsToKill.join(",")}`);
               } catch (e) { console.error(`[auto-restart] ${repo.name} failed:`, e.message); }
             }
           }

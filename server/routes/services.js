@@ -17,9 +17,10 @@ export default function({ wsBroadcast }) {
       if (!validateDevCommand(repo.dev)) {
         return res.status(403).json({ error: `Blocked unsafe dev command: ${repo.dev}` });
       }
-      if (repo.port) {
-        const safePort = sanitizePort(repo.port);
-        try { execSync(`kill $(lsof -ti:${safePort} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
+      // Monorepos: kill all ports (yarn dev binds multiple). Others: kill single port.
+      const portsToKill = (repo.type === "monorepo" && repo.ports) ? repo.ports : (repo.port ? [repo.port] : []);
+      for (const p of portsToKill) {
+        try { execSync(`kill $(lsof -ti:${sanitizePort(p)} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
       }
       const logFile = `/tmp/${repo.name}.log`;
       try { writeFileSync(logFile, ""); } catch {}
