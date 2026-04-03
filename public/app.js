@@ -8,6 +8,23 @@ import { initVisualEdit, toggleVisualEdit, deactivate as deactivateVisualEdit, h
 import { requireIdentity, getIdentity } from './js/core/identity.js';
 import { initPresenceUI, setPresenceWs, setPresenceBranch, updatePresence, onBuildLockAcquired, onBuildLockReleased } from './js/core/presence-ui.js';
 
+/* ═══ Done notification beep ═══ */
+function playDoneBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    osc.type = "sine";
+    gain.gain.value = 0.15;
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch { /* AudioContext not available */ }
+}
+
 /* ═══ DOM refs ═══ */
 const $ = id => document.getElementById(id);
 const chat = $('chat'), input = $('input'), sendBtn = $('send-btn'), stopBtn = $('stop-btn');
@@ -387,6 +404,7 @@ function handleMessage(msg) {
       hideThinking();
       hideActivity();
       hideWorking();
+      playDoneBeep();
       addAgentMsg(null, false); // finalize
       // Add undo button only when files were changed
       if (sid && msg.filesChanged > 0) attachUndoButton();
