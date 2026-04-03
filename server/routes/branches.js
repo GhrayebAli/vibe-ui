@@ -215,8 +215,8 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
               if (!isMonorepo) {
                 try { execSync(`kill $(lsof -ti:${safePort} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
               }
-              // Clear Next.js cache for monorepos — stale chunks cause 500s after branch switch
-              if (isMonorepo && existsSync(join(repoPath, "apps/web/.next"))) {
+              // Clear Next.js cache only when branch code actually changed (stale chunks cause 500s)
+              if (isMonorepo && switched.includes(cfgRepo.name) && changedFilesInRepo.length > 0 && existsSync(join(repoPath, "apps/web/.next"))) {
                 try { execSync(`rm -rf "${join(repoPath, "apps/web/.next")}"`, { stdio: "pipe" }); } catch {}
                 console.log(`[switch] Cleared Next.js cache for ${cfgRepo.name}`);
               }
@@ -320,13 +320,10 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
       }
     }
 
-    // Restart monorepo services after branch creation
+    // Restart monorepo services after branch creation (no cache clear — new branch = same code as master)
     for (const cfgRepo of configRepos) {
       if (cfgRepo.type === "monorepo" && cfgRepo.ports && cfgRepo.dev && validateDevCommand(cfgRepo.dev)) {
         const repoPath = join(getWorkspaceDir(), cfgRepo.name);
-        if (existsSync(join(repoPath, "apps/web/.next"))) {
-          try { execSync(`rm -rf "${join(repoPath, "apps/web/.next")}"`, { stdio: "pipe" }); } catch {}
-        }
         const logFile = `/tmp/${cfgRepo.name}.log`;
         try { writeFileSync(logFile, ""); } catch {}
         spawn("bash", ["-c", `cd "${repoPath}" && ${cfgRepo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" }).unref();
