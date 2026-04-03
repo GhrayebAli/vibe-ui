@@ -215,6 +215,11 @@ export default function({ presence, discoverRepos, detectDefaultBranch, configur
               if (!isMonorepo) {
                 try { execSync(`kill $(lsof -ti:${safePort} -sTCP:LISTEN) 2>/dev/null`, { stdio: "pipe" }); } catch {}
               }
+              // Clear Next.js cache for monorepos — stale chunks cause 500s after branch switch
+              if (isMonorepo && existsSync(join(repoPath, "apps/web/.next"))) {
+                try { execSync(`rm -rf "${join(repoPath, "apps/web/.next")}"`, { stdio: "pipe" }); } catch {}
+                console.log(`[switch] Cleared Next.js cache for ${cfgRepo.name}`);
+              }
               const logFile = `/tmp/${cfgRepo.name}.log`;
               try { writeFileSync(logFile, ""); } catch {}
               const child = spawn("bash", ["-c", `cd "${repoPath}" && ${cfgRepo.dev} >> ${logFile} 2>&1`], { detached: true, stdio: "ignore" });
